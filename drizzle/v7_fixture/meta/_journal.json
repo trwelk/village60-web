@@ -1,0 +1,14 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    { "idx": 0, "version": "6", "when": 1776573933870, "tag": "0000_init", "breakpoints": true },
+    { "idx": 1, "version": "6", "when": 1776579715838, "tag": "0001_shocking_hercules", "breakpoints": true },
+    { "idx": 2, "version": "6", "when": 1776580687738, "tag": "0002_warm_darkhawk", "breakpoints": true },
+    { "idx": 3, "version": "6", "when": 1776581174956, "tag": "0003_daily_living_lightning", "breakpoints": true },
+    { "idx": 4, "version": "6", "when": 1776582311298, "tag": "0004_real_zarda", "breakpoints": true },
+    { "idx": 5, "version": "6", "when": 1776583000000, "tag": "0005_next_of_kin_poa", "breakpoints": true },
+    { "idx": 6, "version": "6", "when": 1776583266267, "tag": "0006_jazzy_lester", "breakpoints": true },
+    { "idx": 7, "version": "6", "when": 1776583627299, "tag": "0007_wild_zaran", "breakpoints": true }
+  ]
+}
