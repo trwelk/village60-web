@@ -231,9 +231,15 @@ export function ResidentsDirectoryUI({
         <h2 className="village-section-title">Filters</h2>
         <div className="mt-5 flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
           {!fixedHomeId && role === "admin" ? (
-            <label className="flex min-w-[12rem] flex-1 flex-col gap-1.5 text-sm">
-              <span className="village-field-label">Home</span>
+            <div className="flex min-w-[12rem] flex-1 flex-col gap-1.5 text-sm">
+              <label
+                className="village-field-label"
+                htmlFor="residents-directory-home"
+              >
+                Home
+              </label>
               <VillageSelect
+                id="residents-directory-home"
                 value={urlState.homeId}
                 onChange={(v) => {
                   navigate({ homeId: v, wardId: "", page: 1 });
@@ -243,7 +249,7 @@ export function ResidentsDirectoryUI({
                   ...homes.map((h) => ({ value: h.id, label: h.name })),
                 ]}
               />
-            </label>
+            </div>
           ) : null}
           <label className="flex min-w-[10rem] flex-1 flex-col gap-1.5 text-sm">
             <span className="village-field-label">Name search</span>
@@ -257,9 +263,15 @@ export function ResidentsDirectoryUI({
               autoComplete="off"
             />
           </label>
-          <label className="flex w-full flex-col gap-1.5 text-sm sm:w-44">
-            <span className="village-field-label">Status</span>
+          <div className="flex w-full flex-col gap-1.5 text-sm sm:w-44">
+            <label
+              className="village-field-label"
+              htmlFor="residents-directory-status"
+            >
+              Status
+            </label>
             <VillageSelect
+              id="residents-directory-status"
               value={urlState.status}
               onChange={(v) =>
                 navigate({
@@ -273,11 +285,17 @@ export function ResidentsDirectoryUI({
                 { value: "all", label: "All" },
               ]}
             />
-          </label>
+          </div>
           {effectiveHomeId ? (
-            <label className="flex min-w-[10rem] flex-1 flex-col gap-1.5 text-sm">
-              <span className="village-field-label">Ward</span>
+            <div className="flex min-w-[10rem] flex-1 flex-col gap-1.5 text-sm">
+              <label
+                className="village-field-label"
+                htmlFor="residents-directory-ward"
+              >
+                Ward
+              </label>
               <VillageSelect
+                id="residents-directory-ward"
                 value={urlState.wardId}
                 onChange={(v) => navigate({ wardId: v, page: 1 })}
                 options={[
@@ -285,7 +303,7 @@ export function ResidentsDirectoryUI({
                   ...wards.map((w) => ({ value: w.id, label: w.label })),
                 ]}
               />
-            </label>
+            </div>
           ) : null}
           <button
             type="button"

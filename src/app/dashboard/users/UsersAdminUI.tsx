@@ -201,9 +201,15 @@ export function UsersAdminUI({
                 autoComplete="new-password"
               />
             </label>
-            <label className="flex w-full flex-col gap-1.5 text-sm sm:w-44">
-              <span className="village-field-label">Role</span>
+            <div className="flex w-full flex-col gap-1.5 text-sm sm:w-44">
+              <label
+                className="village-field-label"
+                htmlFor="users-admin-create-role"
+              >
+                Role
+              </label>
               <VillageSelect
+                id="users-admin-create-role"
                 value={createRole}
                 onChange={(v) => setCreateRole(v as "admin" | "care")}
                 options={[
@@ -211,13 +217,19 @@ export function UsersAdminUI({
                   { value: "care", label: "Care" },
                 ]}
               />
-            </label>
+            </div>
           </div>
           {createRole === "care" ? (
             <div className="village-card-soft flex flex-col gap-4">
-              <label className="flex max-w-md flex-col gap-1.5 text-sm">
-                <span className="village-field-label">Primary home</span>
+              <div className="flex max-w-md flex-col gap-1.5 text-sm">
+                <label
+                  className="village-field-label"
+                  htmlFor="users-admin-create-primary-home"
+                >
+                  Primary home
+                </label>
                 <VillageSelect
+                  id="users-admin-create-primary-home"
                   value={createPrimaryId}
                   onChange={(v) => {
                     setCreatePrimaryId(v);
@@ -233,7 +245,7 @@ export function UsersAdminUI({
                     label: h.name,
                   }))}
                 />
-              </label>
+              </div>
               <fieldset className="text-sm">
                 <legend className="village-field-label">Additional homes</legend>
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
@@ -372,11 +384,15 @@ export function UsersAdminUI({
                                 className="village-card-soft mt-1 flex w-full min-w-[16rem] flex-col gap-3 p-4"
                                 onSubmit={onSaveCareHomes}
                               >
-                                <label className="flex flex-col gap-1.5 text-xs">
-                                  <span className="village-field-label text-xs">
+                                <div className="flex flex-col gap-1.5 text-xs">
+                                  <label
+                                    className="village-field-label text-xs"
+                                    htmlFor={`users-admin-edit-primary-${u.id}`}
+                                  >
                                     Primary
-                                  </span>
+                                  </label>
                                   <VillageSelect
+                                    id={`users-admin-edit-primary-${u.id}`}
                                     className="text-sm"
                                     value={editPrimaryId}
                                     onChange={(v) => {
@@ -392,7 +408,7 @@ export function UsersAdminUI({
                                       label: h.name,
                                     }))}
                                   />
-                                </label>
+                                </div>
                                 <fieldset className="text-xs">
                                   <legend className="village-field-label text-xs">
                                     Additional

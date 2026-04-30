@@ -91,11 +91,11 @@ export default async function DashboardPage() {
           </p>
           <h1 className="village-page-title mt-3">Dashboard</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-            Sign-in history, tasks, upcoming birthdays, and at-a-glance occupancy
-            below.
+            Sign-in history, tasks, due payments, upcoming birthdays, and
+            at-a-glance occupancy below.
           </p>
           </div>
-          <div className="grid gap-2 text-sm sm:grid-cols-3 lg:w-[28rem]">
+          <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4 lg:w-[37.5rem]">
             <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_74%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_62%,transparent)] px-3 py-2.5">
               <span className="village-field-label block">Tasks</span>
               <span className="mt-1 block font-display text-2xl text-[var(--text-primary)] tabular-nums">
@@ -114,6 +114,12 @@ export default async function DashboardPage() {
                 {occupancyPercentAllSites != null
                   ? `${occupancyPercentAllSites}%`
                   : "—"}
+              </span>
+            </div>
+            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_74%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_62%,transparent)] px-3 py-2.5">
+              <span className="village-field-label block">Due Payments</span>
+              <span className="mt-1 block font-display text-2xl text-[var(--text-primary)] tabular-nums">
+                {taskSummary.overduePayments}
               </span>
             </div>
           </div>

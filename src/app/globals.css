@@ -3,10 +3,10 @@
 :root {
   color-scheme: light;
   --font-geist-sans:
-    "Atkinson Hyperlegible", "Outfit", "Segoe UI", sans-serif;
-  --font-village-display: "Young Serif", "Outfit", serif;
+    "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-village-display: "Source Serif 4", Georgia, "Times New Roman", serif;
   --font-geist-mono:
-    "Fragment Mono", "Cascadia Code", "Consolas", monospace;
+    "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
 
   --bg-canvas: #f7f4ee;
   --bg-soft: #eee7dd;

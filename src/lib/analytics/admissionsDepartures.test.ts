@@ -16,7 +16,6 @@ import {
   countDeparturesInMonth,
   formatStayDurationFromDays,
   getAdmissionsDeparturesKpis,
-  getDepartureReasonBreakdownLastTwelveMonths,
   listTwelveMonthAdmissionsDepartures,
   stayDaysBetweenAdmissionAndDeparture,
   utcMonthRangeExclusiveEnd,
@@ -273,41 +272,6 @@ describe("admissionsDepartures analytics", () => {
     const hit = series.find((x) => x.monthKey === gapMonth);
     expect(hit?.admissions).toBe(1);
     expect(hit?.departures).toBe(1);
-  });
-
-  it("aggregates departure reasons in the last twelve UTC months", () => {
-    const db = getDb();
-    const home = createHome(db, "admin", {
-      name: "H1",
-      defaultCurrencyCode: "NZD",
-    });
-    createWard(db, adminActor, home.id, { label: "W1" });
-    const uid = randomUUID();
-    seedUser(db, uid);
-    const mk = (name: string, adm: string, reason: string, y: number, mo: number, d: number) => {
-      const r = createResident(db, adminActor, {
-        homeId: home.id,
-        fullName: name,
-        dob: "1940-01-01",
-        admissionDate: adm,
-      });
-      departResident(db, adminActor, home.id, r.id, {
-        reason,
-        departedAtUtcMs: Date.UTC(y, mo - 1, d),
-      });
-    };
-    mk("A", "2025-01-01", "Transfer", 2026, 2, 1);
-    mk("B", "2025-01-02", "Transfer", 2026, 2, 2);
-    mk("C", "2025-01-03", "Medical", 2026, 2, 3);
-    mk("Old", "2024-01-01", "Stale", 2025, 1, 1);
-
-    const at = Date.UTC(2026, 3, 15);
-    const br = getDepartureReasonBreakdownLastTwelveMonths(db, at);
-    expect(br.totalDeparturesInRange).toBe(3);
-    expect(br.distinctReasonCount).toBe(2);
-    const transfer = br.slices.find((s) => s.reason === "Transfer");
-    expect(transfer?.count).toBe(2);
-    expect(transfer?.percent).toBe(67);
   });
 
   it("computes stay days and formats duration strings", () => {

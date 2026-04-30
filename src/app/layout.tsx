@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
-import "@fontsource/atkinson-hyperlegible/400.css";
-import "@fontsource/atkinson-hyperlegible/700.css";
-import "@fontsource/fragment-mono/400.css";
-import "@fontsource/outfit/500.css";
-import "@fontsource/outfit/700.css";
-import "@fontsource/young-serif/400.css";
+import "@fontsource/source-sans-3/400.css";
+import "@fontsource/source-sans-3/500.css";
+import "@fontsource/source-sans-3/600.css";
+import "@fontsource/source-sans-3/700.css";
+import "@fontsource/source-sans-3/800.css";
+import "@fontsource/source-serif-4/400.css";
+import "@fontsource/source-serif-4/600.css";
+import "@fontsource/ibm-plex-mono/400.css";
 import "./globals.css";
 import { ThemeBootstrap } from "./ThemeBootstrap";
 

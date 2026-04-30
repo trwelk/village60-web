@@ -44,8 +44,10 @@ export function AssignedNurseTab({ homeId, residentId, resident, careStaffOption
       <div className="flex flex-col gap-5">
         <h3 className="village-section-title">Assigned nurse</h3>
         <div className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1.5 text-sm" htmlFor="nurse-select">
-            <span className="village-field-label">Nurse</span>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <label className="village-field-label" htmlFor="nurse-select">
+              Nurse
+            </label>
             <VillageSelect
               id="nurse-select"
               value={nurseUserId}
@@ -58,7 +60,7 @@ export function AssignedNurseTab({ homeId, residentId, resident, careStaffOption
                 })),
               ]}
             />
-          </label>
+          </div>
           <label className="flex flex-col gap-1.5 text-sm" htmlFor="nurse-override">
             <span className="village-field-label">Display override</span>
             <input

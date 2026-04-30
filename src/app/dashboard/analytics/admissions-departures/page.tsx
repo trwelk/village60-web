@@ -1,6 +1,5 @@
 import {
   getAdmissionsDeparturesKpis,
-  getDepartureReasonBreakdownLastTwelveMonths,
   listTwelveMonthAdmissionsDepartures,
 } from "@/lib/analytics/admissionsDepartures";
 import { getDb } from "@/db/client";
@@ -14,7 +13,6 @@ export default async function AnalyticsAdmissionsDeparturesPage() {
   const homeOptions = listDashboardHomeOptions(db);
   const admissionsKpis = getAdmissionsDeparturesKpis(db, at);
   const admissionsDeparturesSeries = listTwelveMonthAdmissionsDepartures(db, at);
-  const departureReasons = getDepartureReasonBreakdownLastTwelveMonths(db, at);
 
   return (
     <main className="flex flex-col gap-8 text-[var(--text-primary)]">
@@ -26,8 +24,7 @@ export default async function AnalyticsAdmissionsDeparturesPage() {
               Admissions
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-[var(--text-secondary)] sm:text-[0.95rem]">
-              Monthly move-ins and move-outs, twelve-month trends, and departure
-              reasons across all homes.
+              Monthly move-ins and move-outs and twelve-month trends across all homes.
             </p>
           </div>
           <div className="grid gap-2 text-sm sm:grid-cols-3 lg:w-[31rem]">
@@ -56,7 +53,6 @@ export default async function AnalyticsAdmissionsDeparturesPage() {
       <AdmissionsDeparturesSection
         kpis={admissionsKpis}
         twelveMonth={admissionsDeparturesSeries}
-        reasonBreakdown={departureReasons}
       />
     </main>
   );

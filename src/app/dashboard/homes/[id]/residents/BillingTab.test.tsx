@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 describe("BillingTab", () => {
-  it("links to the other-charge tab and does not render other-charge controls", async () => {
+  it("loads monthly charges and does not render other-charge controls", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ charges: [], otherCharges: [] }),
@@ -28,14 +28,11 @@ describe("BillingTab", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("billing-link-other-charges")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Pay multiple months/i }),
+      ).toBeInTheDocument();
     });
 
-    const link = screen.getByTestId("billing-link-other-charges");
-    expect(link).toHaveAttribute(
-      "href",
-      "/dashboard/homes/h1/residents/r1?tab=other-charge",
-    );
     expect(screen.queryByTestId("resident-other-charges")).not.toBeInTheDocument();
     expect(screen.queryByText("Registration fee")).not.toBeInTheDocument();
 
@@ -102,8 +99,13 @@ describe("BillingTab", () => {
 
     const march = screen.getByRole("checkbox", { name: /2026-03/i });
     expect(march).toBeChecked();
-    const april = screen.getByRole("checkbox", { name: /2026-04/i });
+
+    fireEvent.click(screen.getByRole("button", { name: /Show paid months/i }));
+
+    const april = await screen.findByRole("checkbox", { name: /2026-04/i });
     expect(april).toBeDisabled();
+
+    expect(screen.getByTestId("billing-batch-total")).toHaveTextContent(/\$8\.00/);
 
     fireEvent.click(screen.getByRole("button", { name: /Record batch payment/i }));
 

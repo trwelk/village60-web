@@ -1,8 +1,8 @@
 "use client";
 
 import type { ResidentMonthlyChargeListItem } from "@/lib/billing/residentCharges";
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Props = {
   homeId: string;
@@ -15,6 +15,45 @@ function formatMinorAsCurrency(minor: number, currencyCode: string): string {
     style: "currency",
     currency: currencyCode,
   }).format(minor / 100);
+}
+
+function summarizeBatchPaySelection(
+  billingMonths: Iterable<string>,
+  charges: ResidentMonthlyChargeListItem[],
+): {
+  knownTotalMinor: number;
+  selectedCount: number;
+  unknownMonths: string[];
+  alreadyPaidMonths: string[];
+} {
+  const byMonth = new Map(
+    charges.map((c) => [
+      c.billingMonth,
+      { amountMinor: c.amountMinorSnapshot, paid: c.paid },
+    ]),
+  );
+  const merged = [...new Set(billingMonths)].sort();
+  let knownTotalMinor = 0;
+  const unknownMonths: string[] = [];
+  const alreadyPaidMonths: string[] = [];
+  for (const m of merged) {
+    const row = byMonth.get(m);
+    if (!row) {
+      unknownMonths.push(m);
+      continue;
+    }
+    if (row.paid) {
+      alreadyPaidMonths.push(m);
+      continue;
+    }
+    knownTotalMinor += row.amountMinor;
+  }
+  return {
+    knownTotalMinor,
+    selectedCount: merged.length,
+    unknownMonths,
+    alreadyPaidMonths,
+  };
 }
 
 export function BillingTab({
@@ -40,13 +79,13 @@ export function BillingTab({
     () => new Set(),
   );
   const [batchExtraMonths, setBatchExtraMonths] = useState<string[]>([]);
-  const [batchExtraMonthInput, setBatchExtraMonthInput] = useState("");
   const [batchExtraMonthRangeStart, setBatchExtraMonthRangeStart] = useState("");
   const [batchExtraMonthRangeEnd, setBatchExtraMonthRangeEnd] = useState("");
   const [batchPaidOn, setBatchPaidOn] = useState("");
   const [batchNotes, setBatchNotes] = useState("");
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [batchSuccess, setBatchSuccess] = useState<string | null>(null);
+  const [batchShowPaidMonths, setBatchShowPaidMonths] = useState(false);
 
   const [monthlyShowFilter, setMonthlyShowFilter] = useState<
     "all" | "unpaid" | "paid"
@@ -171,7 +210,7 @@ export function BillingTab({
     await load();
   }
 
-  function openBatchPay() {
+  const openBatchPay = useCallback(() => {
     setActionError(null);
     setBatchSuccess(null);
     setBatchOpen(true);
@@ -179,22 +218,35 @@ export function BillingTab({
       new Set(charges.filter((c) => !c.paid).map((c) => c.billingMonth)),
     );
     setBatchExtraMonths([]);
-    setBatchExtraMonthInput("");
     setBatchExtraMonthRangeStart("");
     setBatchExtraMonthRangeEnd("");
     setBatchPaidOn("");
     setBatchNotes("");
-  }
+    setBatchShowPaidMonths(false);
+  }, [charges]);
 
-  function cancelBatchPay() {
+  const cancelBatchPay = useCallback(() => {
     setBatchOpen(false);
     setBatchExtraMonths([]);
-    setBatchExtraMonthInput("");
     setBatchExtraMonthRangeStart("");
     setBatchExtraMonthRangeEnd("");
     setBatchPaidOn("");
     setBatchNotes("");
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!batchOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cancelBatchPay();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [batchOpen, cancelBatchPay]);
 
   function toggleBatchMonth(billingMonth: string, checked: boolean) {
     setSelectedBillingMonths((prev) => {
@@ -206,19 +258,6 @@ export function BillingTab({
       }
       return next;
     });
-  }
-
-  function addBatchExtraMonth() {
-    const month = batchExtraMonthInput.trim();
-    if (!/^\d{4}-\d{2}$/u.test(month)) {
-      setActionError("Select a valid month (UTC, YYYY-MM).");
-      return;
-    }
-    setActionError(null);
-    setBatchExtraMonths((prev) =>
-      prev.includes(month) ? prev : [...prev, month].sort(),
-    );
-    setBatchExtraMonthInput("");
   }
 
   function removeBatchExtraMonth(month: string) {
@@ -258,7 +297,9 @@ export function BillingTab({
     setBatchSuccess(null);
     const merged = new Set([...selectedBillingMonths, ...batchExtraMonths]);
     if (merged.size === 0) {
-      setActionError("Select or enter at least one billing month (UTC, YYYY-MM).");
+      setActionError(
+        "Select at least one billing month or add a month range (UTC, YYYY-MM).",
+      );
       return;
     }
     setBatchSubmitting(true);
@@ -305,6 +346,31 @@ export function BillingTab({
     await load();
   }
 
+  const visibleMonthlyCharges =
+    monthlyShowFilter === "unpaid"
+      ? charges.filter((c) => !c.paid)
+      : monthlyShowFilter === "paid"
+        ? charges.filter((c) => c.paid)
+        : charges;
+
+  const batchChargesForList = batchShowPaidMonths
+    ? charges
+    : charges.filter((c) => !c.paid);
+
+  const batchPaySummary = batchOpen
+    ? summarizeBatchPaySelection(
+        new Set([...selectedBillingMonths, ...batchExtraMonths]),
+        charges,
+      )
+    : {
+        knownTotalMinor: 0,
+        selectedCount: 0,
+        unknownMonths: [] as string[],
+        alreadyPaidMonths: [] as string[],
+      };
+
+  const batchPaidHiddenCount = charges.filter((c) => c.paid).length;
+
   if (loading) {
     return (
       <div className="text-sm text-ink/70">Loading monthly charges…</div>
@@ -315,175 +381,8 @@ export function BillingTab({
     return <p className="village-alert-error">{loadError}</p>;
   }
 
-  const visibleMonthlyCharges =
-    monthlyShowFilter === "unpaid"
-      ? charges.filter((c) => !c.paid)
-      : monthlyShowFilter === "paid"
-        ? charges.filter((c) => c.paid)
-        : charges;
-
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h3 className="village-section-title">Monthly billing</h3>
-        <p className="mt-2 text-sm text-ink/70">
-          Charges are created by the monthly job (UTC). Payments must match the
-          full charge amount in {defaultCurrencyCode} minor units (e.g. cents).
-        </p>
-        <p className="mt-2 text-sm">
-          <Link
-            href={`/dashboard/homes/${homeId}/residents/${residentId}?tab=other-charge`}
-            className="village-link-subtle font-semibold text-pine underline"
-            data-testid="billing-link-other-charges"
-          >
-            Other charges (registration, deposit)
-          </Link>
-        </p>
-        <div className="mt-3">
-          <button
-            type="button"
-            className="village-btn-secondary px-3 py-1.5 text-sm"
-            onClick={() => (batchOpen ? cancelBatchPay() : openBatchPay())}
-          >
-            {batchOpen ? "Close batch pay" : "Pay multiple months"}
-          </button>
-        </div>
-        {batchOpen ? (
-          <div
-            data-testid="billing-batch-panel"
-            className="mt-4 rounded-lg border border-ink/15 bg-ink/[0.03] p-4"
-          >
-            <p className="text-sm text-ink/80">
-              One transaction: materializes missing rows for active residents (when
-              allowed), then records a full payment for each selected UTC month. Leave
-              paid on empty to use today’s UTC date.
-            </p>
-            {charges.length > 0 ? (
-              <ul className="mt-3 flex max-h-40 flex-col gap-2 overflow-y-auto text-sm">
-                {charges.map((c) => (
-                  <li key={c.id}>
-                    <label
-                      className={
-                        c.paid
-                          ? "flex items-center gap-2 text-ink/50"
-                          : "flex cursor-pointer items-center gap-2"
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4"
-                        disabled={c.paid}
-                        checked={c.paid ? false : selectedBillingMonths.has(c.billingMonth)}
-                        onChange={(e) => {
-                          toggleBatchMonth(c.billingMonth, e.target.checked);
-                        }}
-                      />
-                      <span>
-                        {c.billingMonth}
-                        {c.paid ? (
-                          <span className="ml-1 text-ink/50">(already paid)</span>
-                        ) : null}
-                        {" — "}
-                        {formatMinorAsCurrency(
-                          c.amountMinorSnapshot,
-                          defaultCurrencyCode,
-                        )}
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <label className="mt-3 flex flex-col gap-1 text-xs">
-              <span className="village-field-label">
-                Additional months (optional)
-              </span>
-              <div className="flex max-w-md gap-2">
-                <input
-                  className="village-input"
-                  type="month"
-                  value={batchExtraMonthInput}
-                  onChange={(e) => setBatchExtraMonthInput(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="village-btn-secondary px-3 py-1.5 text-sm"
-                  onClick={addBatchExtraMonth}
-                >
-                  Add
-                </button>
-              </div>
-              <div className="mt-2 grid max-w-md gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                <input
-                  className="village-input"
-                  type="month"
-                  value={batchExtraMonthRangeStart}
-                  onChange={(e) => setBatchExtraMonthRangeStart(e.target.value)}
-                />
-                <input
-                  className="village-input"
-                  type="month"
-                  value={batchExtraMonthRangeEnd}
-                  onChange={(e) => setBatchExtraMonthRangeEnd(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="village-btn-secondary px-3 py-1.5 text-sm"
-                  onClick={addBatchExtraMonthRange}
-                >
-                  Add range
-                </button>
-              </div>
-              {batchExtraMonths.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {batchExtraMonths.map((month) => (
-                    <button
-                      key={month}
-                      type="button"
-                      className="rounded-full border border-ink/20 bg-ink/[0.04] px-2 py-1 font-mono text-xs text-ink/80"
-                      onClick={() => removeBatchExtraMonth(month)}
-                      title="Remove month"
-                    >
-                      {month} ×
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </label>
-            <div className="mt-3 grid max-w-md gap-3 sm:grid-cols-2">
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="village-field-label">Paid on (optional)</span>
-                <input
-                  className="village-input"
-                  type="date"
-                  value={batchPaidOn}
-                  onChange={(e) => setBatchPaidOn(e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-                <span className="village-field-label">Notes (optional, shared)</span>
-                <input
-                  className="village-input"
-                  value={batchNotes}
-                  onChange={(e) => setBatchNotes(e.target.value)}
-                  placeholder="optional"
-                />
-              </label>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="village-btn-primary px-3 py-1.5 text-sm"
-                disabled={batchSubmitting}
-                onClick={() => void submitBatchPay()}
-              >
-                {batchSubmitting ? "Saving…" : "Record batch payment"}
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
       {batchSuccess ? (
         <p className="text-sm text-success" data-testid="billing-batch-success">
           {batchSuccess}
@@ -491,47 +390,65 @@ export function BillingTab({
       ) : null}
       {actionError ? <p className="village-alert-error">{actionError}</p> : null}
 
+      <div
+        className="flex flex-wrap items-center gap-3"
+        data-testid="billing-month-filter"
+      >
+        <button
+          type="button"
+          className="village-btn-secondary shrink-0 px-3 py-1.5 text-sm"
+          onClick={openBatchPay}
+        >
+          Pay multiple months
+        </button>
+        {charges.length > 0 ? (
+          <div
+            role="group"
+            aria-label="Filter months by payment status"
+            className="inline-flex w-full max-w-xl gap-0.5 rounded-[var(--radius-lg)] border border-[color:color-mix(in_srgb,var(--line-subtle)_82%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_42%,var(--bg-elevated)_58%)] p-1 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_68%,transparent)] sm:w-auto"
+          >
+            {(
+              [
+                ["all", "All"],
+                ["unpaid", "Unpaid only"],
+                ["paid", "Paid only"],
+              ] as const
+            ).map(([value, label]) => {
+              const selected = monthlyShowFilter === value;
+              return (
+                <label
+                  key={value}
+                  className={[
+                    "flex min-h-11 min-w-0 flex-1 cursor-pointer select-none items-center justify-center rounded-[calc(var(--radius-md)-3px)] px-3 py-2 text-center text-sm font-medium transition-[color,background-color,box-shadow,transform] duration-150",
+                    "focus-within:ring-2 focus-within:ring-[color:color-mix(in_srgb,var(--accent)_40%,transparent)] focus-within:ring-offset-2 focus-within:ring-offset-[color:color-mix(in_srgb,var(--bg-muted)_42%,var(--bg-elevated)_58%)] focus-within:outline-none",
+                    selected
+                      ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-[0_1px_3px_-1px_color-mix(in_srgb,var(--text-primary)_18%,transparent),inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_80%,transparent)] ring-1 ring-[color:color-mix(in_srgb,var(--accent)_32%,var(--line-strong))]"
+                      : "text-[var(--text-secondary)] hover:bg-[color:color-mix(in_srgb,var(--bg-elevated)_52%,transparent)] hover:text-[var(--text-primary)] active:scale-[0.99]",
+                  ].join(" ")}
+                >
+                  <input
+                    type="radio"
+                    name="billing-monthly-filter"
+                    className="sr-only border-0 focus:outline-none focus:ring-0"
+                    checked={selected}
+                    onChange={() => setMonthlyShowFilter(value)}
+                  />
+                  <span className={selected ? "font-semibold" : ""}>
+                    {label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+
       {charges.length === 0 ? (
         <p className="text-sm text-ink/65">
           No monthly charges yet for this resident.
         </p>
       ) : (
         <>
-          <fieldset className="mt-4 border-0 p-0">
-            <legend className="text-sm font-medium text-ink">Show months</legend>
-            <div className="mt-2 flex flex-wrap gap-4">
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-ink">
-                <input
-                  type="radio"
-                  className="h-4 w-4"
-                  name="billing-monthly-filter"
-                  checked={monthlyShowFilter === "all"}
-                  onChange={() => setMonthlyShowFilter("all")}
-                />
-                All
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-ink">
-                <input
-                  type="radio"
-                  className="h-4 w-4"
-                  name="billing-monthly-filter"
-                  checked={monthlyShowFilter === "unpaid"}
-                  onChange={() => setMonthlyShowFilter("unpaid")}
-                />
-                Unpaid only
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-ink">
-                <input
-                  type="radio"
-                  className="h-4 w-4"
-                  name="billing-monthly-filter"
-                  checked={monthlyShowFilter === "paid"}
-                  onChange={() => setMonthlyShowFilter("paid")}
-                />
-                Paid only
-              </label>
-            </div>
-          </fieldset>
           {visibleMonthlyCharges.length === 0 ? (
             <p
               className="mt-3 text-sm text-ink/65"
@@ -697,6 +614,278 @@ export function BillingTab({
           )}
         </>
       )}
+
+      {batchOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 pb-[env(safe-area-inset-bottom,0px)] sm:items-center sm:p-6 sm:pb-6">
+          <button
+            type="button"
+            className="absolute inset-0 bg-[color:color-mix(in_srgb,var(--text-primary)_42%,transparent)] backdrop-blur-[2px]"
+            aria-label="Dismiss batch payment dialog"
+            onClick={cancelBatchPay}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="billing-batch-modal-title"
+            data-testid="billing-batch-panel"
+            className="relative z-10 flex max-h-[min(calc(100dvh-env(safe-area-inset-bottom,0px)-0.75rem),52rem)] w-full min-h-0 max-w-2xl flex-col rounded-t-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_35%,var(--bg-elevated)_65%)] shadow-[0_-8px_40px_-12px_color-mix(in_srgb,var(--text-primary)_35%,transparent)] sm:max-h-[min(90dvh,52rem)] sm:rounded-2xl sm:shadow-[0_22px_60px_-24px_color-mix(in_srgb,var(--text-primary)_38%,transparent)]"
+          >
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] px-4 py-3 sm:px-5">
+              <h2
+                id="billing-batch-modal-title"
+                className="text-lg font-semibold tracking-tight text-[var(--text-primary)]"
+              >
+                Record batch payment
+              </h2>
+              <button
+                type="button"
+                className="rounded-lg border border-transparent px-2 py-1 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color:color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)]"
+                onClick={cancelBatchPay}
+              >
+                Close
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5">
+            <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+              One transaction materializes missing rows for active residents (when
+              allowed), then records a full payment for each selected UTC month. Leave{" "}
+              <span className="font-medium text-[var(--text-primary)]">Paid on</span>{" "}
+              empty to use today’s UTC date.
+            </p>
+
+            {charges.length > 0 ? (
+              <div className="mt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="village-field-label text-[0.8rem]">
+                    Months to pay
+                  </span>
+                  {batchPaidHiddenCount > 0 ? (
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-pine underline decoration-[color:color-mix(in_srgb,var(--accent)_40%,transparent)] underline-offset-2 hover:text-[var(--accent-strong)]"
+                      onClick={() => setBatchShowPaidMonths((v) => !v)}
+                    >
+                      {batchShowPaidMonths
+                        ? "Hide paid months"
+                        : `Show paid months (${batchPaidHiddenCount})`}
+                    </button>
+                  ) : null}
+                </div>
+                <div className="mt-2 overflow-hidden rounded-lg border border-[color:color-mix(in_srgb,var(--line-subtle)_78%,transparent)] bg-[var(--bg-elevated)]">
+                  <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_28%,var(--bg-elevated)_72%)] px-3 py-2 text-[0.7rem] font-semibold uppercase tracking-[0.06em] text-[var(--text-secondary)]">
+                    <span className="sr-only">Select</span>
+                    <span>Month (UTC)</span>
+                    <span className="text-right">Amount</span>
+                  </div>
+                  <ul className="divide-y divide-[color:color-mix(in_srgb,var(--line-subtle)_65%,transparent)] text-sm">
+                    {batchChargesForList.map((c) => (
+                      <li key={c.id}>
+                        <label
+                          className={[
+                            "grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-x-3 px-3 py-2.5 transition-colors hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_40%,transparent)]",
+                            c.paid ? "cursor-default text-ink/45" : "",
+                          ].join(" ")}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 shrink-0 rounded border-ink/25"
+                            disabled={c.paid}
+                            checked={
+                              c.paid ? false : selectedBillingMonths.has(c.billingMonth)
+                            }
+                            onChange={(e) => {
+                              toggleBatchMonth(c.billingMonth, e.target.checked);
+                            }}
+                          />
+                          <span className="min-w-0 font-mono text-[0.8125rem]">
+                            {c.billingMonth}
+                            {c.paid ? (
+                              <span className="ml-1.5 font-sans text-xs font-normal text-ink/45">
+                                (paid)
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-[var(--text-primary)]">
+                            {formatMinorAsCurrency(
+                              c.amountMinorSnapshot,
+                              defaultCurrencyCode,
+                            )}
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {!batchShowPaidMonths && batchChargesForList.length === 0 ? (
+                  <p className="mt-2 text-sm text-ink/65">
+                    No unpaid months in this list. Use{" "}
+                    <button
+                      type="button"
+                      className="font-semibold text-pine underline"
+                      onClick={() => setBatchShowPaidMonths(true)}
+                    >
+                      Show paid months
+                    </button>{" "}
+                    or add a month range below.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="mt-5 rounded-lg border border-[color:color-mix(in_srgb,var(--line-subtle)_78%,transparent)] bg-[var(--bg-elevated)] p-4">
+              <span className="village-field-label text-[0.8rem]">
+                Add months not listed above
+              </span>
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                Month range in UTC (<span className="font-mono">YYYY-MM</span>).
+                Use the same month for both fields to add a single month.
+              </p>
+              <div className="mt-3 flex flex-col gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
+                  <label className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[0.65rem] font-medium uppercase tracking-[0.05em] text-[var(--text-secondary)]">
+                      From
+                    </span>
+                    <input
+                      className="village-input w-full min-w-0"
+                      type="month"
+                      value={batchExtraMonthRangeStart}
+                      onChange={(e) => setBatchExtraMonthRangeStart(e.target.value)}
+                    />
+                  </label>
+                  <span className="-my-1 flex justify-center text-xs font-medium text-[var(--text-secondary)] sm:my-0 sm:pb-2.5">
+                    to
+                  </span>
+                  <label className="flex min-w-0 flex-col gap-1">
+                    <span className="text-[0.65rem] font-medium uppercase tracking-[0.05em] text-[var(--text-secondary)]">
+                      To
+                    </span>
+                    <input
+                      className="village-input w-full min-w-0"
+                      type="month"
+                      value={batchExtraMonthRangeEnd}
+                      onChange={(e) => setBatchExtraMonthRangeEnd(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  className="village-btn-secondary w-full shrink-0 px-3 py-2 text-sm sm:w-auto sm:self-end"
+                  onClick={addBatchExtraMonthRange}
+                >
+                  Add range
+                </button>
+              </div>
+              {batchExtraMonths.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_65%,transparent)] pt-3">
+                  {batchExtraMonths.map((month) => (
+                    <button
+                      key={month}
+                      type="button"
+                      className="rounded-full border border-ink/18 bg-[color:color-mix(in_srgb,var(--bg-muted)_30%,transparent)] px-2.5 py-1 font-mono text-xs font-medium text-[var(--text-primary)] transition hover:border-ink/28 hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_45%,transparent)]"
+                      onClick={() => removeBatchExtraMonth(month)}
+                      title="Remove month"
+                    >
+                      {month} ×
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="village-field-label">Paid on (optional)</span>
+                <input
+                  className="village-input"
+                  type="date"
+                  value={batchPaidOn}
+                  onChange={(e) => setBatchPaidOn(e.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs sm:col-span-2">
+                <span className="village-field-label">Notes (optional, shared)</span>
+                <input
+                  className="village-input"
+                  value={batchNotes}
+                  onChange={(e) => setBatchNotes(e.target.value)}
+                  placeholder="optional"
+                />
+              </label>
+            </div>
+
+            </div>
+
+            <div className="shrink-0 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_22%,var(--bg-elevated)_78%)] px-4 py-3 sm:px-5">
+            <div
+              className="flex flex-col gap-4 rounded-lg border border-[color:color-mix(in_srgb,var(--accent)_22%,var(--line-strong))] bg-[color:color-mix(in_srgb,var(--accent)_6%,var(--bg-elevated)_94%)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              data-testid="billing-batch-total"
+            >
+              <div className="min-w-0">
+                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.07em] text-[var(--text-secondary)]">
+                  Total payment
+                </p>
+                <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight text-[var(--text-primary)]">
+                  {batchPaySummary.selectedCount === 0
+                    ? "—"
+                    : formatMinorAsCurrency(
+                        batchPaySummary.knownTotalMinor,
+                        defaultCurrencyCode,
+                      )}
+                </p>
+                {batchPaySummary.selectedCount > 0 ? (
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                    {batchPaySummary.selectedCount === 1
+                      ? "1 month selected"
+                      : `${batchPaySummary.selectedCount} months selected`}
+                    {batchPaySummary.knownTotalMinor > 0 ? (
+                      <span>
+                        {" "}
+                        · sums charges already on file (
+                        {batchPaySummary.knownTotalMinor.toLocaleString()} minor)
+                      </span>
+                    ) : null}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                    Select months above or add a range.
+                  </p>
+                )}
+                {batchPaySummary.unknownMonths.length > 0 ? (
+                  <p className="mt-2 text-xs leading-snug text-terracotta">
+                    {batchPaySummary.unknownMonths.length} month
+                    {batchPaySummary.unknownMonths.length === 1 ? "" : "s"} not in
+                    this list yet—amount{batchPaySummary.unknownMonths.length === 1 ? "" : "s"}{" "}
+                    appear after charges exist:{" "}
+                    <span className="font-mono">{batchPaySummary.unknownMonths.join(", ")}</span>
+                  </p>
+                ) : null}
+                {batchPaySummary.alreadyPaidMonths.length > 0 ? (
+                  <p className="mt-2 text-xs leading-snug text-ink/65">
+                    Included paid month(s) (server may reject):{" "}
+                    <span className="font-mono">
+                      {batchPaySummary.alreadyPaidMonths.join(", ")}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="village-btn-primary w-full shrink-0 px-5 py-2.5 text-sm font-semibold sm:w-auto"
+                disabled={batchSubmitting}
+                onClick={() => void submitBatchPay()}
+              >
+                {batchSubmitting ? "Saving…" : "Record batch payment"}
+              </button>
+            </div>
+            </div>
+          </div>
+        </div>,
+            document.body,
+          )
+        : null}
+
     </div>
   );
 }

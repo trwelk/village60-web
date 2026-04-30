@@ -3,43 +3,32 @@
 import type {
   AdmissionsDeparturesKpis,
   AdmissionsDeparturesMonthDatum,
-  DepartureReasonBreakdown,
 } from "@/lib/analytics/admissionsDepartures";
 import { formatStayDurationFromDays } from "@/lib/analytics/admissionsDepartures";
-import { getAnthropicChartPalette } from "@/lib/theme/anthropicTheme";
 import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
-const piePalette = getAnthropicChartPalette("pie");
-
 const fillAdmissions = "var(--chart-positive)";
 const fillDepartures = "var(--highlight)";
-
-const donutColors = piePalette.series;
 
 type Props = {
   kpis: AdmissionsDeparturesKpis;
   twelveMonth: AdmissionsDeparturesMonthDatum[];
-  reasonBreakdown: DepartureReasonBreakdown;
 };
 
 export function AdmissionsDeparturesSection({
   kpis,
   twelveMonth,
-  reasonBreakdown,
 }: Props) {
   const admDir =
     kpis.admissionsMomDelta > 0
@@ -59,61 +48,52 @@ export function AdmissionsDeparturesSection({
       ? "—"
       : formatStayDurationFromDays(kpis.avgLengthOfStayMedianDays);
 
-  const pieData = reasonBreakdown.slices.map((s) => ({
-    name: s.reason,
-    value: s.count,
-    percent: s.percent,
-  }));
-
-  const showReasonDonut = reasonBreakdown.distinctReasonCount >= 2;
-
   return (
     <section className="village-card border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-elevated)_94%,transparent),color-mix(in_srgb,var(--bg-muted)_88%,transparent))] p-4 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6">
       <div className="space-y-6">
         <div>
-        <h2 className="village-section-title">Admissions & Departures</h2>
-        <p className="village-muted mt-1.5">
-          Monthly intake and exit counts, median length of stay for departed
-          residents, and departure reasons (UTC calendar months).
-        </p>
-      </div>
+          <h2 className="village-section-title">Admissions & Departures</h2>
+          <p className="village-muted mt-1.5">
+            Monthly intake and exit counts and median length of stay for
+            departed residents (UTC calendar months).
+          </p>
+        </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <KpiTile
-          label="Admissions this month"
-          value={String(kpis.admissionsThisMonth)}
-          sub={
-            <CountMonthOnMonthBadge
-              delta={kpis.admissionsMomDelta}
-              deltaPercent={kpis.admissionsMomDeltaPercent}
-              direction={admDir}
-            />
-          }
-        />
-        <KpiTile
-          label="Departures this month"
-          value={String(kpis.departuresThisMonth)}
-          sub={
-            <CountMonthOnMonthBadge
-              delta={kpis.departuresMomDelta}
-              deltaPercent={kpis.departuresMomDeltaPercent}
-              direction={depDir}
-            />
-          }
-        />
-        <KpiTile
-          label="Avg. length of stay (median)"
-          value={avgStayDisplay}
-          sub={
-            <span className="text-ink/55">
-              Median days from admission to departure, all departed residents.
-            </span>
-          }
-        />
-      </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <KpiTile
+            label="Admissions this month"
+            value={String(kpis.admissionsThisMonth)}
+            sub={
+              <CountMonthOnMonthBadge
+                delta={kpis.admissionsMomDelta}
+                deltaPercent={kpis.admissionsMomDeltaPercent}
+                direction={admDir}
+              />
+            }
+          />
+          <KpiTile
+            label="Departures this month"
+            value={String(kpis.departuresThisMonth)}
+            sub={
+              <CountMonthOnMonthBadge
+                delta={kpis.departuresMomDelta}
+                deltaPercent={kpis.departuresMomDeltaPercent}
+                direction={depDir}
+              />
+            }
+          />
+          <KpiTile
+            label="Avg. length of stay (median)"
+            value={avgStayDisplay}
+            sub={
+              <span className="text-ink/55">
+                Median days from admission to departure, all departed residents.
+              </span>
+            }
+          />
+        </div>
 
-        <div className="grid gap-6">
-          <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_96%,transparent)] p-4 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-canvas)_70%,transparent)] sm:p-5">
+        <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_96%,transparent)] p-4 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-canvas)_70%,transparent)] sm:p-5">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">
             Admissions (12 months, UTC)
           </h3>
@@ -174,78 +154,6 @@ export function AdmissionsDeparturesSection({
             </ResponsiveContainer>
           </div>
         </div>
-
-          <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_96%,transparent)] p-4 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-canvas)_70%,transparent)] sm:p-5">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-            Departure reasons (last 12 months, UTC)
-          </h3>
-          {!showReasonDonut ? (
-            <div className="mt-6 flex min-h-[240px] items-center justify-center rounded-2xl border border-dashed border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)] px-4 py-10 text-center text-sm text-[var(--text-muted)]">
-              <p>
-                At least two distinct departure reasons in the last twelve months
-                are required for a breakdown chart. Currently{" "}
-                {reasonBreakdown.distinctReasonCount === 0
-                  ? "there are no departures"
-                  : "only one reason category is recorded"}
-                .
-              </p>
-            </div>
-          ) : (
-            <div className="mt-4 h-[320px] w-full min-w-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={68}
-                    outerRadius={100}
-                    paddingAngle={1}
-                  >
-                    {pieData.map((_, i) => (
-                      <Cell
-                        key={String(i)}
-                        fill={donutColors[i % donutColors.length]!}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) {
-                        return null;
-                      }
-                      const row = payload[0]?.payload as {
-                        name: string;
-                        value: number;
-                        percent: number;
-                      };
-                      return (
-                        <div className="max-w-xs rounded-lg border border-[color:color-mix(in_srgb,var(--line-strong)_64%,transparent)] bg-[var(--bg-elevated)] px-3 py-2 text-xs shadow-lg">
-                          <p className="font-semibold text-[var(--text-primary)]">{row.name}</p>
-                          <p className="mt-1 tabular-nums text-[var(--text-primary)]">
-                            Count: {row.value}
-                          </p>
-                          <p className="tabular-nums text-[var(--text-secondary)]">
-                            Share: {row.percent}%
-                          </p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Legend
-                    layout="horizontal"
-                    align="center"
-                    verticalAlign="bottom"
-                    wrapperStyle={{ fontSize: "12px", paddingTop: "6px" }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-      </div>
       </div>
     </section>
   );

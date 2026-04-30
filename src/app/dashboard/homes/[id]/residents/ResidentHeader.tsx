@@ -230,9 +230,15 @@ export function ResidentHeader({ homeId, resident, wards }: Props) {
         </p>
       ) : (
         <>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="village-field-label">Ward (optional)</span>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <label
+              className="village-field-label"
+              htmlFor="resident-header-ward"
+            >
+              Ward (optional)
+            </label>
             <VillageSelect
+              id="resident-header-ward"
               value={wardId}
               onChange={setWardId}
               options={[
@@ -240,7 +246,7 @@ export function ResidentHeader({ homeId, resident, wards }: Props) {
                 ...wards.map((w) => ({ value: w.id, label: w.label })),
               ]}
             />
-          </label>
+          </div>
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="village-field-label">Room / bed (optional)</span>
