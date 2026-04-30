@@ -25,4 +25,19 @@ describe("occupancy heatmap → residents directory (26b)", () => {
     expect(rebuilt).toContain("wardId=w-b");
     expect(rebuilt).not.toContain("page=");
   });
+
+  it("preserves newResident=1 when parsing and rebuilding directory URLs", () => {
+    const sp = new URLSearchParams("newResident=1&query=Jane");
+    const fixedHomeState = residentsDirectoryStateFromSearchParams(sp, "home-1");
+    expect(fixedHomeState.newResident).toBe(true);
+    expect(buildResidentsDirectoryQueryString(fixedHomeState)).toContain(
+      "newResident=1",
+    );
+
+    const adminState = residentsDirectoryStateFromSearchParams(sp, undefined);
+    expect(adminState.newResident).toBe(true);
+    expect(buildResidentsDirectoryQueryString(adminState)).toContain(
+      "newResident=1",
+    );
+  });
 });

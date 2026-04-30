@@ -3,7 +3,7 @@
  *
  * Usage (from `web/`):
  *   npm run db:reset              # migrations + full demo dataset
- *   npm run db:reset -- --seed   # migrations + default admin only
+ *   npm run db:reset -- --seed   # migrations + full demo dataset (same as db:seed)
  *
  * If deletion fails with EBUSY, stop the Next dev server and any other process
  * that has the DB open, then run again.
@@ -61,7 +61,7 @@ console.log("Applying migrations…");
 execShellInherit("npm run db:migrate");
 
 if (useSeedOnly) {
-  console.log("Seeding default admin user…");
+  console.log("Seeding full demo dataset…");
   execShellInherit("npm run db:seed");
 } else {
   console.log("Loading demo data…");

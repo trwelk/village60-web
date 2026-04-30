@@ -36,7 +36,11 @@ async function parseError(res: Response): Promise<string> {
   return "Request failed.";
 }
 
-export function ResidentsDirectoryUI({ homes, role, fixedHomeId }: Props) {
+export function ResidentsDirectoryUI({
+  homes,
+  role,
+  fixedHomeId,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -71,6 +75,7 @@ export function ResidentsDirectoryUI({ homes, role, fixedHomeId }: Props) {
       urlState.wardId,
       urlState.page,
       urlState.pageSize,
+      urlState.newResident,
     ],
   );
 
@@ -169,6 +174,12 @@ export function ResidentsDirectoryUI({ homes, role, fixedHomeId }: Props) {
     void fetchResidents();
   }, [fetchResidents]);
 
+  /** Legacy `?newResident=1`: go to explicit create URL. */
+  useEffect(() => {
+    if (!fixedHomeId || !urlState.newResident) return;
+    router.replace(`/dashboard/homes/${fixedHomeId}/residents/new`);
+  }, [fixedHomeId, urlState.newResident, router]);
+
   const from =
     totalCount === 0
       ? 0
@@ -178,6 +189,7 @@ export function ResidentsDirectoryUI({ homes, role, fixedHomeId }: Props) {
   const canNext = urlState.page * urlState.pageSize < totalCount;
 
   return (
+    <>
     <main className="flex flex-col gap-8 text-ink">
       <header className="flex flex-wrap items-start justify-between gap-6">
         <div>
@@ -198,16 +210,16 @@ export function ResidentsDirectoryUI({ homes, role, fixedHomeId }: Props) {
                 Departed residents
               </Link>
               <Link
-                href={`/dashboard/homes/${fixedHomeId}/residents?newResident=1`}
-                className="village-btn-primary"
+                href={`/dashboard/homes/${fixedHomeId}/residents/new`}
+                className="village-btn-primary inline-flex items-center justify-center"
               >
                 Add resident
               </Link>
             </>
           ) : role === "admin" && urlState.homeId ? (
             <Link
-              href={`/dashboard/homes/${urlState.homeId}/residents?newResident=1`}
-              className="village-btn-primary"
+              href={`/dashboard/homes/${urlState.homeId}/residents/new`}
+              className="village-btn-primary inline-flex items-center justify-center"
             >
               Add resident
             </Link>
@@ -383,5 +395,6 @@ export function ResidentsDirectoryUI({ homes, role, fixedHomeId }: Props) {
         </div>
       </section>
     </main>
+    </>
   );
 }

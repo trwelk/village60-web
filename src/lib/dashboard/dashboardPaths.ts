@@ -35,7 +35,31 @@ export function isDashboardAccountPath(pathname: string): boolean {
 }
 
 export function isDashboardAnalyticsPath(pathname: string): boolean {
-  return pathname === "/dashboard/analytics";
+  return (
+    pathname === "/dashboard/analytics" ||
+    pathname.startsWith("/dashboard/analytics/")
+  );
+}
+
+export function isDashboardAnalyticsRevenueCollectionsPath(
+  pathname: string,
+): boolean {
+  return (
+    pathname === "/dashboard/analytics/revenue-collections" ||
+    pathname === "/dashboard/analytics"
+  );
+}
+
+export function isDashboardAnalyticsAdmissionsDeparturesPath(
+  pathname: string,
+): boolean {
+  return pathname === "/dashboard/analytics/admissions-departures";
+}
+
+export function isDashboardAnalyticsDemographicsStaffPath(
+  pathname: string,
+): boolean {
+  return pathname === "/dashboard/analytics/demographics-staff";
 }
 
 /**

@@ -33,44 +33,63 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative isolate min-h-screen overflow-hidden bg-[var(--bg-canvas)] text-[var(--text-primary)]">
+    <main className="village-app-bg relative isolate min-h-screen overflow-hidden text-[var(--text-primary)]">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_420px_at_-10%_-10%,color-mix(in_srgb,var(--accent)_20%,transparent),transparent_58%),radial-gradient(860px_420px_at_110%_0%,color-mix(in_srgb,var(--highlight)_18%,transparent),transparent_60%)]"
       />
       <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-5 py-16 sm:px-8 lg:px-12">
-        <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-10">
-          <header className="relative lg:col-span-5">
-            <p className="font-sans text-[0.72rem] font-bold uppercase tracking-[0.32em] text-[var(--accent-strong)]">
+        <div className="village-hero-card grid items-stretch gap-0 p-3 sm:p-4 lg:grid-cols-12">
+          <header className="relative flex flex-col justify-between rounded-[1.35rem] px-5 py-7 sm:px-7 lg:col-span-5 lg:min-h-[34rem]">
+            <div>
+            <p className="village-kicker">
               Staff access
             </p>
-            <h1 className="mt-4 font-sans text-[clamp(2.2rem,5vw,3.2rem)] font-semibold leading-tight text-[var(--text-primary)]">
+            <h1 className="mt-5 font-display text-[clamp(2.4rem,5vw,4.25rem)] font-normal leading-[0.96] tracking-[-0.055em] text-[var(--text-primary)]">
               Village60 operations
             </h1>
-            <p className="mt-5 max-w-md text-base leading-relaxed text-[var(--text-secondary)]">
+            <p className="mt-6 max-w-md text-base leading-relaxed text-[var(--text-secondary)]">
               Sign in to manage residents, homes, analytics, and staff workflows.
             </p>
+            </div>
+            <div className="mt-10 grid gap-3 text-sm">
+              {["Resident records", "Billing signals", "Care reminders"].map(
+                (label) => (
+                  <div
+                    key={label}
+                    className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_75%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_58%,transparent)] px-4 py-3 text-[var(--text-secondary)] shadow-sm"
+                  >
+                    {label}
+                  </div>
+                ),
+              )}
+            </div>
             <p className="mt-8 text-xs text-[var(--text-muted)]">
               Seeded administrator credentials are available in the README.
             </p>
           </header>
 
-          <div className="relative lg:col-span-6 lg:col-start-7">
+          <div className="relative flex items-center p-2 sm:p-4 lg:col-span-7 lg:p-7">
             <form
               onSubmit={onSubmit}
-              className="relative rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_95%,transparent)] p-8 shadow-[var(--shadow-lg)] backdrop-blur sm:p-10"
+              className="village-panel-card relative w-full overflow-hidden p-6 backdrop-blur sm:p-8 lg:p-10"
             >
-              <h2 className="text-2xl font-semibold text-[var(--text-primary)]">
+              <div
+                aria-hidden
+                className="absolute right-0 top-0 h-32 w-32 rounded-bl-full bg-[color:color-mix(in_srgb,var(--accent)_10%,transparent)]"
+              />
+              <p className="village-kicker relative">Secure workspace</p>
+              <h2 className="relative mt-3 font-display text-3xl font-normal tracking-[-0.04em] text-[var(--text-primary)]">
                 Sign in
               </h2>
-              <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              <p className="relative mt-2 text-sm text-[var(--text-secondary)]">
                 Use your work email and password.
               </p>
               <div className="mt-8 flex flex-col gap-5">
                 <label className="group flex flex-col gap-2 text-sm font-semibold text-[var(--text-secondary)]">
                   Email
                   <input
-                    className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[var(--bg-muted)] px-4 py-3 font-sans text-base text-[var(--text-primary)] transition placeholder:text-[color:color-mix(in_srgb,var(--text-muted)_58%,transparent)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_28%,transparent)]"
+                    className="village-input px-4 py-3 font-sans text-base"
                     type="email"
                     autoComplete="username"
                     placeholder="you@home.org"
@@ -82,7 +101,7 @@ export default function LoginPage() {
                 <label className="flex flex-col gap-2 text-sm font-semibold text-[var(--text-secondary)]">
                   Password
                   <input
-                    className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[var(--bg-muted)] px-4 py-3 font-sans text-base text-[var(--text-primary)] transition placeholder:text-[color:color-mix(in_srgb,var(--text-muted)_58%,transparent)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_28%,transparent)]"
+                    className="village-input px-4 py-3 font-sans text-base"
                     type="password"
                     autoComplete="current-password"
                     value={password}
@@ -101,7 +120,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={pending}
-                  className="mt-2 rounded-xl bg-[var(--accent-strong)] px-4 py-3.5 text-sm font-bold uppercase tracking-[0.18em] text-white shadow-[0_18px_34px_-18px_color-mix(in_srgb,var(--accent-strong)_90%,transparent)] transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="village-btn-primary mt-2 min-h-12 w-full uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {pending ? "Signing in..." : "Enter"}
                 </button>

@@ -18,6 +18,26 @@ afterEach(() => {
 });
 
 describe("ResidentEditor create wizard", () => {
+  it("renders immediately when opened as the create modal", async () => {
+    const onCloseCreate = vi.fn();
+
+    render(
+      <ResidentEditor
+        mode="create"
+        homeId="h1"
+        homeName="Home A"
+        wards={[{ id: "w1", label: "North" }]}
+        onCloseCreate={onCloseCreate}
+      />,
+    );
+
+    expect(screen.getByText(/Step\s*1\s*of\s*5/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onCloseCreate).toHaveBeenCalledTimes(1);
+  });
+
   it("moves through wizard steps and validates demographics", async () => {
     render(
       <ResidentEditor
@@ -28,7 +48,9 @@ describe("ResidentEditor create wizard", () => {
       />,
     );
 
-    expect(screen.getByText(/Step\s*1\s*of\s*5/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/Step\s*1\s*of\s*5/)).toBeInTheDocument();
+    });
     await userEvent.selectOptions(screen.getByLabelText("Ward"), "w1");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => {
@@ -56,6 +78,9 @@ describe("ResidentEditor create wizard", () => {
       />,
     );
 
+    await waitFor(() => {
+      expect(screen.getByLabelText("Ward")).toBeInTheDocument();
+    });
     await userEvent.selectOptions(screen.getByLabelText("Ward"), "w1");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     await userEvent.type(screen.getByLabelText("Full name"), "Taylor Reed");

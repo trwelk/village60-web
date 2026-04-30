@@ -22,6 +22,8 @@ type Props = {
   mode: "create" | "edit";
   initial?: ResidentInitial;
   careStaffOptions?: { id: string; email: string }[];
+  /** When provided in create mode, Close uses this instead of navigating away */
+  onCloseCreate?: () => void;
 };
 
 async function parseError(res: Response): Promise<string> {
@@ -99,6 +101,7 @@ export function ResidentEditor({
   mode,
   initial,
   careStaffOptions = [],
+  onCloseCreate,
 }: Props) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -139,8 +142,9 @@ export function ResidentEditor({
   const [clinicalMedicationsText, setClinicalMedicationsText] = useState("");
   const [createStep, setCreateStep] = useState<CreateWizardStep>("home");
   const [createSubmitting, setCreateSubmitting] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
+  const isCreateMode = mode === "create";
+  const isCreateModal = isCreateMode && !!onCloseCreate;
   const isDeparted = mode === "edit" && initial?.status === "departed";
   const createStepIndex = stepIndexById[createStep];
 
@@ -153,19 +157,35 @@ export function ResidentEditor({
       ? null
       : (careStaffOptions.find((u) => u.id === assignedNurseUserId)?.email ??
         null);
+  const residentStatusLabel =
+    mode === "edit" && initial
+      ? initial.status === "departed"
+        ? "Departed record"
+        : "Active resident"
+      : "New admission";
+  const placementLabel = [
+    selectedWardLabel,
+    roomText.trim() ? `Room ${roomText.trim()}` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (mode !== "create") return;
+    if (!isCreateModal) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prevOverflow;
     };
-  }, [mode]);
+  }, [isCreateModal]);
+
+  function handleCloseCreate() {
+    if (onCloseCreate) {
+      onCloseCreate();
+      return;
+    }
+    router.push(`/dashboard/homes/${homeId}/residents`);
+  }
 
   function validationMessageForStep(step: CreateWizardStep): string | null {
     if (step === "home") {
@@ -317,65 +337,71 @@ export function ResidentEditor({
         typeof data === "object" &&
         data !== null &&
         "resident" in data &&
-        typeof (data as { resident: { id?: unknown } }).resident ===
-          "object" &&
-        (data as { resident: { id?: string } }).resident.id
-          ? (data as { resident: { id: string } }).resident.id
+        typeof (data as { resident: unknown }).resident === "object" &&
+        (data as { resident: unknown }).resident !== null &&
+        "id" in (data as { resident: { id?: unknown } }).resident &&
+        typeof (data as { resident: { id: unknown } }).resident.id === "string"
+          ? (data as { resident: { id: string } }).resident.id.trim() || null
           : null;
-      if (id) {
-        const allergies = splitLines(clinicalAllergiesText);
-        const conditions = splitLines(clinicalConditionsText);
-        const medicationsParsed = parseMedicationRows(clinicalMedicationsText);
-        if (medicationsParsed.error) {
+      if (!id) {
+        setCreateSubmitting(false);
+        setError(
+          "The server created the resident but did not return an id. Refresh the directory and open the new record if it appears.",
+        );
+        return;
+      }
+      const allergies = splitLines(clinicalAllergiesText);
+      const conditions = splitLines(clinicalConditionsText);
+      const medicationsParsed = parseMedicationRows(clinicalMedicationsText);
+      if (medicationsParsed.error) {
+        setCreateSubmitting(false);
+        setError(medicationsParsed.error);
+        return;
+      }
+      const followUps: Promise<Response>[] = [];
+      for (const allergen of allergies) {
+        followUps.push(
+          fetch(`/api/homes/${homeId}/residents/${id}/clinical/allergies`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ allergen }),
+          }),
+        );
+      }
+      for (const label of conditions) {
+        followUps.push(
+          fetch(`/api/homes/${homeId}/residents/${id}/clinical/conditions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ label }),
+          }),
+        );
+      }
+      for (const med of medicationsParsed.rows) {
+        followUps.push(
+          fetch(`/api/homes/${homeId}/residents/${id}/clinical/medications`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(med),
+          }),
+        );
+      }
+      if (followUps.length > 0) {
+        const followUpResponses = await Promise.all(followUps);
+        const failed = followUpResponses.find((r) => !r.ok);
+        if (failed) {
           setCreateSubmitting(false);
-          setError(medicationsParsed.error);
+          setError(
+            "Resident was created, but one or more clinical items failed to save. Open the resident and add them on the Clinical tabs.",
+          );
+          router.push(`/dashboard/homes/${homeId}/residents/${id}`);
+          router.refresh();
           return;
         }
-        const followUps: Promise<Response>[] = [];
-        for (const allergen of allergies) {
-          followUps.push(
-            fetch(`/api/homes/${homeId}/residents/${id}/clinical/allergies`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ allergen }),
-            }),
-          );
-        }
-        for (const label of conditions) {
-          followUps.push(
-            fetch(`/api/homes/${homeId}/residents/${id}/clinical/conditions`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ label }),
-            }),
-          );
-        }
-        for (const med of medicationsParsed.rows) {
-          followUps.push(
-            fetch(`/api/homes/${homeId}/residents/${id}/clinical/medications`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(med),
-            }),
-          );
-        }
-        if (followUps.length > 0) {
-          const followUpResponses = await Promise.all(followUps);
-          const failed = followUpResponses.find((r) => !r.ok);
-          if (failed) {
-            setCreateSubmitting(false);
-            setError(
-              "Resident was created, but one or more clinical items failed to save. Open the resident and add them on the Clinical tabs.",
-            );
-            router.push(`/dashboard/homes/${homeId}/residents/${id}`);
-            router.refresh();
-            return;
-          }
-        }
-        setCreateSubmitting(false);
-        router.push(`/dashboard/homes/${homeId}/residents/${id}`);
-        router.refresh();
       }
+      setCreateSubmitting(false);
+      router.push(`/dashboard/homes/${homeId}/residents/${id}`);
+      router.refresh();
       return;
     }
 
@@ -418,29 +444,67 @@ export function ResidentEditor({
     <main
       className={[
         "flex flex-col gap-8 text-ink",
-        mode === "create" ? "min-h-0 max-sm:min-h-0 sm:min-h-[70vh]" : "max-w-5xl",
+        isCreateModal
+          ? "min-h-0 max-sm:min-h-0 sm:min-h-[70vh]"
+          : isCreateMode
+            ? "mx-auto w-full min-w-0 max-w-none"
+            : "mx-auto w-full max-w-5xl",
       ].join(" ")}
     >
       {mode === "edit" ? (
-        <header className="village-reveal">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="font-display text-3xl font-normal tracking-tight text-pine-2">
-                Resident
-              </h1>
-              <p className="mt-2 text-sm text-ink/70">{homeName}</p>
-            </div>
+        <header className="village-card village-reveal overflow-hidden p-0">
+          <div className="relative isolate px-5 py-6 sm:px-7">
+            <div
+              aria-hidden
+              className="absolute inset-y-0 right-0 -z-10 w-2/3 bg-[radial-gradient(circle_at_top_right,color-mix(in_srgb,var(--accent)_18%,transparent),transparent_58%)]"
+            />
+            <div
+              aria-hidden
+              className="absolute bottom-0 left-0 right-0 -z-10 h-px bg-[linear-gradient(90deg,transparent,color-mix(in_srgb,var(--accent)_36%,transparent),transparent)]"
+            />
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-[var(--accent-strong)]">
+                  {residentStatusLabel}
+                </p>
+                <h1 className="mt-2 font-display text-3xl font-normal tracking-[-0.04em] text-[var(--text-primary)] sm:text-4xl">
+                  {initial?.fullName || "Resident"}
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm text-[var(--text-secondary)]">
+                  {homeName}
+                </p>
+              </div>
             {initial && initial.status === "active" ? (
               <button
                 type="button"
                 onClick={() => setDepartOpen(true)}
-                className="rounded-lg border border-danger/35 bg-cream px-4 py-2 text-sm font-semibold text-danger shadow-sm transition hover:bg-danger/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/35"
+                className="rounded-full border border-[color:color-mix(in_srgb,var(--danger)_38%,var(--line-strong))] bg-[color:color-mix(in_srgb,var(--danger)_6%,var(--bg-elevated)_94%)] px-4 py-2 text-sm font-semibold text-[var(--danger)] shadow-sm transition hover:bg-[color:color-mix(in_srgb,var(--danger)_10%,var(--bg-elevated)_90%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--danger)_35%,transparent)]"
               >
                 Depart
               </button>
             ) : null}
           </div>
-          <div className="mt-4 flex flex-wrap gap-4 text-sm">
+          <div className="mt-5 grid gap-2 text-sm sm:grid-cols-3">
+            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_80%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_74%,transparent)] px-3 py-2">
+              <span className="village-field-label block">Placement</span>
+              <span className="mt-1 block font-semibold text-[var(--text-primary)]">
+                {placementLabel || "Unassigned"}
+              </span>
+            </div>
+            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_80%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_74%,transparent)] px-3 py-2">
+              <span className="village-field-label block">Admission</span>
+              <span className="mt-1 block font-semibold text-[var(--text-primary)]">
+                {admissionDate || "Not set"}
+              </span>
+            </div>
+            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_80%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_74%,transparent)] px-3 py-2">
+              <span className="village-field-label block">Care contact</span>
+              <span className="mt-1 block truncate font-semibold text-[var(--text-primary)]">
+                {selectedNurseLabel || assignedNurseDisplayOverride || "Not assigned"}
+              </span>
+            </div>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-4 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_78%,transparent)] pt-4 text-sm">
             <Link
               href={`/dashboard/homes/${homeId}/residents`}
               className="village-link-subtle"
@@ -450,6 +514,7 @@ export function ResidentEditor({
             <Link href="/dashboard/residents" className="village-link-subtle">
               Full directory
             </Link>
+          </div>
           </div>
         </header>
       ) : null}
@@ -467,10 +532,10 @@ export function ResidentEditor({
         />
       ) : null}
 
-      {mode === "create" ? (
+      {isCreateModal ? (
         <div
           aria-hidden
-          className="fixed inset-0 z-40 bg-[color:color-mix(in_srgb,var(--bg-canvas)_32%,black_68%)] backdrop-blur-[3px]"
+          className="fixed inset-0 z-40 bg-[color:color-mix(in_srgb,var(--bg-canvas)_34%,var(--text-primary)_66%)] backdrop-blur-[3px]"
         />
       ) : null}
 
@@ -478,10 +543,11 @@ export function ResidentEditor({
         onSubmit={onSubmit}
         className={[
           "village-card flex flex-col gap-6 p-5 sm:p-6",
-          mode !== "create" ? "village-reveal village-reveal-delay-2" : "",
-          mode === "create"
+          !isCreateMode ? "village-reveal village-reveal-delay-2" : "",
+          isCreateMode && !isCreateModal ? "overflow-hidden p-0 sm:p-0" : "",
+          isCreateModal
             ? [
-                "fixed z-50 flex min-h-0 w-full flex-col gap-0 overflow-hidden border border-[color:color-mix(in_srgb,var(--accent)_28%,var(--line-strong))] bg-[linear-gradient(180deg,#fffefa_0%,var(--bg-elevated)_58%,color-mix(in_srgb,var(--accent)_5%,var(--bg-elevated))_100%)] p-0 pt-[env(safe-area-inset-top,0px)] shadow-[0_40px_120px_-48px_rgba(0,0,0,0.72)] max-sm:inset-x-0 max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-0 max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:rounded-none",
+                "fixed z-50 flex min-h-0 w-full flex-col gap-0 overflow-hidden border border-[color:color-mix(in_srgb,var(--accent)_28%,var(--line-strong))] bg-[linear-gradient(180deg,var(--bg-elevated)_0%,var(--bg-elevated)_58%,color-mix(in_srgb,var(--accent)_5%,var(--bg-elevated))_100%)] p-0 pt-[env(safe-area-inset-top,0px)] shadow-[0_40px_120px_-48px_color-mix(in_srgb,var(--text-primary)_72%,transparent)] max-sm:inset-x-0 max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-0 max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:rounded-none",
                 "sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[min(92dvh,880px)] sm:w-[calc(100%-2rem)] sm:max-w-[min(44rem,92vw)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[var(--radius-xl)] sm:pt-0 md:w-[min(44rem,92vw)]",
                 "touch-manipulation",
               ].join(" ")
@@ -491,7 +557,7 @@ export function ResidentEditor({
           .join(" ")}
       >
         {mode === "create" ? (
-          <div className="relative overflow-hidden rounded-t-[var(--radius-xl)] border-b border-[color:color-mix(in_srgb,var(--accent)_18%,var(--line-subtle))] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_14%,#fffefa),#fffefa_48%,color-mix(in_srgb,var(--accent)_8%,#fffefa))] px-4 py-4 sm:px-6 sm:py-5">
+          <div className="relative overflow-hidden rounded-t-[var(--radius-xl)] border-b border-[color:color-mix(in_srgb,var(--accent)_18%,var(--line-subtle))] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_14%,var(--bg-elevated)),var(--bg-elevated)_48%,color-mix(in_srgb,var(--accent)_8%,var(--bg-elevated)))] px-4 py-4 sm:px-6 sm:py-5">
             <div
               aria-hidden
               className="absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,color-mix(in_srgb,var(--accent)_18%,transparent),transparent_55%)]"
@@ -508,12 +574,13 @@ export function ResidentEditor({
                   {homeName}
                 </p>
               </div>
-              <Link
-                href={`/dashboard/homes/${homeId}/residents`}
-                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--accent)_22%,var(--line-strong))] bg-white/90 px-4 text-sm font-semibold text-[var(--text-secondary)] shadow-sm transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              <button
+                type="button"
+                onClick={handleCloseCreate}
+                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--accent)_22%,var(--line-strong))] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] px-4 text-sm font-semibold text-[var(--text-secondary)] shadow-sm transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
               >
                 Close
-              </Link>
+              </button>
             </div>
             <div className="relative mt-5 h-1.5 overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--accent)_10%,var(--line-subtle))]">
               <div
@@ -546,16 +613,18 @@ export function ResidentEditor({
                       className={[
                         "w-full rounded-2xl border px-3 py-2.5 text-left text-sm shadow-sm transition max-sm:min-h-[3.25rem] sm:min-h-0",
                         active
-                          ? "border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_12px_26px_-18px_var(--accent)]"
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--bg-elevated)] shadow-[0_12px_26px_-18px_var(--accent)]"
                           : complete
-                            ? "border-[color:color-mix(in_srgb,var(--accent)_35%,var(--line-subtle))] bg-[color:color-mix(in_srgb,var(--accent)_8%,white)] text-[var(--text-primary)] hover:border-[var(--accent)]"
-                            : "border-[color:color-mix(in_srgb,var(--line-subtle)_82%,transparent)] bg-white/74 text-[var(--text-muted)] hover:border-[color:color-mix(in_srgb,var(--accent)_32%,var(--line-subtle))]",
+                            ? "border-[color:color-mix(in_srgb,var(--accent)_35%,var(--line-subtle))] bg-[color:color-mix(in_srgb,var(--accent)_8%,var(--bg-elevated))] text-[var(--text-primary)] hover:border-[var(--accent)]"
+                            : "border-[color:color-mix(in_srgb,var(--line-subtle)_82%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_74%,transparent)] text-[var(--text-muted)] hover:border-[color:color-mix(in_srgb,var(--accent)_32%,var(--line-subtle))]",
                       ].join(" ")}
                     >
                       <span
                         className={[
                           "block text-[0.68rem] uppercase tracking-[0.14em]",
-                          active ? "text-white/72" : "text-[var(--text-muted)]",
+                          active
+                            ? "text-[color:color-mix(in_srgb,var(--bg-elevated)_72%,transparent)]"
+                            : "text-[var(--text-muted)]",
                         ].join(" ")}
                       >
                         {index + 1}
@@ -605,7 +674,7 @@ export function ResidentEditor({
             .join(" ")}
         >
           {mode === "create" ? (
-            <div className="md:col-span-2 rounded-2xl border border-[color:color-mix(in_srgb,var(--accent)_18%,var(--line-subtle))] bg-[color:color-mix(in_srgb,var(--accent)_5%,white)] p-3 text-sm text-ink/80">
+            <div className="md:col-span-2 rounded-2xl border border-[color:color-mix(in_srgb,var(--accent)_18%,var(--line-subtle))] bg-[color:color-mix(in_srgb,var(--accent)_5%,var(--bg-elevated))] p-3 text-sm text-ink/80">
               Home is fixed for this onboarding: <strong>{homeName}</strong>.
             </div>
           ) : null}
@@ -934,7 +1003,7 @@ export function ResidentEditor({
               Check placement and identity, then set registration and deposit if
               needed.
             </p>
-            <div className="mt-4 rounded-2xl border border-[color:color-mix(in_srgb,var(--accent)_14%,var(--line-subtle))] bg-white/80 p-4 shadow-sm">
+            <div className="mt-4 rounded-2xl border border-[color:color-mix(in_srgb,var(--accent)_14%,var(--line-subtle))] bg-[color:color-mix(in_srgb,var(--bg-elevated)_80%,transparent)] p-4 shadow-sm">
               <dl className="grid gap-4 text-sm sm:grid-cols-2">
                 <div className="min-w-0 sm:col-span-2">
                   <dt className="village-field-label">Home</dt>
@@ -1267,7 +1336,7 @@ export function ResidentEditor({
         </div>
 
         {mode === "create" ? (
-          <div className="sticky bottom-0 z-10 mt-auto flex flex-col gap-2 rounded-b-[var(--radius-xl)] border-t border-[color:color-mix(in_srgb,var(--accent)_13%,var(--line-subtle))] bg-[color:color-mix(in_srgb,#fffefa_92%,var(--accent)_8%)] px-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-3 shadow-[0_-16px_34px_-30px_rgba(0,0,0,0.45)] sm:mt-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-6 sm:py-4">
+          <div className="sticky bottom-0 z-10 mt-auto flex flex-col gap-2 rounded-b-[var(--radius-xl)] border-t border-[color:color-mix(in_srgb,var(--accent)_13%,var(--line-subtle))] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,var(--accent)_8%)] px-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-3 shadow-[0_-16px_34px_-30px_color-mix(in_srgb,var(--text-primary)_45%,transparent)] sm:mt-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-6 sm:py-4">
             <span className="text-center text-[0.7rem] leading-snug text-ink/65 max-sm:px-1 sm:flex-1 sm:text-left sm:text-xs">
               {createStep === "done"
                 ? "Review details then create resident"
@@ -1284,7 +1353,7 @@ export function ResidentEditor({
             </button>
             <button
               type="submit"
-              className="rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-bold text-white shadow-[0_14px_28px_-18px_var(--accent)] transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full bg-[var(--accent)] px-5 py-2.5 text-sm font-bold text-[var(--bg-elevated)] shadow-[0_14px_28px_-18px_var(--accent)] transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={createSubmitting}
             >
               {createStep === "done"
@@ -1323,8 +1392,15 @@ export function ResidentEditor({
     </main>
   );
 
-  if (mode === "create") {
-    return mounted ? createPortal(rendered, document.body) : null;
+  if (isCreateModal) {
+    if (typeof document === "undefined") {
+      return null;
+    }
+    return createPortal(rendered, document.body);
+  }
+
+  if (isCreateMode) {
+    return rendered;
   }
 
   return rendered;

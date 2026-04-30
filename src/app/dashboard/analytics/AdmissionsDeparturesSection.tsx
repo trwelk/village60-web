@@ -23,11 +23,10 @@ import {
   YAxis,
 } from "recharts";
 
-const barPalette = getAnthropicChartPalette("bar");
 const piePalette = getAnthropicChartPalette("pie");
 
-const fillAdmissions = barPalette.series[0]!;
-const fillDepartures = barPalette.series[1]!;
+const fillAdmissions = "var(--chart-positive)";
+const fillDepartures = "var(--highlight)";
 
 const donutColors = piePalette.series;
 
@@ -116,7 +115,7 @@ export function AdmissionsDeparturesSection({
         <div className="grid gap-6">
           <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_96%,transparent)] p-4 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-canvas)_70%,transparent)] sm:p-5">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-            Admissions & departures (12 months, UTC)
+            Admissions (12 months, UTC)
           </h3>
           <div className="mt-4 h-[300px] w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">

@@ -2,15 +2,31 @@
 
 import { VillageSelect } from "@/components/VillageSelect";
 import { buildDashboardChargesPath } from "@/lib/billing/dashboardChargesPath";
+import type { DashboardHomeOption } from "@/lib/dashboard/charts";
 import type {
   HomeMonthlyChargeLedgerRow,
   HomeMonthlyChargesLedgerPaymentStatusFilter,
   HomeMonthlyChargesLedgerSummary,
 } from "@/lib/billing/residentCharges";
-import type { DashboardHomeOption } from "@/lib/dashboard/charts";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
+
+type LedgerSlice = {
+  rows: HomeMonthlyChargeLedgerRow[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  summary: HomeMonthlyChargesLedgerSummary;
+};
+
+const FILTER_LOADING_SUMMARY: HomeMonthlyChargesLedgerSummary = {
+  totalBilledMinor: 0,
+  chargeCount: 0,
+  paidCount: 0,
+  unpaidCount: 0,
+  unpaidBalanceMinor: 0,
+};
 
 type Props = {
   homes: DashboardHomeOption[];
@@ -24,14 +40,8 @@ type Props = {
   ytdBillingMonthTo: string;
   /** True when the active range equals calendar YTD (explicit or default). */
   rangeIsDefaultYtd: boolean;
-  paymentStatus: HomeMonthlyChargesLedgerPaymentStatusFilter;
-  ledger: {
-    rows: HomeMonthlyChargeLedgerRow[];
-    totalCount: number;
-    page: number;
-    pageSize: number;
-    summary: HomeMonthlyChargesLedgerSummary;
-  };
+  /** Server ledger for payment status &quot;all&quot; (URL-driven home, range, pagination). */
+  ledger: LedgerSlice;
 };
 
 function formatMinorAsCurrency(minor: number, currencyCode: string): string {
@@ -50,17 +60,88 @@ export function HomeChargesSection({
   ytdBillingMonthFrom,
   ytdBillingMonthTo,
   rangeIsDefaultYtd,
-  paymentStatus,
   ledger,
 }: Props) {
   const router = useRouter();
   const [fromDraft, setFromDraft] = useState(billingMonthFrom);
   const [toDraft, setToDraft] = useState(billingMonthTo);
+  const [paymentFilter, setPaymentFilter] =
+    useState<HomeMonthlyChargesLedgerPaymentStatusFilter>("all");
+  const [filteredPage, setFilteredPage] = useState(1);
+  const [clientLedger, setClientLedger] = useState<LedgerSlice | null>(null);
+  const [filterFetchState, setFilterFetchState] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
 
   useEffect(() => {
     setFromDraft(billingMonthFrom);
     setToDraft(billingMonthTo);
   }, [billingMonthFrom, billingMonthTo]);
+
+  useEffect(() => {
+    setPaymentFilter("all");
+    setClientLedger(null);
+    setFilterFetchState("idle");
+  }, [selectedHomeId, billingMonthFrom, billingMonthTo]);
+
+  useLayoutEffect(() => {
+    setFilteredPage(1);
+  }, [paymentFilter, selectedHomeId, billingMonthFrom, billingMonthTo]);
+
+  useEffect(() => {
+    if (paymentFilter === "all" || !selectedHomeId) {
+      setClientLedger(null);
+      setFilterFetchState("idle");
+      return;
+    }
+    const ac = new AbortController();
+    setFilterFetchState("loading");
+    (async () => {
+      try {
+        const u = new URL(
+          `/api/homes/${selectedHomeId}/monthly-charges`,
+          window.location.origin,
+        );
+        u.searchParams.set("billingMonthFrom", billingMonthFrom);
+        u.searchParams.set("billingMonthTo", billingMonthTo);
+        u.searchParams.set("paymentStatus", paymentFilter);
+        u.searchParams.set("page", String(filteredPage));
+        u.searchParams.set("pageSize", String(ledger.pageSize));
+        const res = await fetch(u.toString(), { signal: ac.signal });
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+        const data = (await res.json()) as {
+          charges: HomeMonthlyChargeLedgerRow[];
+          totalCount: number;
+          page: number;
+          pageSize: number;
+          summary: HomeMonthlyChargesLedgerSummary;
+        };
+        setClientLedger({
+          rows: data.charges,
+          totalCount: data.totalCount,
+          page: data.page,
+          pageSize: data.pageSize,
+          summary: data.summary,
+        });
+        setFilterFetchState("idle");
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") {
+          return;
+        }
+        setFilterFetchState("error");
+      }
+    })();
+    return () => ac.abort();
+  }, [
+    paymentFilter,
+    selectedHomeId,
+    billingMonthFrom,
+    billingMonthTo,
+    filteredPage,
+    ledger.pageSize,
+  ]);
 
   if (homes.length === 0) {
     return (
@@ -70,10 +151,22 @@ export function HomeChargesSection({
     );
   }
 
-  const { rows, totalCount, page, pageSize, summary } = ledger;
   const selectedHomeName =
     homes.find((home) => home.homeId === selectedHomeId)?.homeName ??
     "Selected home";
+
+  const displayLedger: LedgerSlice =
+    paymentFilter === "all"
+      ? ledger
+      : clientLedger ?? {
+          rows: [],
+          totalCount: 0,
+          page: filteredPage,
+          pageSize: ledger.pageSize,
+          summary: FILTER_LOADING_SUMMARY,
+        };
+
+  const { rows, totalCount, page, pageSize, summary } = displayLedger;
 
   const fromIdx = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const toIdx = Math.min(page * pageSize, totalCount);
@@ -95,6 +188,7 @@ export function HomeChargesSection({
               id="charges-home"
               value={selectedHomeId}
               onChange={(id) => {
+                setPaymentFilter("all");
                 router.push(
                   buildDashboardChargesPath(
                     id,
@@ -102,7 +196,7 @@ export function HomeChargesSection({
                     billingMonthTo,
                     ytdBillingMonthFrom,
                     ytdBillingMonthTo,
-                    { page: 1, paymentStatus: "all" },
+                    { page: 1 },
                   ),
                 );
               }}
@@ -146,6 +240,7 @@ export function HomeChargesSection({
                   if (!selectedHomeId) return;
                   const from = fromDraft.trim() || ytdBillingMonthFrom;
                   const to = toDraft.trim() || ytdBillingMonthTo;
+                  setPaymentFilter("all");
                   router.push(
                     buildDashboardChargesPath(
                       selectedHomeId,
@@ -153,7 +248,7 @@ export function HomeChargesSection({
                       to,
                       ytdBillingMonthFrom,
                       ytdBillingMonthTo,
-                      { page: 1, pageSize, paymentStatus },
+                      { page: 1, pageSize: ledger.pageSize },
                     ),
                   );
                 }}
@@ -211,7 +306,7 @@ export function HomeChargesSection({
               <p className="mt-1 text-sm text-[var(--text-secondary)]">charges paid</p>
             </div>
           </div>
-          {totalCount > 0 || paymentStatus !== "all" ? (
+          {ledger.totalCount > 0 || paymentFilter !== "all" ? (
             <fieldset className="flex flex-col gap-2 rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_78%,transparent)] p-3.5 sm:flex-row sm:items-center sm:justify-between">
               <legend className="px-1 text-sm font-semibold text-[var(--text-primary)]">
                 Payment status
@@ -222,18 +317,9 @@ export function HomeChargesSection({
                     type="radio"
                     className="peer sr-only"
                     name="home-charges-payment-status"
-                    checked={paymentStatus === "all"}
+                    checked={paymentFilter === "all"}
                     onChange={() => {
-                      router.push(
-                        buildDashboardChargesPath(
-                          selectedHomeId,
-                          billingMonthFrom,
-                          billingMonthTo,
-                          ytdBillingMonthFrom,
-                          ytdBillingMonthTo,
-                          { page: 1, pageSize, paymentStatus: "all" },
-                        ),
-                      );
+                      setPaymentFilter("all");
                     }}
                   />
                   <span className="block rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm font-semibold text-[var(--text-secondary)] transition peer-checked:border-[color:color-mix(in_srgb,var(--accent)_55%,transparent)] peer-checked:bg-[var(--accent-strong)] peer-checked:text-white">
@@ -245,18 +331,9 @@ export function HomeChargesSection({
                     type="radio"
                     className="peer sr-only"
                     name="home-charges-payment-status"
-                    checked={paymentStatus === "unpaid"}
+                    checked={paymentFilter === "unpaid"}
                     onChange={() => {
-                      router.push(
-                        buildDashboardChargesPath(
-                          selectedHomeId,
-                          billingMonthFrom,
-                          billingMonthTo,
-                          ytdBillingMonthFrom,
-                          ytdBillingMonthTo,
-                          { page: 1, pageSize, paymentStatus: "unpaid" },
-                        ),
-                      );
+                      setPaymentFilter("unpaid");
                     }}
                   />
                   <span className="block rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm font-semibold text-[var(--text-secondary)] transition peer-checked:border-[color:color-mix(in_srgb,var(--danger)_55%,transparent)] peer-checked:bg-[var(--danger)] peer-checked:text-white">
@@ -268,18 +345,9 @@ export function HomeChargesSection({
                     type="radio"
                     className="peer sr-only"
                     name="home-charges-payment-status"
-                    checked={paymentStatus === "paid"}
+                    checked={paymentFilter === "paid"}
                     onChange={() => {
-                      router.push(
-                        buildDashboardChargesPath(
-                          selectedHomeId,
-                          billingMonthFrom,
-                          billingMonthTo,
-                          ytdBillingMonthFrom,
-                          ytdBillingMonthTo,
-                          { page: 1, pageSize, paymentStatus: "paid" },
-                        ),
-                      );
+                      setPaymentFilter("paid");
                     }}
                   />
                   <span className="block rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm font-semibold text-[var(--text-secondary)] transition peer-checked:border-[color:color-mix(in_srgb,var(--accent)_55%,transparent)] peer-checked:bg-[var(--accent-strong)] peer-checked:text-white">
@@ -288,6 +356,14 @@ export function HomeChargesSection({
                 </label>
               </div>
             </fieldset>
+          ) : null}
+          {filterFetchState === "error" && paymentFilter !== "all" ? (
+            <p
+              className="rounded-2xl border border-[color:color-mix(in_srgb,var(--danger)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--danger)_12%,transparent)] px-4 py-3 text-sm text-[var(--danger)]"
+              role="alert"
+            >
+              Could not load filtered charges. Try again or refresh the page.
+            </p>
           ) : null}
           <div className="rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] shadow-[0_20px_58px_-34px_color-mix(in_srgb,var(--accent)_34%,transparent)]">
             <div className="flex flex-col gap-1 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--bg-elevated)_94%,transparent),color-mix(in_srgb,var(--bg-muted)_88%,transparent))] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
@@ -314,16 +390,20 @@ export function HomeChargesSection({
                     className="rounded border border-[color:color-mix(in_srgb,var(--line-strong)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)] disabled:cursor-not-allowed disabled:opacity-40"
                     disabled={!canPrev}
                     onClick={() => {
-                      router.push(
-                        buildDashboardChargesPath(
-                          selectedHomeId,
-                          billingMonthFrom,
-                          billingMonthTo,
-                          ytdBillingMonthFrom,
-                          ytdBillingMonthTo,
-                          { page: page - 1, pageSize, paymentStatus },
-                        ),
-                      );
+                      if (paymentFilter === "all") {
+                        router.push(
+                          buildDashboardChargesPath(
+                            selectedHomeId,
+                            billingMonthFrom,
+                            billingMonthTo,
+                            ytdBillingMonthFrom,
+                            ytdBillingMonthTo,
+                            { page: page - 1, pageSize },
+                          ),
+                        );
+                      } else {
+                        setFilteredPage((p) => Math.max(1, p - 1));
+                      }
                     }}
                   >
                     Previous
@@ -333,16 +413,20 @@ export function HomeChargesSection({
                     className="rounded border border-[color:color-mix(in_srgb,var(--line-strong)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)] disabled:cursor-not-allowed disabled:opacity-40"
                     disabled={!canNext}
                     onClick={() => {
-                      router.push(
-                        buildDashboardChargesPath(
-                          selectedHomeId,
-                          billingMonthFrom,
-                          billingMonthTo,
-                          ytdBillingMonthFrom,
-                          ytdBillingMonthTo,
-                          { page: page + 1, pageSize, paymentStatus },
-                        ),
-                      );
+                      if (paymentFilter === "all") {
+                        router.push(
+                          buildDashboardChargesPath(
+                            selectedHomeId,
+                            billingMonthFrom,
+                            billingMonthTo,
+                            ytdBillingMonthFrom,
+                            ytdBillingMonthTo,
+                            { page: page + 1, pageSize },
+                          ),
+                        );
+                      } else {
+                        setFilteredPage((p) => p + 1);
+                      }
                     }}
                   >
                     Next
@@ -378,7 +462,7 @@ export function HomeChargesSection({
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:color-mix(in_srgb,var(--line-subtle)_66%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_84%,transparent)]">
-              {totalCount === 0 && paymentStatus === "all" ? (
+              {totalCount === 0 && paymentFilter === "all" ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center">
                     <div className="mx-auto max-w-md rounded-2xl border border-dashed border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_74%,transparent)] px-6 py-7">
@@ -390,6 +474,17 @@ export function HomeChargesSection({
                         to review generated charges.
                       </p>
                     </div>
+                  </td>
+                </tr>
+              ) : totalCount === 0 &&
+                filterFetchState === "loading" &&
+                paymentFilter !== "all" ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-5 py-12 text-center text-[var(--text-secondary)]"
+                  >
+                    Loading…
                   </td>
                 </tr>
               ) : totalCount === 0 ? (

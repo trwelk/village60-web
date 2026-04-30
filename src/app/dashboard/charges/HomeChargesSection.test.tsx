@@ -4,20 +4,28 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HomeChargesSection } from "./HomeChargesSection";
 
 const mockPush = vi.fn();
+const mockFetch = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
+beforeEach(() => {
+  mockFetch.mockReset();
+  vi.stubGlobal("fetch", mockFetch);
+});
+
 afterEach(() => {
   cleanup();
   mockPush.mockClear();
+  vi.unstubAllGlobals();
 });
 
 const emptySummary = {
@@ -37,7 +45,6 @@ const base = {
   ytdBillingMonthFrom: "2026-01",
   ytdBillingMonthTo: "2026-04",
   rangeIsDefaultYtd: true,
-  paymentStatus: "all" as const,
   ledger: {
     rows: [],
     totalCount: 0,
@@ -143,7 +150,24 @@ function ledgerFromRows(rows: (typeof paymentNull | typeof paymentWithRecord)[])
   };
 }
 
-describe("HomeChargesSection (18d payment status filter + 22c URL)", () => {
+function mockMonthlyChargesResponse(
+  rows: (typeof paymentNull | typeof paymentWithRecord)[],
+) {
+  const ledger = ledgerFromRows(rows);
+  return Promise.resolve({
+    ok: true,
+    text: async () => "",
+    json: async () => ({
+      charges: ledger.rows,
+      totalCount: ledger.totalCount,
+      page: ledger.page,
+      pageSize: ledger.pageSize,
+      summary: ledger.summary,
+    }),
+  } as unknown as Response);
+}
+
+describe("HomeChargesSection (18d payment status filter, client fetch)", () => {
   it("default All shows every billing month in the table", () => {
     const { rows, totalCount, page, pageSize, summary } = ledgerFromRows([
       paymentNull,
@@ -152,7 +176,6 @@ describe("HomeChargesSection (18d payment status filter + 22c URL)", () => {
     render(
       <HomeChargesSection
         {...base}
-        paymentStatus="all"
         ledger={{ rows, totalCount, page, pageSize, summary }}
       />,
     );
@@ -161,74 +184,65 @@ describe("HomeChargesSection (18d payment status filter + 22c URL)", () => {
     expect(within(table).getByText("2026-02")).toBeInTheDocument();
   });
 
-  it("Unpaid only shows server-filtered rows", () => {
-    const { rows, totalCount, page, pageSize, summary } = ledgerFromRows([
-      paymentNull,
-    ]);
-    render(
-      <HomeChargesSection
-        {...base}
-        paymentStatus="unpaid"
-        ledger={{ rows, totalCount, page, pageSize, summary }}
-      />,
+  it("Unpaid only shows API-filtered rows", async () => {
+    mockFetch.mockImplementation(() =>
+      mockMonthlyChargesResponse([paymentNull]),
     );
+    const all = ledgerFromRows([paymentNull, paymentWithRecord]);
+    render(<HomeChargesSection {...base} ledger={all} />);
+    fireEvent.click(screen.getByRole("radio", { name: /^Unpaid only$/i }));
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
     const table = screen.getByRole("table", { name: /monthly charge ledger/i });
     expect(within(table).getByText("2026-01")).toBeInTheDocument();
     expect(within(table).queryByText("2026-02")).not.toBeInTheDocument();
+    const url = String(mockFetch.mock.calls[0][0]);
+    expect(url).toContain("paymentStatus=unpaid");
   });
 
-  it("Paid only shows server-filtered rows", () => {
-    const { rows, totalCount, page, pageSize, summary } = ledgerFromRows([
-      paymentWithRecord,
-    ]);
-    render(
-      <HomeChargesSection
-        {...base}
-        paymentStatus="paid"
-        ledger={{ rows, totalCount, page, pageSize, summary }}
-      />,
+  it("Paid only shows API-filtered rows", async () => {
+    mockFetch.mockImplementation(() =>
+      mockMonthlyChargesResponse([paymentWithRecord]),
     );
+    const all = ledgerFromRows([paymentNull, paymentWithRecord]);
+    render(<HomeChargesSection {...base} ledger={all} />);
+    fireEvent.click(screen.getByRole("radio", { name: /^Paid only$/i }));
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
     const table = screen.getByRole("table", { name: /monthly charge ledger/i });
     expect(within(table).queryByText("2026-01")).not.toBeInTheDocument();
     expect(within(table).getByText("2026-02")).toBeInTheDocument();
+    const url = String(mockFetch.mock.calls[0][0]);
+    expect(url).toContain("paymentStatus=paid");
   });
 
-  it("when the filter matches nothing, shows a message distinct from an empty range", () => {
-    render(
-      <HomeChargesSection
-        {...base}
-        paymentStatus="unpaid"
-        ledger={{
-          rows: [],
-          totalCount: 0,
-          page: 1,
-          pageSize: 25,
-          summary: emptySummary,
-        }}
-      />,
-    );
+  it("when the filter matches nothing, shows a message distinct from an empty range", async () => {
+    mockFetch.mockImplementation(() => mockMonthlyChargesResponse([]));
+    const all = ledgerFromRows([paymentWithRecord]);
+    render(<HomeChargesSection {...base} ledger={all} />);
+    fireEvent.click(screen.getByRole("radio", { name: /^Unpaid only$/i }));
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
     const table = screen.getByRole("table", { name: /monthly charge ledger/i });
     expect(
       within(table).getByText(/no rows match this filter/i),
     ).toBeInTheDocument();
   });
 
-  it("choosing Unpaid only navigates with paymentStatus=unpaid and page=1", () => {
-    const { rows, totalCount, page, pageSize, summary } = ledgerFromRows([
-      paymentNull,
-      paymentWithRecord,
-    ]);
-    render(
-      <HomeChargesSection
-        {...base}
-        paymentStatus="all"
-        ledger={{ rows, totalCount, page, pageSize, summary }}
-      />,
+  it("choosing Unpaid only fetches filtered data without changing the route", async () => {
+    mockFetch.mockImplementation(() =>
+      mockMonthlyChargesResponse([paymentNull]),
     );
+    const all = ledgerFromRows([paymentNull, paymentWithRecord]);
+    render(<HomeChargesSection {...base} ledger={all} />);
     fireEvent.click(screen.getByRole("radio", { name: /^Unpaid only$/i }));
-    expect(mockPush).toHaveBeenCalledWith(
-      "/dashboard/charges?homeId=h1&paymentStatus=unpaid",
-    );
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });
 
@@ -237,7 +251,6 @@ describe("HomeChargesSection (22c pagination)", () => {
     render(
       <HomeChargesSection
         {...base}
-        paymentStatus="all"
         ledger={{
           rows: [paymentNull],
           totalCount: 40,

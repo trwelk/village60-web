@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -104,7 +104,7 @@ describe("DashboardAppShell", () => {
     expect(rail.queryByRole("link", { name: "Staff" })).not.toBeInTheDocument();
   });
 
-  it("admin sees Analytics nav link in the desktop rail", () => {
+  it("admin sees Analytics sub‑nav links in the desktop rail", () => {
     pathRef.current = "/dashboard";
     renderShell(
       <DashboardAppShell email="a@b.c" role="admin">
@@ -113,11 +113,17 @@ describe("DashboardAppShell", () => {
     );
     const rail = screen.getByRole("complementary", { name: "Primary" });
     expect(
-      within(rail).getByRole("link", { name: "Analytics" }),
-    ).toHaveAttribute("href", "/dashboard/analytics");
+      within(rail).getByRole("link", { name: "Revenue" }),
+    ).toHaveAttribute("href", "/dashboard/analytics/revenue-collections");
+    expect(
+      within(rail).getByRole("link", { name: "Admissions" }),
+    ).toHaveAttribute("href", "/dashboard/analytics/admissions-departures");
+    expect(
+      within(rail).getByRole("link", { name: "Demographics" }),
+    ).toHaveAttribute("href", "/dashboard/analytics/demographics-staff");
   });
 
-  it("care user does not see Analytics link", () => {
+  it("care user does not see Analytics sub‑nav links", () => {
     pathRef.current = "/dashboard";
     renderShell(
       <DashboardAppShell email="a@b.c" role="care">
@@ -126,11 +132,25 @@ describe("DashboardAppShell", () => {
     );
     const rail = screen.getByRole("complementary", { name: "Primary" });
     expect(
-      within(rail).queryByRole("link", { name: "Analytics" }),
+      within(rail).queryByRole("link", { name: "Revenue" }),
     ).not.toBeInTheDocument();
   });
 
-  it("Analytics link is active when on /dashboard/analytics", () => {
+  it("Revenue nav is active on nested analytics revenue route", () => {
+    pathRef.current = "/dashboard/analytics/revenue-collections";
+    renderShell(
+      <DashboardAppShell email="a@b.c" role="admin">
+        <p>content</p>
+      </DashboardAppShell>,
+    );
+    const rail = screen.getByRole("complementary", { name: "Primary" });
+    const link = within(rail).getByRole("link", {
+      name: "Revenue",
+    });
+    expect(link).toHaveAttribute("aria-current", "page");
+  });
+
+  it("Revenue nav is active when on /dashboard/analytics (redirect target)", () => {
     pathRef.current = "/dashboard/analytics";
     renderShell(
       <DashboardAppShell email="a@b.c" role="admin">
@@ -138,7 +158,9 @@ describe("DashboardAppShell", () => {
       </DashboardAppShell>,
     );
     const rail = screen.getByRole("complementary", { name: "Primary" });
-    const link = within(rail).getByRole("link", { name: "Analytics" });
+    const link = within(rail).getByRole("link", {
+      name: "Revenue",
+    });
     expect(link).toHaveAttribute("aria-current", "page");
   });
 
@@ -171,9 +193,8 @@ describe("DashboardAppShell", () => {
     expect(document.activeElement).toBe(openBtn);
   });
 
-  it("lg+ rail: collapse toggle is expanded by default, flips aria-pressed, and persists", async () => {
+  it("lg+ rail: collapse toggle is expanded by default, flips aria-pressed, and persists", () => {
     pathRef.current = "/dashboard";
-    const user = userEvent.setup();
     renderShell(
       <DashboardAppShell email="a@b.c" role="admin">
         <p>content</p>
@@ -185,7 +206,7 @@ describe("DashboardAppShell", () => {
     });
     expect(toggle).toHaveAttribute("aria-pressed", "true");
 
-    await user.click(toggle);
+    fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     expect(localStorage.getItem(DASHBOARD_SIDEBAR_EXPANDED_KEY)).toBe("false");
   });

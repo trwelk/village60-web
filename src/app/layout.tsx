@@ -1,4 +1,10 @@
 import type { Metadata } from "next";
+import "@fontsource/atkinson-hyperlegible/400.css";
+import "@fontsource/atkinson-hyperlegible/700.css";
+import "@fontsource/fragment-mono/400.css";
+import "@fontsource/outfit/500.css";
+import "@fontsource/outfit/700.css";
+import "@fontsource/young-serif/400.css";
 import "./globals.css";
 import { ThemeBootstrap } from "./ThemeBootstrap";
 

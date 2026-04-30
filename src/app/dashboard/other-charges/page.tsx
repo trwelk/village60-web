@@ -4,7 +4,6 @@ import {
   DEFAULT_CHARGES_LEDGER_PAGE_SIZE,
   listHomeOtherChargesLedger,
   MAX_CHARGES_LEDGER_PAGE_SIZE,
-  type HomeOtherChargesReceivedFilter,
   type HomeOtherChargesLedgerSummary,
   type HomeOtherChargeLedgerRow,
 } from "@/lib/billing/residentCharges";
@@ -23,7 +22,6 @@ type OtherChargesPageProps = {
   searchParams?: Promise<{
     homeId?: string;
     residentId?: string;
-    status?: string;
     page?: string;
     pageSize?: string;
   }>;
@@ -49,19 +47,6 @@ function parsePageSizeParam(raw: string | undefined): number {
     return DEFAULT_CHARGES_LEDGER_PAGE_SIZE;
   }
   return Math.min(MAX_CHARGES_LEDGER_PAGE_SIZE, n);
-}
-
-function parseReceivedFilterParam(
-  raw: string | undefined,
-): HomeOtherChargesReceivedFilter {
-  const s = typeof raw === "string" ? raw.trim() : "";
-  if (s === "unpaid") {
-    return "unpaid";
-  }
-  if (s === "paid") {
-    return "paid";
-  }
-  return "all";
 }
 
 export default async function OtherChargesPage({
@@ -95,7 +80,6 @@ export default async function OtherChargesPage({
     ? db.select().from(homes).where(eq(homes.id, selectedHomeId)).get()
     : undefined;
 
-  const receivedFilter = parseReceivedFilterParam(q.status);
   const residentsInHome =
     selectedHomeId && homeRow
       ? listResidents(db, actor, {
@@ -128,7 +112,7 @@ export default async function OtherChargesPage({
   } = selectedHomeId && homeRow
     ? listHomeOtherChargesLedger(db, actor, selectedHomeId, {
         residentId: selectedResidentId || undefined,
-        receivedFilter,
+        receivedFilter: "all",
         page,
         pageSize,
       })
@@ -160,7 +144,6 @@ export default async function OtherChargesPage({
         selectedHomeId={selectedHomeId}
         defaultCurrencyCode={homeRow?.defaultCurrencyCode ?? DEFAULT_CURRENCY_CODE}
         selectedResidentId={selectedResidentId}
-        receivedFilter={receivedFilter}
         ledger={ledger}
         residentsInHome={residentsInHome.map((r) => ({
           id: r.id,

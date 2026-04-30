@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  isDashboardAnalyticsAdmissionsDeparturesPath,
+  isDashboardAnalyticsDemographicsStaffPath,
   isDashboardAnalyticsPath,
+  isDashboardAnalyticsRevenueCollectionsPath,
   isDashboardAccountPath,
   isDashboardHomesPath,
   isDashboardResidentsPath,
@@ -21,8 +24,59 @@ describe("isDashboardAnalyticsPath", () => {
     expect(isDashboardAnalyticsPath("/dashboard/account")).toBe(false);
   });
 
-  it("does not match paths that merely contain 'analytics'", () => {
-    expect(isDashboardAnalyticsPath("/dashboard/analytics/something")).toBe(false);
+  it("matches nested analytics routes", () => {
+    expect(
+      isDashboardAnalyticsPath("/dashboard/analytics/revenue-collections"),
+    ).toBe(true);
+    expect(
+      isDashboardAnalyticsPath("/dashboard/analytics/admissions-departures"),
+    ).toBe(true);
+  });
+
+  it("does not match unrelated /dashboard/analytics-ish paths", () => {
+    expect(isDashboardAnalyticsPath("/dashboard/analytics-evil")).toBe(false);
+  });
+});
+
+describe("analytics subsection paths", () => {
+  it("isDashboardAnalyticsRevenueCollectionsPath", () => {
+    expect(
+      isDashboardAnalyticsRevenueCollectionsPath(
+        "/dashboard/analytics/revenue-collections",
+      ),
+    ).toBe(true);
+    expect(
+      isDashboardAnalyticsRevenueCollectionsPath("/dashboard/analytics"),
+    ).toBe(true);
+    expect(
+      isDashboardAnalyticsRevenueCollectionsPath(
+        "/dashboard/analytics/admissions-departures",
+      ),
+    ).toBe(false);
+  });
+
+  it("isDashboardAnalyticsAdmissionsDeparturesPath", () => {
+    expect(
+      isDashboardAnalyticsAdmissionsDeparturesPath(
+        "/dashboard/analytics/admissions-departures",
+      ),
+    ).toBe(true);
+    expect(
+      isDashboardAnalyticsAdmissionsDeparturesPath(
+        "/dashboard/analytics/revenue-collections",
+      ),
+    ).toBe(false);
+  });
+
+  it("isDashboardAnalyticsDemographicsStaffPath", () => {
+    expect(
+      isDashboardAnalyticsDemographicsStaffPath(
+        "/dashboard/analytics/demographics-staff",
+      ),
+    ).toBe(true);
+    expect(
+      isDashboardAnalyticsDemographicsStaffPath("/dashboard/analytics"),
+    ).toBe(false);
   });
 });
 

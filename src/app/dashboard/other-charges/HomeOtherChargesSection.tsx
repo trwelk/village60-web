@@ -2,32 +2,38 @@
 
 import { VillageSelect } from "@/components/VillageSelect";
 import { buildDashboardOtherChargesPath } from "@/lib/billing/dashboardOtherChargesPath";
+import type { DashboardHomeOption } from "@/lib/dashboard/charts";
 import type {
   HomeOtherChargeLedgerRow,
   HomeOtherChargesReceivedFilter,
   HomeOtherChargesLedgerSummary,
 } from "@/lib/billing/residentCharges";
-import type { DashboardHomeOption } from "@/lib/dashboard/charts";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 type ResidentOption = { id: string; fullName: string };
+
+type LedgerSlice = {
+  rows: HomeOtherChargeLedgerRow[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  summary: HomeOtherChargesLedgerSummary;
+};
+
+const FILTER_LOADING_SUMMARY: HomeOtherChargesLedgerSummary = {
+  totalAmountMinor: 0,
+  outstandingAmountMinor: 0,
+  receivedLineCount: 0,
+};
 
 type Props = {
   homes: DashboardHomeOption[];
   selectedHomeId: string;
   defaultCurrencyCode: string;
-  /** Current URL filter (all = every resident; otherwise one resident). */
   selectedResidentId: string;
-  receivedFilter: HomeOtherChargesReceivedFilter;
-  ledger: {
-    rows: HomeOtherChargeLedgerRow[];
-    totalCount: number;
-    page: number;
-    pageSize: number;
-    summary: HomeOtherChargesLedgerSummary;
-  };
+  ledger: LedgerSlice;
   residentsInHome: ResidentOption[];
 };
 
@@ -47,24 +53,82 @@ export function HomeOtherChargesSection({
   selectedHomeId,
   defaultCurrencyCode,
   selectedResidentId,
-  receivedFilter,
   ledger,
   residentsInHome,
 }: Props) {
   const router = useRouter();
-  const { rows, totalCount, page, pageSize, summary } = ledger;
-  const from =
-    totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, totalCount);
-  const canPrev = page > 1;
-  const canNext = page * pageSize < totalCount;
-  const unpaidLineCount = totalCount - summary.receivedLineCount;
   const [payFilter, setPayFilter] =
-    useState<HomeOtherChargesReceivedFilter>(receivedFilter);
+    useState<HomeOtherChargesReceivedFilter>("all");
+  const [filterPage, setFilterPage] = useState(1);
+  const [clientLedger, setClientLedger] = useState<LedgerSlice | null>(null);
+  const [filterFetchState, setFilterFetchState] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
 
   useEffect(() => {
-    setPayFilter(receivedFilter);
-  }, [receivedFilter]);
+    setPayFilter("all");
+    setClientLedger(null);
+    setFilterFetchState("idle");
+  }, [selectedHomeId]);
+
+  useLayoutEffect(() => {
+    setFilterPage(1);
+  }, [payFilter, selectedHomeId, selectedResidentId]);
+
+  useEffect(() => {
+    if (payFilter === "all" || !selectedHomeId) {
+      setClientLedger(null);
+      setFilterFetchState("idle");
+      return;
+    }
+    const ac = new AbortController();
+    setFilterFetchState("loading");
+    (async () => {
+      try {
+        const u = new URL(
+          `/api/homes/${selectedHomeId}/other-charges`,
+          window.location.origin,
+        );
+        if (selectedResidentId.trim()) {
+          u.searchParams.set("residentId", selectedResidentId.trim());
+        }
+        u.searchParams.set("status", payFilter);
+        u.searchParams.set("page", String(filterPage));
+        u.searchParams.set("pageSize", String(ledger.pageSize));
+        const res = await fetch(u.toString(), { signal: ac.signal });
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+        const data = (await res.json()) as {
+          rows: HomeOtherChargeLedgerRow[];
+          totalCount: number;
+          page: number;
+          pageSize: number;
+          summary: HomeOtherChargesLedgerSummary;
+        };
+        setClientLedger({
+          rows: data.rows,
+          totalCount: data.totalCount,
+          page: data.page,
+          pageSize: data.pageSize,
+          summary: data.summary,
+        });
+        setFilterFetchState("idle");
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") {
+          return;
+        }
+        setFilterFetchState("error");
+      }
+    })();
+    return () => ac.abort();
+  }, [
+    payFilter,
+    selectedHomeId,
+    selectedResidentId,
+    filterPage,
+    ledger.pageSize,
+  ]);
 
   if (homes.length === 0) {
     return (
@@ -74,6 +138,24 @@ export function HomeOtherChargesSection({
       </p>
     );
   }
+
+  const displayLedger: LedgerSlice =
+    payFilter === "all"
+      ? ledger
+      : clientLedger ?? {
+          rows: [],
+          totalCount: 0,
+          page: filterPage,
+          pageSize: ledger.pageSize,
+          summary: FILTER_LOADING_SUMMARY,
+        };
+
+  const { rows, totalCount, page, pageSize, summary } = displayLedger;
+  const from = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, totalCount);
+  const canPrev = page > 1;
+  const canNext = page * pageSize < totalCount;
+  const unpaidLineCount = totalCount - summary.receivedLineCount;
 
   const residentOptions: { value: string; label: string }[] = [
     { value: "", label: "All residents" },
@@ -99,9 +181,16 @@ export function HomeOtherChargesSection({
             <VillageSelect
               id="other-charges-home"
               value={selectedHomeId}
-              onChange={(id) => {
-                router.push(
-                  buildDashboardOtherChargesPath(id, "", "all", 1, pageSize),
+                onChange={(id) => {
+                  setPayFilter("all");
+                  router.push(
+                  buildDashboardOtherChargesPath(
+                    id,
+                    "",
+                    "all",
+                    1,
+                    ledger.pageSize,
+                  ),
                 );
               }}
               options={homes.map((h) => ({
@@ -123,9 +212,9 @@ export function HomeOtherChargesSection({
                     buildDashboardOtherChargesPath(
                       selectedHomeId,
                       rid,
-                      payFilter,
+                      "all",
                       1,
-                      pageSize,
+                      ledger.pageSize,
                     ),
                   );
                 }}
@@ -213,15 +302,6 @@ export function HomeOtherChargesSection({
                     checked={payFilter === value}
                     onChange={() => {
                       setPayFilter(value);
-                      router.push(
-                        buildDashboardOtherChargesPath(
-                          selectedHomeId,
-                          selectedResidentId,
-                          value,
-                          1,
-                          pageSize,
-                        ),
-                      );
                     }}
                   />
                   <span className="block rounded-full border border-pine/15 bg-cream px-3 py-1.5 text-sm font-semibold text-ink/70 transition peer-checked:border-pine/35 peer-checked:bg-pine peer-checked:text-cream peer-focus-visible:ring-2 peer-focus-visible:ring-terracotta/35 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-cream">
@@ -231,6 +311,15 @@ export function HomeOtherChargesSection({
               ))}
             </div>
           </fieldset>
+
+          {filterFetchState === "error" && payFilter !== "all" ? (
+            <p
+              className="rounded-2xl border border-terracotta/35 bg-cream-muted/55 px-4 py-3 text-sm text-terracotta"
+              role="alert"
+            >
+              Could not load filtered lines. Try again or refresh the page.
+            </p>
+          ) : null}
 
           <div
             className="overflow-hidden rounded-3xl border border-pine/12 bg-cream/90 shadow-[0_20px_58px_-34px_rgba(12,24,20,0.5)]"
@@ -261,15 +350,19 @@ export function HomeOtherChargesSection({
                   className="rounded border border-pine/25 bg-cream px-3 py-1.5 text-sm text-ink hover:bg-cream/80 disabled:cursor-not-allowed disabled:opacity-40"
                   disabled={!canPrev}
                   onClick={() => {
-                    router.push(
-                      buildDashboardOtherChargesPath(
-                        selectedHomeId,
-                        selectedResidentId,
-                        payFilter,
-                        page - 1,
-                        pageSize,
-                      ),
-                    );
+                    if (payFilter === "all") {
+                      router.push(
+                        buildDashboardOtherChargesPath(
+                          selectedHomeId,
+                          selectedResidentId,
+                          "all",
+                          page - 1,
+                          pageSize,
+                        ),
+                      );
+                    } else {
+                      setFilterPage((p) => Math.max(1, p - 1));
+                    }
                   }}
                 >
                   Previous
@@ -279,15 +372,19 @@ export function HomeOtherChargesSection({
                   className="rounded border border-pine/25 bg-cream px-3 py-1.5 text-sm text-ink hover:bg-cream/80 disabled:cursor-not-allowed disabled:opacity-40"
                   disabled={!canNext}
                   onClick={() => {
-                    router.push(
-                      buildDashboardOtherChargesPath(
-                        selectedHomeId,
-                        selectedResidentId,
-                        payFilter,
-                        page + 1,
-                        pageSize,
-                      ),
-                    );
+                    if (payFilter === "all") {
+                      router.push(
+                        buildDashboardOtherChargesPath(
+                          selectedHomeId,
+                          selectedResidentId,
+                          "all",
+                          page + 1,
+                          pageSize,
+                        ),
+                      );
+                    } else {
+                      setFilterPage((p) => p + 1);
+                    }
                   }}
                 >
                   Next
@@ -340,7 +437,18 @@ export function HomeOtherChargesSection({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-pine/8 bg-cream/70">
-                  {rows.length === 0 ? (
+                  {rows.length === 0 &&
+                  filterFetchState === "loading" &&
+                  payFilter !== "all" ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-5 py-12 text-center text-ink/60"
+                      >
+                        Loading…
+                      </td>
+                    </tr>
+                  ) : rows.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-5 py-12 text-center">
                         <div className="mx-auto max-w-md rounded-2xl border border-dashed border-pine/20 bg-cream-muted/55 px-6 py-7">

@@ -11,6 +11,8 @@ export type ResidentsDirectoryUrlState = {
   wardId: string;
   page: number;
   pageSize: number;
+  /** When true, home residents page shows the create-resident modal (`?newResident=1`). */
+  newResident: boolean;
 };
 
 function parseResidentsPage(raw: string | null): number {
@@ -54,6 +56,7 @@ export function residentsDirectoryStateFromSearchParams(
     wardId: sp.get("wardId") ?? "",
     page: parseResidentsPage(sp.get("page")),
     pageSize: parseResidentsPageSize(sp.get("pageSize")),
+    newResident: sp.get("newResident") === "1",
   };
 }
 
@@ -93,6 +96,9 @@ export function buildResidentsDirectoryQueryString(
   }
   if (s.pageSize !== DEFAULT_RESIDENTS_DIRECTORY_PAGE_SIZE) {
     p.set("pageSize", String(s.pageSize));
+  }
+  if (s.newResident) {
+    p.set("newResident", "1");
   }
   return p.toString();
 }

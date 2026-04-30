@@ -5,8 +5,10 @@ import type { SessionUserRole } from "@/lib/session";
 import { getDashboardContextTitle } from "@/lib/dashboard/contextTitle";
 import { useDashboardWayfinding } from "./DashboardWayfinding";
 import {
-  isDashboardAnalyticsPath,
   isDashboardAccountPath,
+  isDashboardAnalyticsAdmissionsDeparturesPath,
+  isDashboardAnalyticsDemographicsStaffPath,
+  isDashboardAnalyticsRevenueCollectionsPath,
   isDashboardChargesPath,
   isDashboardHomesPath,
   isDashboardOtherChargesPath,
@@ -22,13 +24,15 @@ import {
 } from "@/lib/dashboard/sidebarExpandedStorage";
 import type { LucideIcon } from "lucide-react";
 import {
-  BarChart2,
   Building2,
   ClipboardList,
+  DoorOpen,
   FileStack,
   LayoutDashboard,
+  LineChart,
   PanelLeft,
   PanelLeftClose,
+  PieChart,
   Receipt,
   UserCircle,
   UserCog,
@@ -108,16 +112,33 @@ function focusableIn(container: HTMLElement): HTMLElement[] {
   return visible.length > 0 ? visible : candidates;
 }
 
-type NavItem = {
+type NavLinkItem = {
+  kind: "link";
   href: string;
   label: string;
   Icon: LucideIcon;
   isActive: (pathname: string) => boolean;
 };
 
-function primaryNavItemsForRole(role: SessionUserRole): NavItem[] {
-  const items: NavItem[] = [
+type NavAnalyticsSubItem = {
+  href: string;
+  label: string;
+  Icon: LucideIcon;
+  isActive: (pathname: string) => boolean;
+};
+
+type NavGroupItem = {
+  kind: "group";
+  label: string;
+  items: NavAnalyticsSubItem[];
+};
+
+type NavEntry = NavLinkItem | NavGroupItem;
+
+function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
+  const items: NavEntry[] = [
     {
+      kind: "link",
       href: "/dashboard",
       label: "Overview",
       Icon: LayoutDashboard,
@@ -126,32 +147,54 @@ function primaryNavItemsForRole(role: SessionUserRole): NavItem[] {
     ...(role === "admin"
       ? [
           {
-            href: "/dashboard/analytics",
+            kind: "group",
             label: "Analytics",
-            Icon: BarChart2,
-            isActive: isDashboardAnalyticsPath,
-          } satisfies NavItem,
+            items: [
+              {
+                href: "/dashboard/analytics/revenue-collections",
+                label: "Revenue",
+                Icon: LineChart,
+                isActive: isDashboardAnalyticsRevenueCollectionsPath,
+              },
+              {
+                href: "/dashboard/analytics/admissions-departures",
+                label: "Admissions",
+                Icon: DoorOpen,
+                isActive: isDashboardAnalyticsAdmissionsDeparturesPath,
+              },
+              {
+                href: "/dashboard/analytics/demographics-staff",
+                label: "Demographics",
+                Icon: PieChart,
+                isActive: isDashboardAnalyticsDemographicsStaffPath,
+              },
+            ],
+          } satisfies NavGroupItem,
         ]
       : []),
     {
+      kind: "link",
       href: "/dashboard/account",
       label: "My account",
       Icon: UserCircle,
       isActive: isDashboardAccountPath,
     },
     {
+      kind: "link",
       href: "/dashboard/residents",
       label: "Residents",
       Icon: Users,
       isActive: isDashboardResidentsPath,
     },
     {
+      kind: "link",
       href: "/dashboard/tasks",
       label: "Tasks",
       Icon: ClipboardList,
       isActive: isDashboardTasksPath,
     },
     {
+      kind: "link",
       href: "/dashboard/homes",
       label: role === "admin" ? "Retirement homes" : "Your homes",
       Icon: Building2,
@@ -161,24 +204,28 @@ function primaryNavItemsForRole(role: SessionUserRole): NavItem[] {
   if (role === "admin") {
     items.push(
       {
+        kind: "link",
         href: "/dashboard/charges",
         label: "Charges",
         Icon: Receipt,
         isActive: isDashboardChargesPath,
       },
       {
+        kind: "link",
         href: "/dashboard/other-charges",
         label: "Other charges",
         Icon: FileStack,
         isActive: isDashboardOtherChargesPath,
       },
       {
+        kind: "link",
         href: "/dashboard/payments",
         label: "Payments",
         Icon: Wallet,
         isActive: isDashboardPaymentsPath,
       },
       {
+        kind: "link",
         href: "/dashboard/users",
         label: "Staff",
         Icon: UserCog,
@@ -230,11 +277,65 @@ function PrimaryNav({
       <div
         className={
           navLinkLayout === "vertical"
-            ? "village-nav-cluster-animate flex flex-col gap-0.5 rounded-2xl p-1.5 shadow-inner shadow-[color:color-mix(in_srgb,var(--accent)_12%,transparent)] backdrop-blur"
+            ? "village-nav-cluster-animate flex flex-col gap-0.5 rounded-2xl p-1.5 shadow-inner shadow-[color:color-mix(in_srgb,var(--accent)_12%,transparent)]"
             : "village-nav-cluster village-nav-cluster-animate"
         }
       >
-        {items.map(({ href, label, Icon, isActive }) => {
+        {items.map((entry) => {
+          if (entry.kind === "group") {
+            const railSubLinkClass = [
+              "village-nav-link block w-full text-left",
+              iconRail
+                ? "village-nav-link--rail-collapsed flex items-center"
+                : "flex items-center gap-2.5 border-l-2 pl-3 ml-2 text-left",
+            ].join(" ");
+            return (
+              <div
+                key={entry.label}
+                role="group"
+                aria-label={entry.label}
+                className="flex flex-col gap-0.5"
+              >
+                {iconRail ? null : (
+                  <div className="px-2.5 pt-1.5 pb-0 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                    {entry.label}
+                  </div>
+                )}
+                {entry.items.map((sub) => {
+                  const active = sub.isActive(pathname);
+                  const borderAccent = active
+                    ? "border-[var(--accent)]"
+                    : "border-[color:color-mix(in_srgb,var(--line-subtle)_45%,transparent)]";
+                  const subLinkClass =
+                    iconRail || navLinkLayout !== "vertical"
+                      ? linkClass
+                      : `${railSubLinkClass} ${borderAccent}`;
+                  return (
+                    <Link
+                      key={sub.href}
+                      href={sub.href}
+                      className={subLinkClass}
+                      aria-current={active ? "page" : undefined}
+                      aria-label={iconRail ? sub.label : undefined}
+                      title={iconRail ? sub.label : undefined}
+                    >
+                      <sub.Icon
+                        className="shrink-0"
+                        size={iconRail ? 20 : 18}
+                        strokeWidth={active && iconRail ? 2.25 : 2}
+                        aria-hidden
+                      />
+                      {iconRail ? null : (
+                        <span className="min-w-0 leading-snug">{sub.label}</span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          }
+
+          const { href, label, Icon, isActive } = entry;
           const active = isActive(pathname);
           return (
             <Link
@@ -324,12 +425,18 @@ export function DashboardAppShell({
   }, []);
 
   useEffect(() => {
+    let frame = 0;
     try {
       const raw = localStorage.getItem(DASHBOARD_SIDEBAR_EXPANDED_KEY);
-      setRailExpanded(readSidebarExpandedFromStorage(raw));
+      frame = window.requestAnimationFrame(() => {
+        setRailExpanded(readSidebarExpandedFromStorage(raw));
+      });
     } catch {
       /* ignore */
     }
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+    };
   }, []);
 
   const toggleRailExpanded = useCallback(() => {
@@ -443,13 +550,13 @@ export function DashboardAppShell({
       </a>
       <div
         className={[
-          "relative min-h-screen transition-[padding] duration-200 ease-out",
+          "relative min-h-screen transition-[padding] duration-150 ease-out motion-reduce:transition-none",
           shellPadClass,
         ].join(" ")}
       >
         <aside
           className={[
-            "village-dashboard-shell-rail group fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-[color:color-mix(in_srgb,var(--line-subtle)_75%,transparent)] shadow-[var(--shadow-md)] backdrop-blur transition-[width] duration-200 ease-out lg:flex",
+            "village-dashboard-shell-rail group fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-[color:color-mix(in_srgb,var(--line-subtle)_75%,transparent)] shadow-[var(--shadow-md)] transition-[width,padding] duration-150 ease-out motion-reduce:transition-none lg:flex",
             asideWidthClass,
             asidePadClass,
           ].join(" ")}
@@ -499,7 +606,7 @@ export function DashboardAppShell({
           <button
             type="button"
             aria-label="Close menu"
-            className="fixed inset-0 z-40 cursor-default bg-[color:color-mix(in_srgb,var(--bg-canvas)_56%,black_44%)] lg:hidden"
+            className="fixed inset-0 z-40 cursor-default bg-[color:color-mix(in_srgb,var(--bg-canvas)_56%,var(--text-primary)_44%)] lg:hidden"
             onClick={() => {
               closeMobile();
               window.setTimeout(() => menuButtonRef.current?.focus(), 0);
@@ -541,10 +648,10 @@ export function DashboardAppShell({
             </div>
           </div>
         ) : null}
-        <div className="flex min-h-screen min-w-0 flex-col">
+        <div className="village-app-bg flex min-h-screen min-w-0 flex-col">
           <header
             role="banner"
-            className="village-dashboard-topbar village-dashboard-topbar-animate sticky top-0 z-30 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_78%,transparent)] shadow-sm shadow-[color:color-mix(in_srgb,var(--accent)_12%,transparent)] backdrop-blur supports-[backdrop-filter]:bg-[color:color-mix(in_srgb,var(--bg-elevated)_82%,transparent)]"
+            className="village-dashboard-topbar village-dashboard-topbar-animate sticky top-0 z-30 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_78%,transparent)] shadow-[0_10px_30px_-28px_color-mix(in_srgb,var(--accent-strong)_58%,transparent)] backdrop-blur supports-[backdrop-filter]:bg-[color:color-mix(in_srgb,var(--bg-elevated)_82%,transparent)]"
           >
             <div className="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
               <button

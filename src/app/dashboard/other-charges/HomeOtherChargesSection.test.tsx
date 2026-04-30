@@ -21,7 +21,6 @@ describe("HomeOtherChargesSection (21c)", () => {
         selectedHomeId="h1"
         defaultCurrencyCode="NZD"
         selectedResidentId=""
-        receivedFilter="all"
         residentsInHome={[]}
         ledger={{
           rows: [],
@@ -47,7 +46,6 @@ describe("HomeOtherChargesSection (21c)", () => {
         selectedHomeId="h1"
         defaultCurrencyCode="NZD"
         selectedResidentId=""
-        receivedFilter="all"
         residentsInHome={[{ id: "r1", fullName: "A Resident" }]}
         ledger={{
           rows: [

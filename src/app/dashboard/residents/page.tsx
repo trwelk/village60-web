@@ -6,6 +6,7 @@ import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { ResidentsDirectoryUI } from "./ResidentsDirectoryUI";
+import { Suspense } from "react";
 
 export default async function ResidentsPage() {
   const session = await getIronSession<SessionData>(
@@ -19,12 +20,20 @@ export default async function ResidentsPage() {
   const homes = listHomes(getDb(), actor);
 
   return (
-    <ResidentsDirectoryUI
-      homes={homes.map((h) => ({ id: h.id, name: h.name }))}
-      role={actor.role === "admin" ? "admin" : "care"}
-      fixedHomeId={
-        actor.role === "care" && homes.length === 1 ? homes[0].id : undefined
+    <Suspense
+      fallback={
+        <main className="flex flex-col gap-8 text-ink">
+          <p className="text-sm text-ink/70">Loading residents…</p>
+        </main>
       }
-    />
+    >
+      <ResidentsDirectoryUI
+        homes={homes.map((h) => ({ id: h.id, name: h.name }))}
+        role={actor.role === "admin" ? "admin" : "care"}
+        fixedHomeId={
+          actor.role === "care" && homes.length === 1 ? homes[0].id : undefined
+        }
+      />
+    </Suspense>
   );
 }

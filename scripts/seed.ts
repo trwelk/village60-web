@@ -1,39 +1,23 @@
 import { getDb } from "@/db/client";
-import { users } from "@/db/schema";
-import { hashPassword } from "@/lib/iam/password";
-import { randomUUID } from "node:crypto";
+import { runFullApplicationSeed } from "./fullSeedDataset";
 
-const email = (process.env.SEED_ADMIN_EMAIL ?? "admin@example.com")
-  .trim()
-  .toLowerCase();
-const password = process.env.SEED_ADMIN_PASSWORD ?? "ChangeMeNow!1";
-
+/**
+ * Loads the full demo dataset (all tables). Clears existing application rows first.
+ *
+ * Usage (from `web/`): npm run db:seed
+ *
+ * For file reset + migrations + seed: npm run db:reset -- --seed
+ */
 async function main() {
-  const hash = await hashPassword(password);
   const db = getDb();
-  const now = Date.now();
-  const id = randomUUID();
+  const creds = await runFullApplicationSeed(db);
 
-  db.insert(users)
-    .values({
-      id,
-      email,
-      passwordHash: hash,
-      role: "admin",
-      failureTimestampsUtcMs: "[]",
-      lockedUntilUtcMs: null,
-      createdAtUtcMs: now,
-    })
-    .onConflictDoUpdate({
-      target: users.email,
-      set: {
-        passwordHash: hash,
-        role: "admin",
-      },
-    })
-    .run();
-
-  console.log(`Seeded Admin user: ${email}`);
+  console.log(
+    `Seed complete (${creds.timezoneLabel}, calendar through ${creds.calendarThrough}).\n` +
+      `  Admin: ${creds.adminEmail} / ${creds.adminPassword}\n` +
+      `  Care:  ${creds.nurseEmail} / ${creds.nursePassword}\n` +
+      `  Homes: ${creds.homesNamed.join(", ")}`,
+  );
 }
 
 main().catch((err) => {

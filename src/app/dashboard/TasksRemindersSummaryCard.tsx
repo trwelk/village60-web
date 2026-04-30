@@ -7,11 +7,11 @@ type TasksRemindersSummaryCardProps = {
 
 function StatPill({ label, value }: { label: string; value: number }) {
   return (
-    <div className="min-w-0 text-center sm:text-left">
-      <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-ink/48">
+    <div className="village-stat-card min-w-0 px-3 py-3 text-center sm:text-left">
+      <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
         {label}
       </p>
-      <p className="mt-1 font-display text-2xl font-normal tabular-nums text-pine-2">
+      <p className="mt-1 font-display text-2xl font-normal tabular-nums text-[var(--text-primary)]">
         {value}
       </p>
     </div>
@@ -23,7 +23,7 @@ export function TasksRemindersSummaryCard({
 }: TasksRemindersSummaryCardProps) {
   return (
     <section
-      className="village-reveal flex flex-col gap-4 rounded-2xl border border-pine/10 bg-cream/92 p-5 shadow-[0_18px_48px_-32px_rgba(12,24,20,0.32)] sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-6"
+      className="village-panel-card village-reveal flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-6"
       aria-labelledby="tasks-dashboard-summary-heading"
     >
       <div className="min-w-0 flex-1">

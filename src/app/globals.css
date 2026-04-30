@@ -3,25 +3,26 @@
 :root {
   color-scheme: light;
   --font-geist-sans:
-    "Segoe UI", "Helvetica Neue", "Inter", "Arial", sans-serif;
+    "Atkinson Hyperlegible", "Outfit", "Segoe UI", sans-serif;
+  --font-village-display: "Young Serif", "Outfit", serif;
   --font-geist-mono:
-    "Cascadia Code", "SFMono-Regular", "Menlo", "Consolas", monospace;
+    "Fragment Mono", "Cascadia Code", "Consolas", monospace;
 
-  --bg-canvas: #f6f3ee;
-  --bg-soft: #f1ece4;
-  --bg-elevated: #fffcf8;
-  --bg-muted: #efe8de;
+  --bg-canvas: #f7f4ee;
+  --bg-soft: #eee7dd;
+  --bg-elevated: #fffcf6;
+  --bg-muted: #e9dfd2;
 
-  --text-primary: #1f1a15;
-  --text-secondary: #4c433a;
-  --text-muted: #6f665d;
+  --text-primary: #1e1915;
+  --text-secondary: #51483f;
+  --text-muted: #756b61;
 
-  --line-subtle: #e4dbce;
-  --line-strong: #cfc4b5;
+  --line-subtle: #dfd3c3;
+  --line-strong: #c4b6a5;
 
-  --accent: #c96442;
-  --accent-strong: #b45435;
-  --highlight: #e08a62;
+  --accent: #c96543;
+  --accent-strong: #a84f35;
+  --highlight: #d9895f;
   --success: #3e8a63;
   --warning: #b67a3d;
   --danger: #b85c4a;
@@ -55,6 +56,9 @@
   --terracotta: var(--accent-strong);
   --terracotta-bright: var(--highlight);
   --sage: var(--chart-categorical-5);
+  --surface-wash: color-mix(in srgb, var(--bg-elevated) 78%, var(--bg-muted) 22%);
+  --surface-pressed: color-mix(in srgb, var(--bg-muted) 74%, var(--accent) 10%);
+  --ornament: color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
 html.light {
@@ -86,6 +90,7 @@ html.dark:root {}
   --color-success-muted: color-mix(in srgb, var(--success) 16%, var(--bg-elevated) 84%);
   --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-village-display);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -97,29 +102,52 @@ body {
   min-height: 100%;
   background:
     radial-gradient(
-      1000px 480px at -14% -12%,
-      color-mix(in srgb, var(--accent) 16%, transparent),
+      900px 420px at -12% -10%,
+      color-mix(in srgb, var(--accent) 18%, transparent),
       transparent 58%
     ),
     radial-gradient(
-      900px 460px at 108% 0%,
-      color-mix(in srgb, var(--highlight) 14%, transparent),
+      760px 420px at 104% 0%,
+      color-mix(in srgb, var(--highlight) 15%, transparent),
       transparent 60%
     ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--line-subtle) 42%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--line-subtle) 34%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      115deg,
+      color-mix(in srgb, var(--bg-canvas) 90%, var(--bg-muted) 10%) 0%,
+      var(--bg-canvas) 44%,
+      color-mix(in srgb, var(--bg-soft) 86%, var(--accent) 4%) 100%
+    ),
     var(--bg-canvas);
+  background-size: auto, auto, 48px 48px, 48px 48px, auto, auto;
   color: var(--text-primary);
   font-family:
     var(--font-geist-sans),
-    "Segoe UI",
-    "Helvetica Neue",
     sans-serif;
 }
 
 .village-card {
-  border: 1px solid color-mix(in srgb, var(--line-subtle) 75%, transparent);
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 78%, transparent);
   border-radius: var(--radius-xl);
-  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
-  box-shadow: var(--shadow-sm);
+  background:
+    linear-gradient(
+      155deg,
+      color-mix(in srgb, var(--bg-elevated) 96%, transparent),
+      color-mix(in srgb, var(--surface-wash) 92%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 72%, transparent),
+    var(--shadow-sm);
 }
 
 .village-section-title {
@@ -132,12 +160,122 @@ body {
 .village-page-title {
   color: var(--text-primary);
   font-size: clamp(1.7rem, 2.5vw, 2.25rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-family: var(--font-village-display);
+  font-weight: 400;
+  letter-spacing: -0.04em;
 }
 
 .village-muted {
   color: var(--text-secondary);
+}
+
+.village-kicker {
+  color: var(--accent-strong);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.village-hero-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 58%, transparent);
+  border-radius: calc(var(--radius-xl) + 0.25rem);
+  background:
+    radial-gradient(
+      780px 320px at 100% 0%,
+      color-mix(in srgb, var(--accent) 18%, transparent),
+      transparent 56%
+    ),
+    radial-gradient(
+      480px 260px at 8% 100%,
+      color-mix(in srgb, var(--highlight) 12%, transparent),
+      transparent 58%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--bg-elevated) 96%, transparent),
+      color-mix(in srgb, var(--bg-muted) 88%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 72%, transparent),
+    0 26px 70px -48px color-mix(in srgb, var(--accent-strong) 74%, transparent);
+}
+
+.village-hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.42;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--line-subtle) 46%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--line-subtle) 36%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 34px 34px;
+  mask-image: linear-gradient(
+    110deg,
+    transparent,
+    var(--text-primary) 18%,
+    var(--text-primary) 72%,
+    transparent
+  );
+}
+
+.village-panel-card {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 76%, transparent);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--bg-elevated) 92%, transparent),
+      color-mix(in srgb, var(--bg-muted) 76%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 70%, transparent),
+    var(--shadow-md);
+}
+
+.village-stat-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 74%, transparent);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(
+      220px 140px at 100% 0%,
+      color-mix(in srgb, var(--accent) 10%, transparent),
+      transparent 62%
+    ),
+    color-mix(in srgb, var(--bg-elevated) 90%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 70%, transparent),
+    0 18px 42px -34px color-mix(in srgb, var(--text-primary) 42%, transparent);
+}
+
+.village-lift {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.village-lift:hover {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--line-strong));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 72%, transparent),
+    0 20px 48px -34px color-mix(in srgb, var(--accent-strong) 52%, transparent);
+  transform: translateY(-1px);
 }
 
 .village-field-label {
@@ -157,12 +295,21 @@ body {
   width: 100%;
   border: 1px solid color-mix(in srgb, var(--line-strong) 64%, transparent);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-elevated) 98%, transparent),
+      color-mix(in srgb, var(--bg-muted) 38%, var(--bg-elevated) 62%)
+    );
   color: var(--text-primary);
-  padding: 0.6rem 0.72rem;
+  padding: 0.68rem 0.78rem;
   font-size: 0.92rem;
   line-height: 1.2;
-  transition: border-color 150ms ease;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 75%, transparent);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
 }
 
 .village-input::placeholder {
@@ -171,17 +318,26 @@ body {
 
 .village-input:focus {
   border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 75%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .village-select {
   width: 100%;
   border: 1px solid color-mix(in srgb, var(--line-strong) 64%, transparent);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-elevated) 98%, transparent),
+      color-mix(in srgb, var(--bg-muted) 38%, var(--bg-elevated) 62%)
+    );
   color: var(--text-primary);
-  min-height: 2.3rem;
-  padding: 0.5rem 0.7rem;
+  min-height: 2.55rem;
+  padding: 0.58rem 0.72rem;
   font-size: 0.92rem;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 75%, transparent);
 }
 
 .village-btn-primary,
@@ -201,11 +357,13 @@ body {
   border: 1px solid color-mix(in srgb, var(--accent-strong) 78%, transparent);
   background: linear-gradient(
     150deg,
-    color-mix(in srgb, var(--accent) 72%, white 28%),
+    color-mix(in srgb, var(--accent) 82%, var(--highlight) 18%),
     var(--accent-strong)
   );
-  color: #f7ffff;
-  box-shadow: 0 10px 20px -14px color-mix(in srgb, var(--accent-strong) 90%, transparent);
+  color: var(--bg-elevated);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--highlight) 40%, transparent),
+    0 12px 24px -16px color-mix(in srgb, var(--accent-strong) 90%, transparent);
 }
 
 .village-btn-primary:hover {
@@ -237,8 +395,15 @@ body {
   overflow-x: auto;
   border: 1px solid color-mix(in srgb, var(--line-subtle) 78%, transparent);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
-  box-shadow: var(--shadow-sm);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-elevated) 96%, transparent),
+      color-mix(in srgb, var(--bg-muted) 42%, var(--bg-elevated) 58%)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 70%, transparent),
+    var(--shadow-sm);
 }
 
 .village-table {
@@ -317,15 +482,28 @@ body {
   gap: 0.75rem;
   border: 1px solid color-mix(in srgb, var(--line-subtle) 72%, transparent);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--bg-muted) 72%, transparent);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--bg-elevated) 78%, transparent),
+      color-mix(in srgb, var(--bg-muted) 76%, transparent)
+    );
   padding: 0.62rem 0.78rem;
 }
 
 .village-card-soft {
   border: 1px solid color-mix(in srgb, var(--line-subtle) 72%, transparent);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--bg-muted) 72%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 42%, transparent);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--bg-elevated) 86%, transparent),
+      color-mix(in srgb, var(--bg-muted) 78%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 68%, transparent),
+    0 14px 34px -30px color-mix(in srgb, var(--text-primary) 38%, transparent);
+  padding: 1rem;
 }
 
 .village-checkbox {
@@ -359,7 +537,12 @@ body {
   gap: 0.5rem;
   border: 1px solid color-mix(in srgb, var(--line-subtle) 78%, transparent);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--bg-elevated) 74%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-elevated) 78%, transparent),
+      color-mix(in srgb, var(--bg-muted) 70%, transparent)
+    );
   padding: 0.45rem;
 }
 
@@ -381,9 +564,16 @@ body {
 
 .village-tab-active {
   color: var(--text-primary);
-  border-color: color-mix(in srgb, var(--line-strong) 70%, transparent);
-  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line-strong));
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--bg-elevated) 96%, transparent),
+      color-mix(in srgb, var(--accent) 8%, var(--bg-muted) 92%)
+    );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent),
+    0 8px 20px -18px color-mix(in srgb, var(--accent-strong) 70%, transparent);
 }
 
 .village-select-trigger {
@@ -436,38 +626,38 @@ body {
 }
 
 .village-occ-low {
-  border-color: color-mix(in srgb, #2f8c66 65%, transparent);
+  border-color: color-mix(in srgb, var(--success) 65%, transparent);
   background: linear-gradient(
     160deg,
-    color-mix(in srgb, #e3f5ec 92%, transparent),
-    color-mix(in srgb, #b7dfcb 94%, transparent)
+    color-mix(in srgb, var(--success) 8%, var(--bg-elevated) 92%),
+    color-mix(in srgb, var(--success) 20%, var(--bg-muted) 80%)
   );
 }
 
 .village-occ-mid {
-  border-color: color-mix(in srgb, #ce8b59 68%, transparent);
+  border-color: color-mix(in srgb, var(--highlight) 68%, transparent);
   background: linear-gradient(
     160deg,
-    color-mix(in srgb, #fff0df 94%, transparent),
-    color-mix(in srgb, #f9d8ba 92%, transparent)
+    color-mix(in srgb, var(--highlight) 8%, var(--bg-elevated) 92%),
+    color-mix(in srgb, var(--highlight) 20%, var(--bg-muted) 80%)
   );
 }
 
 .village-occ-high {
-  border-color: color-mix(in srgb, #c36c57 72%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 72%, transparent);
   background: linear-gradient(
     160deg,
-    color-mix(in srgb, #ffe3de 93%, transparent),
-    color-mix(in srgb, #f7bdb1 90%, transparent)
+    color-mix(in srgb, var(--accent) 10%, var(--bg-elevated) 90%),
+    color-mix(in srgb, var(--accent) 24%, var(--bg-muted) 76%)
   );
 }
 
 .village-occ-over {
-  border-color: color-mix(in srgb, #a7463e 75%, transparent);
+  border-color: color-mix(in srgb, var(--accent-strong) 75%, transparent);
   background: linear-gradient(
     160deg,
-    color-mix(in srgb, #ffd9d4 94%, transparent),
-    color-mix(in srgb, #f39c91 89%, transparent)
+    color-mix(in srgb, var(--danger) 10%, var(--bg-elevated) 90%),
+    color-mix(in srgb, var(--accent-strong) 26%, var(--bg-muted) 74%)
   );
 }
 
@@ -504,11 +694,27 @@ body {
 }
 
 .village-dashboard-shell-rail {
-  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  contain: layout style;
+  background:
+    radial-gradient(
+      360px 260px at 0% 0%,
+      color-mix(in srgb, var(--accent) 14%, transparent),
+      transparent 68%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-elevated) 92%, transparent),
+      color-mix(in srgb, var(--bg-muted) 88%, transparent)
+    );
 }
 
 .village-dashboard-topbar {
-  background: color-mix(in srgb, var(--bg-elevated) 84%, transparent);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--bg-elevated) 90%, transparent),
+      color-mix(in srgb, var(--bg-muted) 72%, transparent)
+    );
 }
 
 .village-dashboard-topbar-animate {
@@ -526,13 +732,18 @@ body {
   background:
     radial-gradient(
       900px 420px at 0% 0%,
-      color-mix(in srgb, var(--accent) 12%, transparent),
+      color-mix(in srgb, var(--accent) 15%, transparent),
       transparent 56%
     ),
     radial-gradient(
       780px 360px at 110% -10%,
-      color-mix(in srgb, var(--highlight) 12%, transparent),
+      color-mix(in srgb, var(--highlight) 13%, transparent),
       transparent 58%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--bg-canvas) 88%, var(--bg-muted) 12%),
+      color-mix(in srgb, var(--bg-soft) 90%, var(--accent) 4%)
     ),
     var(--bg-soft);
 }
@@ -541,7 +752,12 @@ body {
 .village-nav-cluster-animate {
   border: 1px solid color-mix(in srgb, var(--line-subtle) 76%, transparent);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--bg-muted) 80%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-muted) 80%, transparent),
+      color-mix(in srgb, var(--bg-soft) 88%, transparent)
+    );
   padding: 0.35rem;
 }
 
@@ -562,9 +778,16 @@ body {
 
 .village-nav-link[aria-current="page"] {
   color: var(--text-primary);
-  border-color: color-mix(in srgb, var(--line-strong) 72%, transparent);
-  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line-strong));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--bg-elevated) 96%, transparent),
+      color-mix(in srgb, var(--accent) 10%, var(--bg-muted) 90%)
+    );
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--accent) 82%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .village-nav-link--rail-collapsed {
@@ -589,13 +812,16 @@ body {
   border-radius: 0.78rem;
   background: linear-gradient(
     145deg,
-    color-mix(in srgb, var(--accent) 90%, white 10%),
-    color-mix(in srgb, var(--accent-strong) 84%, black 4%)
+    color-mix(in srgb, var(--accent) 88%, var(--highlight) 12%),
+    color-mix(in srgb, var(--accent-strong) 92%, var(--text-primary) 8%)
   );
-  color: #f8ffff;
+  color: var(--bg-elevated);
   font-size: 0.8rem;
   font-weight: 800;
   letter-spacing: 0.06em;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--highlight) 38%, transparent),
+    0 12px 28px -20px color-mix(in srgb, var(--accent-strong) 88%, transparent);
 }
 
 .village-brand-wordmark {
@@ -618,7 +844,12 @@ body {
   gap: 0.5rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--line-subtle) 75%, transparent);
-  background: color-mix(in srgb, var(--bg-muted) 85%, transparent);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--bg-elevated) 76%, transparent),
+      color-mix(in srgb, var(--bg-muted) 82%, transparent)
+    );
   padding: 0.3rem 0.45rem;
 }
 

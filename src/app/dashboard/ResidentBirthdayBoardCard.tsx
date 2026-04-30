@@ -31,7 +31,7 @@ export function ResidentBirthdayBoardCard({
 
   return (
     <section
-      className="village-reveal rounded-2xl border border-pine/10 bg-cream/92 p-5 shadow-[0_18px_48px_-32px_rgba(12,24,20,0.32)] sm:p-6"
+      className="village-panel-card village-reveal p-5 sm:p-6"
       aria-labelledby="birthday-board-heading"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -57,7 +57,7 @@ export function ResidentBirthdayBoardCard({
             onClick={() => setRange("week")}
             className={
               range === "week"
-                ? "rounded-full bg-pine/14 px-3.5 py-2 text-xs font-semibold text-pine-2 shadow-sm"
+                ? "rounded-full bg-[color:color-mix(in_srgb,var(--accent)_14%,var(--bg-elevated))] px-3.5 py-2 text-xs font-semibold text-[var(--text-primary)] shadow-sm"
                 : "rounded-full px-3.5 py-2 text-xs font-medium text-ink/55 transition hover:text-pine-2"
             }
           >
@@ -68,7 +68,7 @@ export function ResidentBirthdayBoardCard({
             onClick={() => setRange("month")}
             className={
               range === "month"
-                ? "rounded-full bg-pine/14 px-3.5 py-2 text-xs font-semibold text-pine-2 shadow-sm"
+                ? "rounded-full bg-[color:color-mix(in_srgb,var(--accent)_14%,var(--bg-elevated))] px-3.5 py-2 text-xs font-semibold text-[var(--text-primary)] shadow-sm"
                 : "rounded-full px-3.5 py-2 text-xs font-medium text-ink/55 transition hover:text-pine-2"
             }
           >
@@ -90,7 +90,7 @@ export function ResidentBirthdayBoardCard({
             <li key={`${row.residentId}-${row.birthdayDate}`}>
               <Link
                 href={`/dashboard/homes/${row.homeId}/residents/${row.residentId}`}
-                className="group flex flex-col gap-1 rounded-2xl border border-pine/8 bg-cream/75 px-4 py-3.5 transition duration-200 hover:border-pine/18 hover:bg-cream hover:shadow-[0_10px_28px_-20px_rgba(12,24,20,0.2)] no-underline sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+                className="village-lift group flex flex-col gap-1 rounded-2xl border border-[color:color-mix(in_srgb,var(--accent)_8%,var(--line-subtle))] bg-[color:color-mix(in_srgb,var(--bg-elevated)_75%,transparent)] px-4 py-3.5 no-underline transition duration-200 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
               >
                 <div className="min-w-0">
                   <span className="text-[0.95rem] font-semibold text-ink group-hover:text-pine-2">

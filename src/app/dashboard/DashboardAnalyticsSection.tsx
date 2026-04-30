@@ -77,9 +77,9 @@ export function DashboardAnalyticsSection({
   const homeCount = residentsPerHome.length;
 
   return (
-    <div className="village-reveal space-y-7 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_86%,transparent)] p-5 shadow-[var(--shadow-md)] sm:p-6">
+    <div className="village-panel-card village-reveal space-y-7 overflow-hidden p-5 sm:p-6">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-5 py-4 shadow-sm">
+        <div className="village-stat-card village-lift px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
@@ -100,7 +100,7 @@ export function DashboardAnalyticsSection({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-5 py-4 shadow-sm">
+        <div className="village-stat-card village-lift px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
@@ -120,7 +120,7 @@ export function DashboardAnalyticsSection({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-5 py-4 shadow-sm">
+        <div className="village-stat-card village-lift px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
@@ -145,7 +145,7 @@ export function DashboardAnalyticsSection({
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
-        <section className="village-card min-w-0">
+        <section className="village-card min-w-0 p-5">
           <h2 className="village-section-title">Residents per home</h2>
           <p className="village-muted mt-2">
             Active residents across non-archived retirement homes.
@@ -153,7 +153,7 @@ export function DashboardAnalyticsSection({
           <ResidentsPerHomeChart data={residentsPerHome} />
         </section>
 
-        <section className="village-card min-w-0">
+        <section className="village-card min-w-0 p-5">
           <h2 className="village-section-title">Month-end census by home</h2>
           <p className="village-muted mt-2">
             Census at each month-end this year, stacked by non-archived home.

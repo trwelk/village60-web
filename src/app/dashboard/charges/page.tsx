@@ -9,7 +9,6 @@ import {
   listHomeMonthlyChargesLedger,
   MAX_CHARGES_LEDGER_PAGE_SIZE,
   type HomeMonthlyChargeLedgerRow,
-  type HomeMonthlyChargesLedgerPaymentStatusFilter,
   type HomeMonthlyChargesLedgerSummary,
 } from "@/lib/billing/residentCharges";
 import { requireSessionActor } from "@/lib/authz/sessionActor";
@@ -29,7 +28,6 @@ type ChargesPageProps = {
     billingMonthTo?: string;
     page?: string;
     pageSize?: string;
-    paymentStatus?: string;
   }>;
 };
 
@@ -53,15 +51,6 @@ function parsePageSizeParam(raw: string | undefined): number {
     return DEFAULT_CHARGES_LEDGER_PAGE_SIZE;
   }
   return Math.min(MAX_CHARGES_LEDGER_PAGE_SIZE, n);
-}
-
-function parsePaymentStatusParam(
-  raw: string | undefined,
-): HomeMonthlyChargesLedgerPaymentStatusFilter {
-  if (raw === "paid" || raw === "unpaid") {
-    return raw;
-  }
-  return "all";
 }
 
 const emptyChargesLedger: {
@@ -126,14 +115,11 @@ export default async function ChargesPage({ searchParams }: ChargesPageProps) {
   const pageSize = parsePageSizeParam(
     typeof q.pageSize === "string" ? q.pageSize : undefined,
   );
-  const paymentStatus = parsePaymentStatusParam(
-    typeof q.paymentStatus === "string" ? q.paymentStatus : undefined,
-  );
   const chargesLedger =
     selectedHomeId && homeRow
       ? listHomeMonthlyChargesLedger(db, actor, selectedHomeId, {
           ...monthRange,
-          paymentStatus,
+          paymentStatus: "all",
           page,
           pageSize,
         })
@@ -163,7 +149,6 @@ export default async function ChargesPage({ searchParams }: ChargesPageProps) {
         ytdBillingMonthFrom={ytd.billingMonthFrom}
         ytdBillingMonthTo={ytd.billingMonthTo}
         rangeIsDefaultYtd={rangeIsDefaultYtd}
-        paymentStatus={paymentStatus}
         ledger={chargesLedger}
       />
     </main>

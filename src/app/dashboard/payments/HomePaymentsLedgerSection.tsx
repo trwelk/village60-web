@@ -60,34 +60,36 @@ export function HomePaymentsLedgerSection({
     <>
       <section
         data-testid="payments-ledger-filters"
-        className="village-card village-reveal village-reveal-delay-1 relative z-20 overflow-hidden"
+        className="village-card village-reveal village-reveal-delay-1 relative z-20 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-5 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6"
       >
-        <div className="grid gap-5 lg:grid-cols-[minmax(14rem,20rem)_1fr] lg:items-end">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="payments-ledger-home" className="village-label">
-              Home
-            </label>
-          <VillageSelect
-            id="payments-ledger-home"
-            value={selectedHomeId}
-            onChange={(id) => {
-              router.push(buildDashboardPaymentsPath(id, 1, pageSize));
-            }}
-            options={homes.map((h) => ({
-              value: h.homeId,
-              label: h.homeName,
-            }))}
-          />
-          </div>
-          <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_78%,transparent)] px-4 py-3">
-            <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
-              Current view
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">
-              <span className="rounded-full bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1 font-medium text-[var(--text-primary)]">
-                {selectedHomeName}
-              </span>
-              <span data-testid="payments-ledger-range">{rangeText}</span>
+        <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_78%,transparent)] p-4 sm:p-5">
+          <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-end lg:gap-8">
+            <div className="flex min-w-0 w-full flex-col gap-2 lg:max-w-[20rem] lg:shrink-0">
+              <label htmlFor="payments-ledger-home" className="village-label">
+                Home
+              </label>
+              <VillageSelect
+                id="payments-ledger-home"
+                value={selectedHomeId}
+                onChange={(id) => {
+                  router.push(buildDashboardPaymentsPath(id, 1, pageSize));
+                }}
+                options={homes.map((h) => ({
+                  value: h.homeId,
+                  label: h.homeName,
+                }))}
+              />
+            </div>
+            <div className="min-w-0 flex-1 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
+                Current view
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">
+                <span className="rounded-full bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1 font-medium text-[var(--text-primary)]">
+                  {selectedHomeName}
+                </span>
+                <span data-testid="payments-ledger-range">{rangeText}</span>
+              </div>
             </div>
           </div>
         </div>
