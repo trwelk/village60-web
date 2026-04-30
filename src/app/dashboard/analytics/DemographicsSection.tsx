@@ -16,7 +16,7 @@ type Props = {
   kpis: DemographicsKpis;
 };
 
-const fillHist = "#14b8a6";
+const fillHist = "var(--accent)";
 
 function KpiTile({
   label,
@@ -28,11 +28,11 @@ function KpiTile({
   sub: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-pine/12 bg-cream/95 px-4 py-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-ink/50">
+    <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_64%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-elevated)_97%,transparent),color-mix(in_srgb,var(--bg-muted)_86%,transparent))] px-4 py-4 shadow-[0_12px_24px_-22px_color-mix(in_srgb,var(--accent)_50%,transparent)]">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
         {label}
       </p>
-      <p className="mt-2 font-display text-2xl font-semibold tabular-nums text-pine-2 sm:text-3xl">
+      <p className="mt-2 font-display text-2xl font-semibold tabular-nums text-[var(--text-primary)] sm:text-3xl">
         {value}
       </p>
       <div className="mt-2 text-xs">{sub}</div>
@@ -43,19 +43,20 @@ function KpiTile({
 export function DemographicsSection({ kpis }: Props) {
   const sub =
     kpis.totalActiveResidents > 0 ? (
-      <span className="text-ink/55 tabular-nums">
+      <span className="text-[var(--text-muted)] tabular-nums">
         {kpis.residents90PlusCount} of {kpis.totalActiveResidents}
         {kpis.residents90PlusSharePercent != null
           ? ` — ${kpis.residents90PlusSharePercent}%`
           : ""}
       </span>
     ) : (
-      <span className="text-ink/55">No active residents in non-archived homes</span>
+      <span className="text-[var(--text-muted)]">No active residents in non-archived homes</span>
     );
 
   return (
-    <section className="village-card space-y-6 bg-cream/88">
-      <div>
+    <section className="village-card border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-elevated)_94%,transparent),color-mix(in_srgb,var(--bg-muted)_88%,transparent))] p-4 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_38%,transparent)] sm:p-6">
+      <div className="space-y-6">
+        <div>
         <h2 className="village-section-title">Demographics</h2>
         <p className="village-muted mt-1.5">
           Age bands for active residents (UTC date of birth; age as of UTC today).
@@ -70,26 +71,27 @@ export function DemographicsSection({ kpis }: Props) {
         />
       </div>
 
-      <div className="rounded-2xl border border-pine/12 bg-cream/90 px-3 py-5 sm:px-5">
-        <h3 className="text-sm font-semibold text-pine-2">
+      <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_96%,transparent)] p-4 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-canvas)_70%,transparent)] sm:p-5">
+        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           Age distribution (active residents)
         </h3>
-        <div className="mt-4 h-[300px] w-full">
+        <div className="mt-4 h-[320px] w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={kpis.ageHistogram}
-              margin={{ top: 8, right: 8, left: 4, bottom: 48 }}
+              margin={{ top: 8, right: 16, left: 12, bottom: 58 }}
             >
               <CartesianGrid
-                stroke="color-mix(in srgb, var(--pine) 18%, transparent)"
+                stroke="color-mix(in srgb, var(--line-strong) 50%, transparent)"
                 strokeDasharray="4 6"
                 vertical={false}
               />
               <XAxis
                 dataKey="bandLabel"
                 interval={0}
+                padding={{ left: 8, right: 8 }}
                 tick={{
-                  fill: "var(--ink)",
+                  fill: "var(--text-secondary)",
                   fontSize: 11,
                   angle: -32,
                   textAnchor: "end",
@@ -97,7 +99,7 @@ export function DemographicsSection({ kpis }: Props) {
                 height={56}
               />
               <YAxis
-                tick={{ fill: "var(--ink)", fontSize: 11 }}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 allowDecimals={false}
               />
               <Tooltip
@@ -107,9 +109,9 @@ export function DemographicsSection({ kpis }: Props) {
                   }
                   const row = payload[0]?.payload as DemographicsKpis["ageHistogram"][number];
                   return (
-                    <div className="max-w-xs rounded-lg border border-pine/20 bg-cream px-3 py-2 text-xs shadow-lg">
-                      <p className="font-semibold text-pine-2">{row.bandLabel}</p>
-                      <p className="mt-1 tabular-nums text-ink">
+                    <div className="max-w-xs rounded-lg border border-[color:color-mix(in_srgb,var(--line-strong)_64%,transparent)] bg-[var(--bg-elevated)] px-3 py-2 text-xs shadow-lg">
+                      <p className="font-semibold text-[var(--text-primary)]">{row.bandLabel}</p>
+                      <p className="mt-1 tabular-nums text-[var(--text-primary)]">
                         {row.count} resident
                         {row.count === 1 ? "" : "s"} ({row.sharePercent}%)
                       </p>
@@ -126,6 +128,7 @@ export function DemographicsSection({ kpis }: Props) {
             </BarChart>
           </ResponsiveContainer>
         </div>
+      </div>
       </div>
     </section>
   );

@@ -198,7 +198,7 @@ export function ResidentsDirectoryUI({ homes, role, fixedHomeId }: Props) {
                 Departed residents
               </Link>
               <Link
-                href={`/dashboard/homes/${fixedHomeId}/residents/new`}
+                href={`/dashboard/homes/${fixedHomeId}/residents?newResident=1`}
                 className="village-btn-primary"
               >
                 Add resident
@@ -206,7 +206,7 @@ export function ResidentsDirectoryUI({ homes, role, fixedHomeId }: Props) {
             </>
           ) : role === "admin" && urlState.homeId ? (
             <Link
-              href={`/dashboard/homes/${urlState.homeId}/residents/new`}
+              href={`/dashboard/homes/${urlState.homeId}/residents?newResident=1`}
               className="village-btn-primary"
             >
               Add resident

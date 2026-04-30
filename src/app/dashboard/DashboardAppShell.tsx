@@ -5,6 +5,7 @@ import type { SessionUserRole } from "@/lib/session";
 import { getDashboardContextTitle } from "@/lib/dashboard/contextTitle";
 import { useDashboardWayfinding } from "./DashboardWayfinding";
 import {
+  isDashboardAnalyticsPath,
   isDashboardAccountPath,
   isDashboardChargesPath,
   isDashboardHomesPath,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/dashboard/sidebarExpandedStorage";
 import type { LucideIcon } from "lucide-react";
 import {
+  BarChart2,
   Building2,
   ClipboardList,
   FileStack,
@@ -41,7 +43,7 @@ import { LogoutButton } from "./LogoutButton";
 function DashboardBreadcrumbNav({ crumbs }: { crumbs: NavCrumb[] }) {
   return (
     <nav aria-label="Breadcrumb" id="village-dashboard-context-title">
-      <ol className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1 text-pine-2 sm:gap-x-2">
+      <ol className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1 text-[var(--text-primary)] sm:gap-x-2">
         {crumbs.map((crumb, i) => {
           const isLast = i === crumbs.length - 1;
           return (
@@ -60,7 +62,7 @@ function DashboardBreadcrumbNav({ crumbs }: { crumbs: NavCrumb[] }) {
               {crumb.href ? (
                 <Link
                   href={crumb.href}
-                  className="min-w-0 truncate font-medium text-terracotta underline decoration-terracotta/30 underline-offset-[3px] transition hover:decoration-terracotta/60 sm:text-base"
+                  className="min-w-0 truncate font-medium text-[var(--highlight)] underline decoration-[color:color-mix(in_srgb,var(--highlight)_35%,transparent)] underline-offset-[3px] transition hover:decoration-[color:color-mix(in_srgb,var(--highlight)_62%,transparent)] sm:text-base"
                 >
                   {crumb.label}
                 </Link>
@@ -121,6 +123,16 @@ function primaryNavItemsForRole(role: SessionUserRole): NavItem[] {
       Icon: LayoutDashboard,
       isActive: (p) => p === "/dashboard",
     },
+    ...(role === "admin"
+      ? [
+          {
+            href: "/dashboard/analytics",
+            label: "Analytics",
+            Icon: BarChart2,
+            isActive: isDashboardAnalyticsPath,
+          } satisfies NavItem,
+        ]
+      : []),
     {
       href: "/dashboard/account",
       label: "My account",
@@ -218,7 +230,7 @@ function PrimaryNav({
       <div
         className={
           navLinkLayout === "vertical"
-            ? "village-nav-cluster-animate flex flex-col gap-0.5 rounded-2xl border border-pine/12 bg-cream/70 p-1.5 shadow-inner shadow-pine/[0.04] backdrop-blur"
+            ? "village-nav-cluster-animate flex flex-col gap-0.5 rounded-2xl p-1.5 shadow-inner shadow-[color:color-mix(in_srgb,var(--accent)_12%,transparent)] backdrop-blur"
             : "village-nav-cluster village-nav-cluster-animate"
         }
       >
@@ -258,7 +270,7 @@ function BrandLockup({ collapsed, className }: BrandLockupProps) {
     <Link
       href="/dashboard"
       className={[
-        "village-brand-lockup group shrink-0 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-terracotta/45 focus-visible:ring-offset-2 focus-visible:ring-offset-cream",
+        "village-brand-lockup group shrink-0 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_50%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-canvas)]",
         collapsed
           ? "!mb-0 !gap-0 !px-0 !py-0 [&_.village-brand-mark]:h-10 [&_.village-brand-mark]:w-10"
           : "mb-2",
@@ -275,7 +287,7 @@ function BrandLockup({ collapsed, className }: BrandLockupProps) {
       ) : (
         <span className="min-w-0">
           <span className="village-brand-wordmark block">Village60</span>
-          <span className="village-brand-tagline mt-1 block transition-colors group-hover:text-terracotta/70">
+          <span className="village-brand-tagline mt-1 block transition-colors group-hover:text-[color:color-mix(in_srgb,var(--highlight)_85%,var(--text-muted)_15%)]">
             Retirement operations
           </span>
         </span>
@@ -425,7 +437,7 @@ export function DashboardAppShell({
     <>
       <a
         href={`#${MAIN_ID}`}
-        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[100] focus:rounded-lg focus:border focus:border-pine/20 focus:bg-cream focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-pine-2 focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-terracotta/45"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[100] focus:rounded-lg focus:border focus:border-[var(--line-strong)] focus:bg-[var(--bg-elevated)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--text-primary)] focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]"
       >
         Skip to main content
       </a>
@@ -437,7 +449,7 @@ export function DashboardAppShell({
       >
         <aside
           className={[
-            "village-dashboard-shell-rail group fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-pine/10 bg-cream/90 shadow-sm backdrop-blur transition-[width] duration-200 ease-out lg:flex",
+            "village-dashboard-shell-rail group fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-[color:color-mix(in_srgb,var(--line-subtle)_75%,transparent)] shadow-[var(--shadow-md)] backdrop-blur transition-[width] duration-200 ease-out lg:flex",
             asideWidthClass,
             asidePadClass,
           ].join(" ")}
@@ -459,7 +471,7 @@ export function DashboardAppShell({
                   : "Expand navigation rail"
               }
               className={[
-                "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-pine/15 bg-cream/80 text-pine-2 shadow-sm transition hover:border-terracotta/40 focus-visible:outline focus-visible:ring-2 focus-visible:ring-terracotta/45",
+                "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_94%,transparent)] text-[var(--text-primary)] shadow-sm transition hover:border-[color:color-mix(in_srgb,var(--accent)_56%,transparent)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]",
                 railExpanded ? "mt-1" : "",
               ]
                 .filter(Boolean)
@@ -487,7 +499,7 @@ export function DashboardAppShell({
           <button
             type="button"
             aria-label="Close menu"
-            className="fixed inset-0 z-40 cursor-default bg-ink/40 lg:hidden"
+            className="fixed inset-0 z-40 cursor-default bg-[color:color-mix(in_srgb,var(--bg-canvas)_56%,black_44%)] lg:hidden"
             onClick={() => {
               closeMobile();
               window.setTimeout(() => menuButtonRef.current?.focus(), 0);
@@ -497,19 +509,19 @@ export function DashboardAppShell({
         {mobileOpen ? (
           <div
             ref={mobilePanelRef}
-            className="village-dashboard-shell-rail fixed inset-y-0 left-0 z-50 flex w-[min(100vw,20rem)] flex-col border-r border-pine/20 bg-cream/95 p-4 pt-5 shadow-2xl backdrop-blur lg:hidden"
+            className="village-dashboard-shell-rail fixed inset-y-0 left-0 z-50 flex w-[min(100vw,20rem)] flex-col border-r border-[color:color-mix(in_srgb,var(--line-strong)_66%,transparent)] p-4 pt-5 shadow-[var(--shadow-lg)] backdrop-blur lg:hidden"
             id={menuId}
             role="dialog"
             aria-modal="true"
             aria-label="Main navigation"
           >
             <div className="mb-3 flex items-center justify-between gap-2">
-              <span className="font-display text-lg font-semibold text-pine-2">
+              <span className="font-display text-lg font-semibold text-[var(--text-primary)]">
                 Menu
               </span>
               <button
                 type="button"
-                className="rounded-lg border border-pine/20 px-2.5 py-1 text-sm font-semibold text-pine-2 hover:border-terracotta/50 hover:text-terracotta focus-visible:outline focus-visible:ring-2 focus-visible:ring-terracotta/45"
+                className="rounded-lg border border-[color:color-mix(in_srgb,var(--line-strong)_65%,transparent)] px-2.5 py-1 text-sm font-semibold text-[var(--text-secondary)] hover:border-[color:color-mix(in_srgb,var(--accent)_54%,transparent)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]"
                 onClick={() => {
                   closeMobile();
                   menuButtonRef.current?.focus();
@@ -532,13 +544,13 @@ export function DashboardAppShell({
         <div className="flex min-h-screen min-w-0 flex-col">
           <header
             role="banner"
-            className="village-dashboard-topbar village-dashboard-topbar-animate sticky top-0 z-30 border-b border-pine/10 bg-cream/85 shadow-sm shadow-pine/[0.06] backdrop-blur supports-[backdrop-filter]:bg-cream/75"
+            className="village-dashboard-topbar village-dashboard-topbar-animate sticky top-0 z-30 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_78%,transparent)] shadow-sm shadow-[color:color-mix(in_srgb,var(--accent)_12%,transparent)] backdrop-blur supports-[backdrop-filter]:bg-[color:color-mix(in_srgb,var(--bg-elevated)_82%,transparent)]"
           >
             <div className="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
               <button
                 ref={menuButtonRef}
                 type="button"
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-pine/15 bg-cream/80 text-pine-2 shadow-sm hover:border-terracotta/40 focus-visible:outline focus-visible:ring-2 focus-visible:ring-terracotta/45 lg:hidden"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] text-[var(--text-primary)] shadow-sm hover:border-[color:color-mix(in_srgb,var(--accent)_56%,transparent)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)] lg:hidden"
                 aria-label="Open main menu"
                 aria-expanded={mobileOpen}
                 aria-controls={menuId}
@@ -573,7 +585,7 @@ export function DashboardAppShell({
                     <DashboardBreadcrumbNav crumbs={useCrumbs} />
                   ) : (
                     <h1
-                      className="truncate font-display text-lg font-semibold text-pine-2 sm:text-xl"
+                      className="truncate font-display text-lg font-semibold text-[var(--text-primary)] sm:text-xl"
                       id="village-dashboard-context-title"
                     >
                       {contextTitle}
@@ -583,7 +595,7 @@ export function DashboardAppShell({
                 <div className="village-session-cluster !m-0 shrink-0 !border-0 !p-0">
                   <p className="village-session-pill">
                     <strong>{email}</strong>
-                    <span className="text-ink/35"> / </span>
+                    <span className="text-[color:color-mix(in_srgb,var(--text-secondary)_60%,transparent)]"> / </span>
                     <span className="village-session-role uppercase tracking-wide">
                       {role}
                     </span>

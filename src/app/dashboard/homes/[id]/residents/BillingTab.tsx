@@ -39,7 +39,10 @@ export function BillingTab({
   const [selectedBillingMonths, setSelectedBillingMonths] = useState<Set<string>>(
     () => new Set(),
   );
-  const [batchExtraMonths, setBatchExtraMonths] = useState("");
+  const [batchExtraMonths, setBatchExtraMonths] = useState<string[]>([]);
+  const [batchExtraMonthInput, setBatchExtraMonthInput] = useState("");
+  const [batchExtraMonthRangeStart, setBatchExtraMonthRangeStart] = useState("");
+  const [batchExtraMonthRangeEnd, setBatchExtraMonthRangeEnd] = useState("");
   const [batchPaidOn, setBatchPaidOn] = useState("");
   const [batchNotes, setBatchNotes] = useState("");
   const [batchSubmitting, setBatchSubmitting] = useState(false);
@@ -175,14 +178,20 @@ export function BillingTab({
     setSelectedBillingMonths(
       new Set(charges.filter((c) => !c.paid).map((c) => c.billingMonth)),
     );
-    setBatchExtraMonths("");
+    setBatchExtraMonths([]);
+    setBatchExtraMonthInput("");
+    setBatchExtraMonthRangeStart("");
+    setBatchExtraMonthRangeEnd("");
     setBatchPaidOn("");
     setBatchNotes("");
   }
 
   function cancelBatchPay() {
     setBatchOpen(false);
-    setBatchExtraMonths("");
+    setBatchExtraMonths([]);
+    setBatchExtraMonthInput("");
+    setBatchExtraMonthRangeStart("");
+    setBatchExtraMonthRangeEnd("");
     setBatchPaidOn("");
     setBatchNotes("");
   }
@@ -199,14 +208,55 @@ export function BillingTab({
     });
   }
 
+  function addBatchExtraMonth() {
+    const month = batchExtraMonthInput.trim();
+    if (!/^\d{4}-\d{2}$/u.test(month)) {
+      setActionError("Select a valid month (UTC, YYYY-MM).");
+      return;
+    }
+    setActionError(null);
+    setBatchExtraMonths((prev) =>
+      prev.includes(month) ? prev : [...prev, month].sort(),
+    );
+    setBatchExtraMonthInput("");
+  }
+
+  function removeBatchExtraMonth(month: string) {
+    setBatchExtraMonths((prev) => prev.filter((m) => m !== month));
+  }
+
+  function addBatchExtraMonthRange() {
+    const start = batchExtraMonthRangeStart.trim();
+    const end = batchExtraMonthRangeEnd.trim();
+    if (!/^\d{4}-\d{2}$/u.test(start) || !/^\d{4}-\d{2}$/u.test(end)) {
+      setActionError("Select both range months in UTC format (YYYY-MM).");
+      return;
+    }
+    if (start > end) {
+      setActionError("Range start month must be before or equal to end month.");
+      return;
+    }
+    const [startYear, startMonth] = start.split("-").map(Number);
+    const [endYear, endMonth] = end.split("-").map(Number);
+    const months: string[] = [];
+    let year = startYear;
+    let month = startMonth;
+    while (year < endYear || (year === endYear && month <= endMonth)) {
+      months.push(`${year}-${String(month).padStart(2, "0")}`);
+      month += 1;
+      if (month > 12) {
+        month = 1;
+        year += 1;
+      }
+    }
+    setActionError(null);
+    setBatchExtraMonths((prev) => [...new Set([...prev, ...months])].sort());
+  }
+
   async function submitBatchPay() {
     setActionError(null);
     setBatchSuccess(null);
-    const fromExtras = batchExtraMonths
-      .split(/[,\n]/u)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    const merged = new Set([...selectedBillingMonths, ...fromExtras]);
+    const merged = new Set([...selectedBillingMonths, ...batchExtraMonths]);
     if (merged.size === 0) {
       setActionError("Select or enter at least one billing month (UTC, YYYY-MM).");
       return;
@@ -346,14 +396,59 @@ export function BillingTab({
             ) : null}
             <label className="mt-3 flex flex-col gap-1 text-xs">
               <span className="village-field-label">
-                Additional months (optional, YYYY-MM, comma or newline)
+                Additional months (optional)
               </span>
-              <textarea
-                className="village-input min-h-[4.5rem] font-mono text-sm"
-                value={batchExtraMonths}
-                onChange={(e) => setBatchExtraMonths(e.target.value)}
-                placeholder="e.g. 2027-01, 2027-02"
-              />
+              <div className="flex max-w-md gap-2">
+                <input
+                  className="village-input"
+                  type="month"
+                  value={batchExtraMonthInput}
+                  onChange={(e) => setBatchExtraMonthInput(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="village-btn-secondary px-3 py-1.5 text-sm"
+                  onClick={addBatchExtraMonth}
+                >
+                  Add
+                </button>
+              </div>
+              <div className="mt-2 grid max-w-md gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                <input
+                  className="village-input"
+                  type="month"
+                  value={batchExtraMonthRangeStart}
+                  onChange={(e) => setBatchExtraMonthRangeStart(e.target.value)}
+                />
+                <input
+                  className="village-input"
+                  type="month"
+                  value={batchExtraMonthRangeEnd}
+                  onChange={(e) => setBatchExtraMonthRangeEnd(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="village-btn-secondary px-3 py-1.5 text-sm"
+                  onClick={addBatchExtraMonthRange}
+                >
+                  Add range
+                </button>
+              </div>
+              {batchExtraMonths.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {batchExtraMonths.map((month) => (
+                    <button
+                      key={month}
+                      type="button"
+                      className="rounded-full border border-ink/20 bg-ink/[0.04] px-2 py-1 font-mono text-xs text-ink/80"
+                      onClick={() => removeBatchExtraMonth(month)}
+                      title="Remove month"
+                    >
+                      {month} ×
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </label>
             <div className="mt-3 grid max-w-md gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-xs">

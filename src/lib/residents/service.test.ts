@@ -546,6 +546,56 @@ describe("residents (06 core + directory)", () => {
     expect(row.poaContact).toBeNull();
     expect(row.poaRelationship).toBeNull();
   });
+
+  it("persists create-time NOK/POA fields", () => {
+    const db = getDb();
+    const home = createHome(db, "admin", {
+      name: "Create Fields",
+      defaultCurrencyCode: "NZD",
+    });
+    const created = createResident(db, adminActor, {
+      homeId: home.id,
+      fullName: "Create Kin",
+      dob: "1949-01-01",
+      admissionDate: "2024-01-01",
+      nokName: "  Nora Kin ",
+      nokContact: " 021 111 222 ",
+      nokRelationship: " sister ",
+      poaSameAsNok: false,
+      poaName: "  Paul Legal ",
+      poaContact: " 09 123 4567 ",
+      poaRelationship: " advocate ",
+    });
+    expect(created.nokName).toBe("Nora Kin");
+    expect(created.nokContact).toBe("021 111 222");
+    expect(created.nokRelationship).toBe("sister");
+    expect(created.poaSameAsNok).toBe(false);
+    expect(created.poaName).toBe("Paul Legal");
+    expect(created.poaContact).toBe("09 123 4567");
+    expect(created.poaRelationship).toBe("advocate");
+  });
+
+  it("nulls POA fields on create when poaSameAsNok is true", () => {
+    const db = getDb();
+    const home = createHome(db, "admin", {
+      name: "Create POA Null",
+      defaultCurrencyCode: "NZD",
+    });
+    const created = createResident(db, adminActor, {
+      homeId: home.id,
+      fullName: "Create POA",
+      dob: "1948-01-01",
+      admissionDate: "2024-01-01",
+      poaSameAsNok: true,
+      poaName: "Should Clear",
+      poaContact: "111",
+      poaRelationship: "ignored",
+    });
+    expect(created.poaSameAsNok).toBe(true);
+    expect(created.poaName).toBeNull();
+    expect(created.poaContact).toBeNull();
+    expect(created.poaRelationship).toBeNull();
+  });
 });
 
 describe("residents (09 nurse assignment)", () => {
@@ -626,6 +676,30 @@ describe("residents (09 nurse assignment)", () => {
         assignedNurseUserId: floater.id,
       }),
     ).toThrow(ValidationError);
+  });
+
+  it("persists assigned nurse at create time when in scope", async () => {
+    const db = getDb();
+    const home = createHome(db, "admin", {
+      name: "Create Nurse",
+      defaultCurrencyCode: "NZD",
+    });
+    const nurse = await createUser(db, "admin", {
+      email: "create-nurse@example.com",
+      password: STRONG,
+      role: "care",
+      primaryHomeId: home.id,
+    });
+    const created = createResident(db, adminActor, {
+      homeId: home.id,
+      fullName: "Nurse Create",
+      dob: "1955-05-05",
+      admissionDate: "2024-05-05",
+      assignedNurseUserId: nurse.id,
+      assignedNurseDisplayOverride: "  Agency   Team ",
+    });
+    expect(created.assignedNurseUserId).toBe(nurse.id);
+    expect(created.assignedNurseDisplayOverride).toBe("Agency Team");
   });
 });
 

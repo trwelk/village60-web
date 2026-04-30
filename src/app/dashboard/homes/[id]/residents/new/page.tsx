@@ -3,6 +3,7 @@ import { requireSessionActor } from "@/lib/authz/sessionActor";
 import { ForbiddenError } from "@/lib/homes/errors";
 import { listHomes } from "@/lib/homes/service";
 import { listWardsForHome } from "@/lib/wards/service";
+import { listCareStaffForHome } from "@/lib/users/service";
 import { getSessionOptions, type SessionData } from "@/lib/session";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
@@ -27,8 +28,10 @@ export default async function NewResidentPage({ params }: PageParams) {
     notFound();
   }
   let wards;
+  let careStaffOptions;
   try {
     wards = listWardsForHome(getDb(), actor, homeId);
+    careStaffOptions = listCareStaffForHome(getDb(), actor, homeId);
   } catch (e) {
     if (e instanceof ForbiddenError) {
       notFound();
@@ -42,6 +45,7 @@ export default async function NewResidentPage({ params }: PageParams) {
       homeId={homeId}
       homeName={home.name}
       wards={wards.map((w) => ({ id: w.id, label: w.label }))}
+      careStaffOptions={careStaffOptions}
     />
   );
 }

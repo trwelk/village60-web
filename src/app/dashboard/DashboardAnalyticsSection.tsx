@@ -22,7 +22,7 @@ type DashboardAnalyticsSectionProps = {
 function StatCardIconWrap({ children }: { children: ReactNode }) {
   return (
     <div
-      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-pine/10 bg-pine-soft text-pine-2 shadow-inner shadow-white/60"
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_74%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_84%,transparent)] text-[var(--accent-strong)] shadow-inner"
       aria-hidden
     >
       {children}
@@ -77,15 +77,15 @@ export function DashboardAnalyticsSection({
   const homeCount = residentsPerHome.length;
 
   return (
-    <div className="village-reveal space-y-7 rounded-3xl border border-pine/10 bg-[radial-gradient(circle_at_top_left,rgba(184,71,50,0.11),transparent_30%),linear-gradient(135deg,rgba(250,247,241,0.95),rgba(240,232,220,0.76))] p-5 shadow-[0_24px_70px_-44px_rgba(12,24,20,0.5)] sm:p-6">
+    <div className="village-reveal space-y-7 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_86%,transparent)] p-5 shadow-[var(--shadow-md)] sm:p-6">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-2xl border border-pine/12 bg-cream/88 px-5 py-4 shadow-sm shadow-pine/[0.04]">
+        <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-5 py-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-ink/48">
+              <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
                 Active residents (all sites)
               </p>
-              <p className="mt-2 font-display text-4xl font-normal leading-none tracking-tight text-pine-2 tabular-nums">
+              <p className="mt-2 font-display text-4xl font-normal leading-none tracking-tight text-[var(--text-primary)] tabular-nums">
                 {totalActiveResidentsAllHomes}
               </p>
             </div>
@@ -93,20 +93,20 @@ export function DashboardAnalyticsSection({
               <IconResidents />
             </StatCardIconWrap>
           </div>
-          <p className="mt-3 text-sm leading-5 text-ink/64">
+          <p className="mt-3 text-sm leading-5 text-[var(--text-secondary)]">
             {homeCount === 0
               ? "No non-archived homes in the directory yet."
               : `Across ${homeCount} non-archived ${homeCount === 1 ? "home" : "homes"}.`}
           </p>
         </div>
 
-        <div className="rounded-2xl border border-pine/12 bg-cream/88 px-5 py-4 shadow-sm shadow-pine/[0.04]">
+        <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-5 py-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-ink/48">
+              <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
                 Configured beds (all sites)
               </p>
-              <p className="mt-2 font-display text-4xl font-normal leading-none tracking-tight text-pine-2 tabular-nums">
+              <p className="mt-2 font-display text-4xl font-normal leading-none tracking-tight text-[var(--text-primary)] tabular-nums">
                 {configuredBedsAllSites}
               </p>
             </div>
@@ -114,19 +114,19 @@ export function DashboardAnalyticsSection({
               <IconBeds />
             </StatCardIconWrap>
           </div>
-          <p className="mt-3 text-sm leading-5 text-ink/64">
+          <p className="mt-3 text-sm leading-5 text-[var(--text-secondary)]">
             Sum of bed counts on non-archived wards; wards with no bed count add
             nothing.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-pine/12 bg-cream/88 px-5 py-4 shadow-sm shadow-pine/[0.04]">
+        <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-5 py-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-ink/48">
+              <p className="font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
                 Overall occupancy
               </p>
-              <p className="mt-2 font-display text-4xl font-normal leading-none tracking-tight text-pine-2 tabular-nums">
+              <p className="mt-2 font-display text-4xl font-normal leading-none tracking-tight text-[var(--text-primary)] tabular-nums">
                 {occupancyPercentAllSites != null
                   ? `${occupancyPercentAllSites}%`
                   : "—"}
@@ -136,7 +136,7 @@ export function DashboardAnalyticsSection({
               <IconOccupancy />
             </StatCardIconWrap>
           </div>
-          <p className="mt-3 text-sm leading-5 text-ink/64">
+          <p className="mt-3 text-sm leading-5 text-[var(--text-secondary)]">
             {occupancyPercentAllSites != null
               ? "Active residents divided by configured beds, all non-archived sites."
               : "Configure at least one ward bed count to compute occupancy."}
@@ -145,7 +145,7 @@ export function DashboardAnalyticsSection({
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
-        <section className="village-card min-w-0 bg-cream/88">
+        <section className="village-card min-w-0">
           <h2 className="village-section-title">Residents per home</h2>
           <p className="village-muted mt-2">
             Active residents across non-archived retirement homes.
@@ -153,7 +153,7 @@ export function DashboardAnalyticsSection({
           <ResidentsPerHomeChart data={residentsPerHome} />
         </section>
 
-        <section className="village-card min-w-0 bg-cream/88">
+        <section className="village-card min-w-0">
           <h2 className="village-section-title">Month-end census by home</h2>
           <p className="village-muted mt-2">
             Census at each month-end this year, stacked by non-archived home.

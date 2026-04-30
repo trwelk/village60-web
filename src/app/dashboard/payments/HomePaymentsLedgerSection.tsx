@@ -60,7 +60,7 @@ export function HomePaymentsLedgerSection({
     <>
       <section
         data-testid="payments-ledger-filters"
-        className="village-card village-reveal village-reveal-delay-1 relative z-20"
+        className="village-card village-reveal village-reveal-delay-1 relative z-20 overflow-hidden"
       >
         <div className="grid gap-5 lg:grid-cols-[minmax(14rem,20rem)_1fr] lg:items-end">
           <div className="flex flex-col gap-2">
@@ -79,12 +79,12 @@ export function HomePaymentsLedgerSection({
             }))}
           />
           </div>
-          <div className="rounded-2xl border border-pine/10 bg-cream-muted/55 px-4 py-3">
-            <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-ink/45">
+          <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_78%,transparent)] px-4 py-3">
+            <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
               Current view
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink/70">
-              <span className="rounded-full bg-pine-soft px-3 py-1 font-medium text-pine-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">
+              <span className="rounded-full bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1 font-medium text-[var(--text-primary)]">
                 {selectedHomeName}
               </span>
               <span data-testid="payments-ledger-range">{rangeText}</span>
@@ -96,43 +96,43 @@ export function HomePaymentsLedgerSection({
       {selectedHomeId ? (
         <div className="village-reveal village-reveal-delay-2 flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-pine/12 bg-cream/80 p-4 shadow-sm">
-              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-ink/45">
+            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                 Visible payments
               </p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight text-pine-2">
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
                 {formatMinorAsCurrency(visibleAmountMinor, defaultCurrencyCode)}
               </p>
-              <p className="mt-1 text-sm text-ink/60">
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
                 {rows.length} payment{rows.length === 1 ? "" : "s"} on this page
               </p>
             </div>
-            <div className="rounded-2xl border border-pine/12 bg-cream/80 p-4 shadow-sm">
-              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-ink/45">
+            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                 Residents
               </p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight text-pine-2">
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
                 {uniqueResidentCount}
               </p>
-              <p className="mt-1 text-sm text-ink/60">
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
                 represented on this page
               </p>
             </div>
-            <div className="rounded-2xl border border-pine/12 bg-cream/80 p-4 shadow-sm">
-              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-ink/45">
+            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                 Ledger depth
               </p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight text-pine-2">
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
                 {totalCount}
               </p>
-              <p className="mt-1 text-sm text-ink/60">
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
                 total recorded payment{totalCount === 1 ? "" : "s"}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-2xl border border-pine/12 bg-cream/75 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="px-1 text-sm font-semibold text-pine-2">
+          <div className="flex flex-col gap-3 rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_78%,transparent)] p-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="px-1 text-sm font-semibold text-[var(--text-primary)]">
               Payment ledger
             </p>
             <div className="flex flex-wrap gap-2">
@@ -171,17 +171,17 @@ export function HomePaymentsLedgerSection({
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-3xl border border-pine/12 bg-cream/90 shadow-[0_20px_58px_-34px_rgba(12,24,20,0.5)]">
-            <div className="flex flex-col gap-1 border-b border-pine/10 bg-[linear-gradient(135deg,rgba(250,247,241,0.96),rgba(240,232,220,0.86))] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="overflow-hidden rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] shadow-[0_20px_58px_-34px_color-mix(in_srgb,var(--accent)_34%,transparent)]">
+            <div className="flex flex-col gap-1 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--bg-elevated)_94%,transparent),color-mix(in_srgb,var(--bg-muted)_88%,transparent))] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-ink/45">
+                <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                   Ledger table
                 </p>
-                <h2 className="text-base font-semibold text-pine-2">
+                <h2 className="text-base font-semibold text-[var(--text-primary)]">
                   Recorded payment details
                 </h2>
               </div>
-              <p className="text-sm text-ink/60">{rangeText}</p>
+              <p className="text-sm text-[var(--text-secondary)]">{rangeText}</p>
             </div>
             <div className="overflow-x-auto">
             <table
@@ -190,42 +190,42 @@ export function HomePaymentsLedgerSection({
               className="min-w-full border-collapse text-left text-sm"
             >
               <thead>
-                <tr className="border-b border-pine/12 bg-pine-soft/80">
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                <tr className="border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)]">
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                     Paid on
                   </th>
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                     Amount
                   </th>
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                     Resident
                   </th>
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                     Status
                   </th>
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                     Billing month
                   </th>
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                     Notes
                   </th>
-                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                  <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                     Recorded by
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-pine/8 bg-cream/70">
+              <tbody className="divide-y divide-[color:color-mix(in_srgb,var(--line-subtle)_66%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_84%,transparent)]">
                 {rows.length === 0 ? (
                   <tr>
                     <td
                       colSpan={7}
                       className="px-5 py-12 text-center"
                     >
-                      <div className="mx-auto max-w-md rounded-2xl border border-dashed border-pine/20 bg-cream-muted/55 px-6 py-7">
-                        <p className="font-semibold text-pine-2">
+                      <div className="mx-auto max-w-md rounded-2xl border border-dashed border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_74%,transparent)] px-6 py-7">
+                        <p className="font-semibold text-[var(--text-primary)]">
                           No recorded monthly payments for this home yet.
                         </p>
-                        <p className="mt-2 text-sm leading-6 text-ink/60">
+                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
                           Payments will appear here after they are recorded from
                           a resident&rsquo;s Billing tab.
                         </p>
@@ -236,12 +236,12 @@ export function HomePaymentsLedgerSection({
                   rows.map((row) => (
                     <tr
                       key={row.paymentId}
-                      className="transition-colors hover:bg-pine-soft/45"
+                      className="transition-colors hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)]"
                     >
-                      <td className="px-5 py-4 font-mono text-xs tabular-nums text-ink/75">
+                      <td className="px-5 py-4 font-mono text-xs tabular-nums text-[var(--text-secondary)]">
                         {row.paidOn}
                       </td>
-                      <td className="px-5 py-4 font-semibold tabular-nums text-ink">
+                      <td className="px-5 py-4 font-semibold tabular-nums text-[var(--text-primary)]">
                         {formatMinorAsCurrency(
                           row.amountMinor,
                           defaultCurrencyCode,
@@ -250,23 +250,23 @@ export function HomePaymentsLedgerSection({
                       <td className="px-5 py-4">
                         <Link
                           href={`/dashboard/homes/${selectedHomeId}/residents/${row.residentId}?tab=billing`}
-                          className="font-semibold text-pine underline decoration-terracotta/35 underline-offset-4 transition hover:text-terracotta"
+                          className="font-semibold text-[var(--accent-strong)] underline decoration-[color:color-mix(in_srgb,var(--accent)_36%,transparent)] underline-offset-4 transition hover:text-[var(--accent)]"
                         >
                           {row.residentFullName}
                         </Link>
                       </td>
-                      <td className="px-5 py-4 capitalize text-ink/85">
-                        <span className="rounded-full border border-pine/12 bg-cream px-2.5 py-1 text-xs font-semibold text-ink/70">
+                      <td className="px-5 py-4 capitalize text-[var(--text-primary)]">
+                        <span className="rounded-full border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)]">
                           {row.residentStatus === "active" ? "Active" : "Departed"}
                         </span>
                       </td>
-                      <td className="px-5 py-4 font-mono text-xs tabular-nums text-ink/75">
+                      <td className="px-5 py-4 font-mono text-xs tabular-nums text-[var(--text-secondary)]">
                         {row.billingMonth}
                       </td>
-                      <td className="max-w-[18rem] px-5 py-4 text-ink/75">
+                      <td className="max-w-[18rem] px-5 py-4 text-[var(--text-secondary)]">
                         {row.notes?.trim() ? row.notes : "—"}
                       </td>
-                      <td className="px-5 py-4 text-ink/75">
+                      <td className="px-5 py-4 text-[var(--text-secondary)]">
                         {row.recordedByEmail}
                       </td>
                     </tr>

@@ -16,7 +16,7 @@ type Props = {
   perNurse: ResidentPerNurseDatum[];
 };
 
-const fillBar = "#14b8a6";
+const fillBar = "var(--accent)";
 
 export function StaffWorkloadSection({ perNurse }: Props) {
   const data = perNurse.map((n) => ({
@@ -27,8 +27,9 @@ export function StaffWorkloadSection({ perNurse }: Props) {
   const empty = perNurse.length === 0;
 
   return (
-    <section className="village-card space-y-6 bg-cream/88">
-      <div>
+    <section className="village-card border border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-elevated)_94%,transparent),color-mix(in_srgb,var(--bg-muted)_88%,transparent))] p-4 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_38%,transparent)] sm:p-6">
+      <div className="space-y-6">
+        <div>
         <h2 className="village-section-title">Staff Workload</h2>
         <p className="village-muted mt-1.5">
           Residents per assigned nurse (care role); unassigned active residents are
@@ -37,36 +38,36 @@ export function StaffWorkloadSection({ perNurse }: Props) {
       </div>
 
       {empty ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-pine/12 bg-pine-soft/30 px-6 py-16 text-center text-sm text-ink/60">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)] px-6 py-16 text-center text-sm text-[var(--text-muted)]">
           No nurse assignments recorded yet.
         </div>
       ) : (
-        <div className="rounded-2xl border border-pine/12 bg-cream/90 px-3 py-5 sm:px-5">
-          <h3 className="text-sm font-semibold text-pine-2">
+        <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_96%,transparent)] p-4 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-canvas)_70%,transparent)] sm:p-5">
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">
             Residents per nurse
           </h3>
-          <div className="mt-4 w-full" style={{ height: barHeight }}>
+          <div className="mt-4 w-full min-w-0" style={{ height: barHeight }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 layout="vertical"
                 data={data}
-                margin={{ top: 4, right: 24, left: 8, bottom: 4 }}
+                margin={{ top: 4, right: 20, left: 16, bottom: 4 }}
               >
                 <CartesianGrid
-                  stroke="color-mix(in srgb, var(--pine) 18%, transparent)"
+                  stroke="color-mix(in srgb, var(--line-strong) 50%, transparent)"
                   strokeDasharray="4 6"
                   horizontal
                 />
                 <XAxis
                   type="number"
-                  tick={{ fill: "var(--ink)", fontSize: 11 }}
+                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                   allowDecimals={false}
                 />
                 <YAxis
                   type="category"
                   dataKey="nurseName"
-                  width={160}
-                  tick={{ fill: "var(--ink)", fontSize: 11 }}
+                  width={180}
+                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 />
                 <Tooltip
                   content={({ active, payload }) => {
@@ -77,9 +78,9 @@ export function StaffWorkloadSection({ perNurse }: Props) {
                       nurseName: string;
                     };
                     return (
-                      <div className="max-w-xs rounded-lg border border-pine/20 bg-cream px-3 py-2 text-xs shadow-lg">
-                        <p className="font-semibold text-pine-2">{row.nurseName}</p>
-                        <p className="mt-1 tabular-nums text-ink">
+                      <div className="max-w-xs rounded-lg border border-[color:color-mix(in_srgb,var(--line-strong)_64%,transparent)] bg-[var(--bg-elevated)] px-3 py-2 text-xs shadow-lg">
+                        <p className="font-semibold text-[var(--text-primary)]">{row.nurseName}</p>
+                        <p className="mt-1 tabular-nums text-[var(--text-primary)]">
                           {row.residentCount} active resident
                           {row.residentCount === 1 ? "" : "s"}
                         </p>
@@ -97,6 +98,7 @@ export function StaffWorkloadSection({ perNurse }: Props) {
           </div>
         </div>
       )}
+      </div>
     </section>
   );
 }

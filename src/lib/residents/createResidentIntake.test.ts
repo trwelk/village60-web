@@ -67,6 +67,9 @@ describe("createResident + other_charges transaction (17c)", () => {
       dob: "1950-01-01",
       admissionDate: "2025-01-20",
       wardId: w.id,
+      nokName: "Intake NOK",
+      nokContact: "021999",
+      nokRelationship: "Child",
       otherChargesIntake: {
         registration: {
           amountMinor: 100_00,

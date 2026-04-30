@@ -82,18 +82,18 @@ export default async function DashboardPage() {
     session.role === "admin" ? listOccupancyHeatmapBoard(db) : null;
 
   return (
-    <main className="flex flex-col gap-8 text-ink">
-      <div className="village-card village-reveal relative overflow-hidden px-6 py-7">
+    <main className="flex flex-col gap-8 text-[var(--text-primary)]">
+      <div className="village-card village-reveal relative overflow-hidden border border-[color:color-mix(in_srgb,var(--line-strong)_52%,transparent)] bg-[linear-gradient(130deg,color-mix(in_srgb,var(--bg-elevated)_95%,transparent),color-mix(in_srgb,var(--bg-muted)_88%,transparent))] px-6 py-7 shadow-[0_18px_42px_-28px_color-mix(in_srgb,var(--accent)_45%,transparent)]">
         <div
           aria-hidden
-          className="absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(25,114,75,0.16),transparent_46%)]"
+          className="absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,color-mix(in_srgb,var(--accent)_18%,transparent),transparent_46%)]"
         />
         <div className="relative max-w-3xl">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-pine/80">
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-[var(--accent-strong)]">
             Operations hub
           </p>
           <h1 className="village-page-title mt-3">Dashboard</h1>
-          <p className="mt-2 text-sm text-ink/70">
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">
             Sign-in history, tasks, upcoming birthdays, and at-a-glance occupancy
             below.
           </p>

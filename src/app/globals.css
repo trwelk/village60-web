@@ -1,26 +1,705 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --font-geist-sans:
+    "Segoe UI", "Helvetica Neue", "Inter", "Arial", sans-serif;
+  --font-geist-mono:
+    "Cascadia Code", "SFMono-Regular", "Menlo", "Consolas", monospace;
+
+  --bg-canvas: #f6f3ee;
+  --bg-soft: #f1ece4;
+  --bg-elevated: #fffcf8;
+  --bg-muted: #efe8de;
+
+  --text-primary: #1f1a15;
+  --text-secondary: #4c433a;
+  --text-muted: #6f665d;
+
+  --line-subtle: #e4dbce;
+  --line-strong: #cfc4b5;
+
+  --accent: #c96442;
+  --accent-strong: #b45435;
+  --highlight: #e08a62;
+  --success: #3e8a63;
+  --warning: #b67a3d;
+  --danger: #b85c4a;
+  --chart-categorical-1: #c96442;
+  --chart-categorical-2: #b45435;
+  --chart-categorical-3: #8c6a4b;
+  --chart-categorical-4: #d5a16d;
+  --chart-categorical-5: #6f8a73;
+  --chart-categorical-6: #a67c52;
+  --chart-positive: #3e8a63;
+  --chart-negative: #b85c4a;
+  --chart-neutral: #8c7e70;
+
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.5rem;
+
+  --shadow-sm: 0 8px 18px -14px color-mix(in srgb, var(--text-primary) 28%, transparent);
+  --shadow-md: 0 18px 38px -22px color-mix(in srgb, var(--text-primary) 24%, transparent);
+  --shadow-lg: 0 28px 64px -30px color-mix(in srgb, var(--text-primary) 26%, transparent);
+  --ring-focus: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+
+  /* legacy aliases used across existing components */
+  --paper: var(--bg-canvas);
+  --cream: var(--bg-elevated);
+  --ink: var(--text-primary);
+  --pine: var(--accent);
+  --pine-2: var(--text-primary);
+  --pine-soft: var(--bg-muted);
+  --terracotta: var(--accent-strong);
+  --terracotta-bright: var(--highlight);
+  --sage: var(--chart-categorical-5);
 }
 
+html.light {
+  color-scheme: light;
+}
+
+html.light:root {}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark:root {}
+
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg-canvas);
+  --color-foreground: var(--text-primary);
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-cream: var(--cream);
+  --color-cream-muted: color-mix(in srgb, var(--bg-muted) 84%, transparent);
+  --color-pine: var(--pine);
+  --color-pine-2: var(--pine-2);
+  --color-pine-soft: var(--pine-soft);
+  --color-terracotta: var(--terracotta);
+  --color-terracotta-bright: var(--terracotta-bright);
+  --color-sage: var(--sage);
+  --color-success: var(--success);
+  --color-success-muted: color-mix(in srgb, var(--success) 16%, var(--bg-elevated) 84%);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--line-subtle);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100%;
+  background:
+    radial-gradient(
+      1000px 480px at -14% -12%,
+      color-mix(in srgb, var(--accent) 16%, transparent),
+      transparent 58%
+    ),
+    radial-gradient(
+      900px 460px at 108% 0%,
+      color-mix(in srgb, var(--highlight) 14%, transparent),
+      transparent 60%
+    ),
+    var(--bg-canvas);
+  color: var(--text-primary);
+  font-family:
+    var(--font-geist-sans),
+    "Segoe UI",
+    "Helvetica Neue",
+    sans-serif;
+}
+
+.village-card {
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 75%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+.village-section-title {
+  color: var(--text-primary);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.village-page-title {
+  color: var(--text-primary);
+  font-size: clamp(1.7rem, 2.5vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.village-muted {
+  color: var(--text-secondary);
+}
+
+.village-field-label {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.village-label {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.village-input {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 64%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+  color: var(--text-primary);
+  padding: 0.6rem 0.72rem;
+  font-size: 0.92rem;
+  line-height: 1.2;
+  transition: border-color 150ms ease;
+}
+
+.village-input::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 70%, transparent);
+}
+
+.village-input:focus {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.village-select {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 64%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+  color: var(--text-primary);
+  min-height: 2.3rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.92rem;
+}
+
+.village-btn-primary,
+.village-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 150ms ease;
+}
+
+.village-btn-primary {
+  border: 1px solid color-mix(in srgb, var(--accent-strong) 78%, transparent);
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--accent) 72%, white 28%),
+    var(--accent-strong)
+  );
+  color: #f7ffff;
+  box-shadow: 0 10px 20px -14px color-mix(in srgb, var(--accent-strong) 90%, transparent);
+}
+
+.village-btn-primary:hover {
+  transform: translateY(-1px);
+  filter: saturate(105%);
+}
+
+.village-btn-secondary {
+  border: 1px solid color-mix(in srgb, var(--line-strong) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  color: var(--text-secondary);
+}
+
+.village-btn-secondary:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--text-primary);
+}
+
+.village-alert-error {
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg-elevated) 90%);
+  color: var(--danger);
+  padding: 0.75rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.village-table-wrap {
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 78%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+.village-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.village-thead {
+  background: color-mix(in srgb, var(--bg-muted) 85%, transparent);
+}
+
+.village-th {
+  text-align: left;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  padding: 0.72rem 0.85rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line-subtle) 80%, transparent);
+}
+
+.village-tbody tr {
+  border-bottom: 1px solid color-mix(in srgb, var(--line-subtle) 68%, transparent);
+}
+
+.village-tbody tr:last-child {
+  border-bottom: none;
+}
+
+.village-td,
+.village-td-muted {
+  padding: 0.72rem 0.85rem;
+  font-size: 0.92rem;
+  line-height: 1.32;
+  vertical-align: middle;
+}
+
+.village-td {
+  color: var(--text-primary);
+}
+
+.village-td-muted {
+  color: var(--text-secondary);
+}
+
+.village-link {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 46%, transparent);
+  text-underline-offset: 2px;
+  font-weight: 600;
+}
+
+.village-link:hover {
+  color: var(--accent);
+}
+
+.village-link-subtle {
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--line-strong) 65%, transparent);
+  text-underline-offset: 2px;
+  transition: color 150ms ease;
+}
+
+.village-link-subtle:hover {
+  color: var(--text-primary);
+}
+
+.village-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 72%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-muted) 72%, transparent);
+  padding: 0.62rem 0.78rem;
+}
+
+.village-card-soft {
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 72%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-muted) 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 42%, transparent);
+}
+
+.village-checkbox {
+  appearance: none;
+  height: 1rem;
+  width: 1rem;
+  border-radius: 0.25rem;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 95%, transparent);
+  display: inline-grid;
+  place-content: center;
+}
+
+.village-checkbox::before {
+  content: "";
+  width: 0.52rem;
+  height: 0.52rem;
+  transform: scale(0);
+  transition: transform 120ms ease-out;
+  background: var(--accent-strong);
+  border-radius: 0.12rem;
+}
+
+.village-checkbox:checked::before {
+  transform: scale(1);
+}
+
+.village-tablist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 78%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-elevated) 74%, transparent);
+  padding: 0.45rem;
+}
+
+.village-tab {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0.45rem 0.82rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  transition: all 140ms ease;
+}
+
+.village-tab:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-muted) 78%, transparent);
+}
+
+.village-tab-active {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--line-strong) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.village-select-trigger {
+  border: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+  color: var(--text-primary);
+  min-height: 2.3rem;
+  padding: 0.5rem 0.7rem;
+}
+
+.village-select-trigger:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.village-select-list {
+  border: 1px solid color-mix(in srgb, var(--line-strong) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+}
+
+@keyframes village-select-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Compatibility color aliases used by existing component classes */
+.bg-success-muted {
+  background: color-mix(in srgb, var(--success) 16%, var(--bg-elevated) 84%);
+}
+
+.bg-cream-muted {
+  background: color-mix(in srgb, var(--bg-muted) 82%, transparent);
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.village-occ-legend {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 0.2rem;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 60%, transparent);
+}
+
+.village-occ-low {
+  border-color: color-mix(in srgb, #2f8c66 65%, transparent);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, #e3f5ec 92%, transparent),
+    color-mix(in srgb, #b7dfcb 94%, transparent)
+  );
+}
+
+.village-occ-mid {
+  border-color: color-mix(in srgb, #ce8b59 68%, transparent);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, #fff0df 94%, transparent),
+    color-mix(in srgb, #f9d8ba 92%, transparent)
+  );
+}
+
+.village-occ-high {
+  border-color: color-mix(in srgb, #c36c57 72%, transparent);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, #ffe3de 93%, transparent),
+    color-mix(in srgb, #f7bdb1 90%, transparent)
+  );
+}
+
+.village-occ-over {
+  border-color: color-mix(in srgb, #a7463e 75%, transparent);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, #ffd9d4 94%, transparent),
+    color-mix(in srgb, #f39c91 89%, transparent)
+  );
+}
+
+.village-occ-neutral-fill {
+  border-color: color-mix(in srgb, var(--line-strong) 68%, transparent);
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--bg-muted) 90%, transparent),
+    color-mix(in srgb, var(--bg-elevated) 92%, transparent)
+  );
+}
+
+.village-occ-unassigned-fill {
+  border-color: color-mix(in srgb, var(--line-strong) 72%, transparent);
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 18%, var(--bg-elevated) 82%),
+    color-mix(in srgb, var(--accent-strong) 24%, var(--bg-muted) 76%)
+  );
+}
+
+.village-occ-bar-track {
+  margin-top: 0.5rem;
+  height: 0.4rem;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line-subtle) 70%, transparent);
+}
+
+.village-occ-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.village-dashboard-shell-rail {
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+}
+
+.village-dashboard-topbar {
+  background: color-mix(in srgb, var(--bg-elevated) 84%, transparent);
+}
+
+.village-dashboard-topbar-animate {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.village-dashboard-main {
+  background: transparent;
+}
+
+.village-app-bg {
+  background:
+    radial-gradient(
+      900px 420px at 0% 0%,
+      color-mix(in srgb, var(--accent) 12%, transparent),
+      transparent 56%
+    ),
+    radial-gradient(
+      780px 360px at 110% -10%,
+      color-mix(in srgb, var(--highlight) 12%, transparent),
+      transparent 58%
+    ),
+    var(--bg-soft);
+}
+
+.village-nav-cluster,
+.village-nav-cluster-animate {
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 76%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-muted) 80%, transparent);
+  padding: 0.35rem;
+}
+
+.village-nav-link {
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-md) - 2px);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  transition: all 160ms ease;
+}
+
+.village-nav-link:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+}
+
+.village-nav-link[aria-current="page"] {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--line-strong) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.village-nav-link--rail-collapsed {
+  justify-content: center;
+  width: 2.85rem;
+  padding: 0.52rem 0;
+}
+
+.village-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.15rem 0.2rem;
+}
+
+.village-brand-mark {
+  display: inline-flex;
+  height: 2.35rem;
+  width: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.78rem;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--accent) 90%, white 10%),
+    color-mix(in srgb, var(--accent-strong) 84%, black 4%)
+  );
+  color: #f8ffff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.village-brand-wordmark {
+  color: var(--text-primary);
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.village-brand-tagline {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.village-session-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 75%, transparent);
+  background: color-mix(in srgb, var(--bg-muted) 85%, transparent);
+  padding: 0.3rem 0.45rem;
+}
+
+.village-session-pill {
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.75rem;
+  line-height: 1.1;
+}
+
+.village-session-role {
+  color: var(--text-primary);
+  font-size: 0.67rem;
+}
+
+.village-logout-chip {
+  border: 1px solid color-mix(in srgb, var(--line-strong) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  color: var(--text-secondary);
+}
+
+.village-grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.055;
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--text-primary) 45%, transparent) 0.55px,
+    transparent 0.55px
+  );
+  background-size: 2px 2px;
+}
+
+.village-shimmer {
+  filter: saturate(108%);
+}
+
+.village-reveal {
+  animation: village-fade-in 520ms ease-out both;
+}
+.village-reveal-delay-1 {
+  animation-delay: 70ms;
+}
+.village-reveal-delay-2 {
+  animation-delay: 120ms;
+}
+.village-reveal-delay-3 {
+  animation-delay: 180ms;
+}
+.village-reveal-delay-4 {
+  animation-delay: 240ms;
+}
+.village-reveal-delay-5 {
+  animation-delay: 290ms;
+}
+
+@keyframes village-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

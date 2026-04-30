@@ -33,62 +33,44 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative isolate min-h-screen overflow-hidden bg-paper text-ink">
+    <main className="relative isolate min-h-screen overflow-hidden bg-[var(--bg-canvas)] text-[var(--text-primary)]">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 village-grain"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -left-32 top-0 h-[120%] w-[55%] -rotate-6 bg-gradient-to-br from-pine/12 via-transparent to-terracotta/10 village-shimmer"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-24 bottom-0 h-[70%] w-[45%] rotate-3 rounded-[3rem] border border-pine/15 bg-cream/80 shadow-[0_25px_80px_-20px_rgba(27,67,50,0.35)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_420px_at_-10%_-10%,color-mix(in_srgb,var(--accent)_20%,transparent),transparent_58%),radial-gradient(860px_420px_at_110%_0%,color-mix(in_srgb,var(--highlight)_18%,transparent),transparent_60%)]"
       />
       <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-5 py-16 sm:px-8 lg:px-12">
         <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-10">
           <header className="relative lg:col-span-5">
-            <p className="village-reveal village-reveal-delay-1 font-sans text-[0.7rem] font-bold uppercase tracking-[0.35em] text-pine">
+            <p className="font-sans text-[0.72rem] font-bold uppercase tracking-[0.32em] text-[var(--accent-strong)]">
               Staff access
             </p>
-            <h1 className="village-reveal village-reveal-delay-2 mt-4 font-display text-[clamp(2.5rem,6vw,3.75rem)] font-normal leading-[1.05] text-pine-2">
-              Village
-              <span className="block translate-x-1 text-terracotta">60</span>
+            <h1 className="mt-4 font-sans text-[clamp(2.2rem,5vw,3.2rem)] font-semibold leading-tight text-[var(--text-primary)]">
+              Village60 operations
             </h1>
-            <p className="village-reveal village-reveal-delay-3 mt-6 max-w-md font-sans text-base leading-relaxed text-ink/80">
-              A quiet threshold between the lobby and the ledger—sign in to
-              continue resident care, homes, and rostered access.
+            <p className="mt-5 max-w-md text-base leading-relaxed text-[var(--text-secondary)]">
+              Sign in to manage residents, homes, analytics, and staff workflows.
             </p>
-            <div
-              aria-hidden
-              className="village-reveal village-reveal-delay-4 mt-10 hidden h-px max-w-xs bg-gradient-to-r from-terracotta via-pine/40 to-transparent sm:block"
-            />
-            <p className="village-reveal village-reveal-delay-5 mt-6 font-mono text-xs text-sage">
-              Seeded administrator credentials live in the project README.
+            <p className="mt-8 text-xs text-[var(--text-muted)]">
+              Seeded administrator credentials are available in the README.
             </p>
           </header>
 
           <div className="relative lg:col-span-6 lg:col-start-7">
-            <div
-              aria-hidden
-              className="absolute -inset-1 rounded-[1.75rem] bg-gradient-to-br from-pine/20 via-transparent to-terracotta/25 opacity-80 blur-sm"
-            />
             <form
               onSubmit={onSubmit}
-              className="village-reveal village-reveal-delay-3 relative rounded-[1.5rem] border border-pine/20 bg-cream/95 p-8 shadow-[0_30px_60px_-28px_rgba(15,31,26,0.45)] backdrop-blur-sm sm:p-10"
+              className="relative rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_95%,transparent)] p-8 shadow-[var(--shadow-lg)] backdrop-blur sm:p-10"
             >
-              <h2 className="font-display text-2xl text-pine-2">
+              <h2 className="text-2xl font-semibold text-[var(--text-primary)]">
                 Sign in
               </h2>
-              <p className="mt-2 text-sm text-ink/70">
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">
                 Use your work email and password.
               </p>
               <div className="mt-8 flex flex-col gap-5">
-                <label className="group flex flex-col gap-2 text-sm font-semibold text-pine">
+                <label className="group flex flex-col gap-2 text-sm font-semibold text-[var(--text-secondary)]">
                   Email
                   <input
-                    className="rounded-xl border border-pine/25 bg-paper px-4 py-3 font-sans text-base text-ink shadow-inner shadow-pine/5 transition placeholder:text-ink/35 focus:border-terracotta focus:outline-none focus:ring-2 focus:ring-terracotta/35"
+                    className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[var(--bg-muted)] px-4 py-3 font-sans text-base text-[var(--text-primary)] transition placeholder:text-[color:color-mix(in_srgb,var(--text-muted)_58%,transparent)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_28%,transparent)]"
                     type="email"
                     autoComplete="username"
                     placeholder="you@home.org"
@@ -97,10 +79,10 @@ export default function LoginPage() {
                     required
                   />
                 </label>
-                <label className="flex flex-col gap-2 text-sm font-semibold text-pine">
+                <label className="flex flex-col gap-2 text-sm font-semibold text-[var(--text-secondary)]">
                   Password
                   <input
-                    className="rounded-xl border border-pine/25 bg-paper px-4 py-3 font-sans text-base text-ink shadow-inner shadow-pine/5 transition placeholder:text-ink/35 focus:border-terracotta focus:outline-none focus:ring-2 focus:ring-terracotta/35"
+                    className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[var(--bg-muted)] px-4 py-3 font-sans text-base text-[var(--text-primary)] transition placeholder:text-[color:color-mix(in_srgb,var(--text-muted)_58%,transparent)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_28%,transparent)]"
                     type="password"
                     autoComplete="current-password"
                     value={password}
@@ -110,7 +92,7 @@ export default function LoginPage() {
                 </label>
                 {error ? (
                   <p
-                    className="rounded-lg border border-danger/25 bg-paper px-3 py-2 text-sm text-danger"
+                    className="rounded-lg border border-[color:color-mix(in_srgb,var(--danger)_44%,transparent)] bg-[var(--bg-muted)] px-3 py-2 text-sm text-[var(--danger)]"
                     role="alert"
                   >
                     {error}
@@ -119,15 +101,9 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={pending}
-                  className="group relative mt-2 overflow-hidden rounded-xl bg-pine px-4 py-3.5 text-sm font-bold uppercase tracking-[0.2em] text-cream shadow-[0_14px_30px_-12px_rgba(27,67,50,0.75)] transition hover:bg-pine-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-2 rounded-xl bg-[var(--accent-strong)] px-4 py-3.5 text-sm font-bold uppercase tracking-[0.18em] text-white shadow-[0_18px_34px_-18px_color-mix(in_srgb,var(--accent-strong)_90%,transparent)] transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <span
-                    aria-hidden
-                    className="absolute inset-0 z-0 translate-y-full bg-gradient-to-t from-terracotta/90 to-terracotta-bright/80 transition duration-300 group-hover:translate-y-0 group-disabled:translate-y-full"
-                  />
-                  <span className="relative z-10">
-                    {pending ? "Signing in…" : "Enter"}
-                  </span>
+                  {pending ? "Signing in..." : "Enter"}
                 </button>
               </div>
             </form>

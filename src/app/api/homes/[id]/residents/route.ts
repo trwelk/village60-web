@@ -182,6 +182,151 @@ export async function POST(req: Request, { params }: RouteParams) {
       );
     }
   }
+  let nokName: string | null | undefined;
+  if ("nokName" in rec) {
+    if (rec.nokName === null) {
+      nokName = null;
+    } else if (typeof rec.nokName === "string") {
+      nokName = rec.nokName;
+    } else {
+      return NextResponse.json(
+        { error: "nokName must be a string or null." },
+        { status: 400 },
+      );
+    }
+  }
+  let nokContact: string | null | undefined;
+  if ("nokContact" in rec) {
+    if (rec.nokContact === null) {
+      nokContact = null;
+    } else if (typeof rec.nokContact === "string") {
+      nokContact = rec.nokContact;
+    } else {
+      return NextResponse.json(
+        { error: "nokContact must be a string or null." },
+        { status: 400 },
+      );
+    }
+  }
+  let nokRelationship: string | null | undefined;
+  if ("nokRelationship" in rec) {
+    if (rec.nokRelationship === null) {
+      nokRelationship = null;
+    } else if (typeof rec.nokRelationship === "string") {
+      nokRelationship = rec.nokRelationship;
+    } else {
+      return NextResponse.json(
+        { error: "nokRelationship must be a string or null." },
+        { status: 400 },
+      );
+    }
+  }
+  let poaSameAsNok: boolean | undefined;
+  if ("poaSameAsNok" in rec) {
+    if (typeof rec.poaSameAsNok === "boolean") {
+      poaSameAsNok = rec.poaSameAsNok;
+    } else {
+      return NextResponse.json(
+        { error: "poaSameAsNok must be a boolean." },
+        { status: 400 },
+      );
+    }
+  }
+  let poaName: string | null | undefined;
+  if ("poaName" in rec) {
+    if (rec.poaName === null) {
+      poaName = null;
+    } else if (typeof rec.poaName === "string") {
+      poaName = rec.poaName;
+    } else {
+      return NextResponse.json(
+        { error: "poaName must be a string or null." },
+        { status: 400 },
+      );
+    }
+  }
+  let poaContact: string | null | undefined;
+  if ("poaContact" in rec) {
+    if (rec.poaContact === null) {
+      poaContact = null;
+    } else if (typeof rec.poaContact === "string") {
+      poaContact = rec.poaContact;
+    } else {
+      return NextResponse.json(
+        { error: "poaContact must be a string or null." },
+        { status: 400 },
+      );
+    }
+  }
+  let poaRelationship: string | null | undefined;
+  if ("poaRelationship" in rec) {
+    if (rec.poaRelationship === null) {
+      poaRelationship = null;
+    } else if (typeof rec.poaRelationship === "string") {
+      poaRelationship = rec.poaRelationship;
+    } else {
+      return NextResponse.json(
+        { error: "poaRelationship must be a string or null." },
+        { status: 400 },
+      );
+    }
+  }
+  let assignedNurseUserId: string | null | undefined;
+  if ("assignedNurseUserId" in rec) {
+    if (rec.assignedNurseUserId === null) {
+      assignedNurseUserId = null;
+    } else if (typeof rec.assignedNurseUserId === "string") {
+      assignedNurseUserId = rec.assignedNurseUserId;
+    } else {
+      return NextResponse.json(
+        { error: "assignedNurseUserId must be a string or null." },
+        { status: 400 },
+      );
+    }
+  }
+  let assignedNurseDisplayOverride: string | null | undefined;
+  if ("assignedNurseDisplayOverride" in rec) {
+    if (rec.assignedNurseDisplayOverride === null) {
+      assignedNurseDisplayOverride = null;
+    } else if (typeof rec.assignedNurseDisplayOverride === "string") {
+      assignedNurseDisplayOverride = rec.assignedNurseDisplayOverride;
+    } else {
+      return NextResponse.json(
+        { error: "assignedNurseDisplayOverride must be a string or null." },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (
+    wardId === undefined ||
+    wardId === null ||
+    (typeof wardId === "string" && wardId.trim() === "")
+  ) {
+    return NextResponse.json({ error: "wardId is required." }, { status: 400 });
+  }
+  if (
+    nokName === undefined ||
+    nokName === null ||
+    typeof nokName !== "string" ||
+    !nokName.trim() ||
+    nokContact === undefined ||
+    nokContact === null ||
+    typeof nokContact !== "string" ||
+    !nokContact.trim() ||
+    nokRelationship === undefined ||
+    nokRelationship === null ||
+    typeof nokRelationship !== "string" ||
+    !nokRelationship.trim()
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "nokName, nokContact, and nokRelationship are required non-empty strings.",
+      },
+      { status: 400 },
+    );
+  }
 
   try {
     const actor = requireSessionActor(session);
@@ -195,6 +340,17 @@ export async function POST(req: Request, { params }: RouteParams) {
         otherChargesIntake,
         ...(wardId !== undefined ? { wardId } : {}),
         ...(roomText !== undefined ? { roomText } : {}),
+        ...(nokName !== undefined ? { nokName } : {}),
+        ...(nokContact !== undefined ? { nokContact } : {}),
+        ...(nokRelationship !== undefined ? { nokRelationship } : {}),
+        ...(poaSameAsNok !== undefined ? { poaSameAsNok } : {}),
+        ...(poaName !== undefined ? { poaName } : {}),
+        ...(poaContact !== undefined ? { poaContact } : {}),
+        ...(poaRelationship !== undefined ? { poaRelationship } : {}),
+        ...(assignedNurseUserId !== undefined ? { assignedNurseUserId } : {}),
+        ...(assignedNurseDisplayOverride !== undefined
+          ? { assignedNurseDisplayOverride }
+          : {}),
       }),
     );
     return NextResponse.json({ resident });

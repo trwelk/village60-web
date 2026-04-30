@@ -183,6 +183,15 @@ export function createResident(
     admissionDate: string;
     wardId?: string | null;
     roomText?: string | null;
+    nokName?: string | null;
+    nokContact?: string | null;
+    nokRelationship?: string | null;
+    poaSameAsNok?: boolean;
+    poaName?: string | null;
+    poaContact?: string | null;
+    poaRelationship?: string | null;
+    assignedNurseUserId?: string | null;
+    assignedNurseDisplayOverride?: string | null;
     /** When set, `resident` and exactly two `other_charges` rows are inserted in one transaction (17c). */
     otherChargesIntake?: CreateResidentOtherChargesIntake;
   },
@@ -218,6 +227,47 @@ export function createResident(
     input.roomText === undefined || input.roomText === null
       ? null
       : input.roomText.trim() || null;
+  const nokName =
+    input.nokName === undefined || input.nokName === null
+      ? null
+      : normalizeOptionalPersonLine(input.nokName);
+  const nokContact =
+    input.nokContact === undefined || input.nokContact === null
+      ? null
+      : normalizeOptionalContactLine(input.nokContact);
+  const nokRelationship =
+    input.nokRelationship === undefined || input.nokRelationship === null
+      ? null
+      : normalizeOptionalPersonLine(input.nokRelationship);
+  const poaSameAsNok = input.poaSameAsNok ?? false;
+  let poaName =
+    input.poaName === undefined || input.poaName === null
+      ? null
+      : normalizeOptionalPersonLine(input.poaName);
+  let poaContact =
+    input.poaContact === undefined || input.poaContact === null
+      ? null
+      : normalizeOptionalContactLine(input.poaContact);
+  let poaRelationship =
+    input.poaRelationship === undefined || input.poaRelationship === null
+      ? null
+      : normalizeOptionalPersonLine(input.poaRelationship);
+  const assignedNurseUserId =
+    input.assignedNurseUserId === undefined || input.assignedNurseUserId === null
+      ? null
+      : input.assignedNurseUserId;
+  const assignedNurseDisplayOverride =
+    input.assignedNurseDisplayOverride === undefined ||
+    input.assignedNurseDisplayOverride === null
+      ? null
+      : normalizeOptionalDisplayOverride(input.assignedNurseDisplayOverride);
+
+  assertAssignedNurseInHome(db, input.homeId, assignedNurseUserId);
+  if (poaSameAsNok) {
+    poaName = null;
+    poaContact = null;
+    poaRelationship = null;
+  }
 
   const row: ResidentRow = {
     id,
@@ -229,15 +279,15 @@ export function createResident(
     wardId,
     roomText,
     status: "active",
-    nokName: null,
-    nokContact: null,
-    nokRelationship: null,
-    poaSameAsNok: false,
-    poaName: null,
-    poaContact: null,
-    poaRelationship: null,
-    assignedNurseUserId: null,
-    assignedNurseDisplayOverride: null,
+    nokName,
+    nokContact,
+    nokRelationship,
+    poaSameAsNok,
+    poaName,
+    poaContact,
+    poaRelationship,
+    assignedNurseUserId,
+    assignedNurseDisplayOverride,
     createdAtUtcMs: now,
     updatedAtUtcMs: now,
   };

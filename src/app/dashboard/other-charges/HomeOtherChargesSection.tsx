@@ -89,9 +89,9 @@ export function HomeOtherChargesSection({
     <>
       <section
         data-testid="other-charges-ledger-filters"
-        className="village-card village-reveal village-reveal-delay-1 relative z-20"
+        className="village-card village-reveal village-reveal-delay-1 relative z-20 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-5 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6"
       >
-        <div className="grid gap-5 lg:grid-cols-2 lg:items-end">
+        <div className="grid gap-5 lg:grid-cols-[minmax(14rem,20rem)_1fr] lg:items-end">
           <div className="flex flex-col gap-2">
             <label htmlFor="other-charges-home" className="village-label">
               Home
@@ -134,11 +134,11 @@ export function HomeOtherChargesSection({
             </div>
           ) : null}
         </div>
-        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-pine/10 pt-4 text-sm text-ink/70">
-          <span className="rounded-full bg-pine-soft px-3 py-1 font-medium text-pine-2">
+        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
+          <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)] px-3 py-1.5 font-medium text-[var(--text-primary)]">
             {selectedHomeName}
           </span>
-          <span className="rounded-full bg-cream-muted px-3 py-1 font-medium text-ink/75">
+          <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)] px-3 py-1.5 font-medium text-[var(--text-primary)]">
             {selectedResidentName}
           </span>
           <span>

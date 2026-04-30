@@ -84,7 +84,7 @@ export function HomeChargesSection({
     <>
       <section
         data-testid="charges-ledger-filters"
-        className="village-card village-reveal village-reveal-delay-1 relative z-20"
+        className="village-card village-reveal village-reveal-delay-1 relative z-20 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-5 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6"
       >
         <div className="grid gap-5 lg:grid-cols-[minmax(14rem,20rem)_1fr] lg:items-end">
           <div className="flex flex-col gap-2">
@@ -163,8 +163,8 @@ export function HomeChargesSection({
             </div>
           </fieldset>
         </div>
-        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-pine/10 pt-4 text-sm text-ink/70">
-          <span className="rounded-full bg-pine-soft px-3 py-1 font-medium text-pine-2">
+        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
+          <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)] px-3 py-1.5 font-medium text-[var(--text-primary)]">
             {selectedHomeName}
           </span>
           <span>
@@ -179,41 +179,41 @@ export function HomeChargesSection({
       {selectedHomeId ? (
         <div className="village-reveal village-reveal-delay-2 flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-pine/12 bg-cream/80 p-4 shadow-sm">
-              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-ink/45">
+            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                 Total billed
               </p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight text-pine-2">
+              <p className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
                 {formatMinorAsCurrency(summary.totalBilledMinor, defaultCurrencyCode)}
               </p>
-              <p className="mt-1 text-sm text-ink/60">
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
                 {summary.chargeCount} charge{summary.chargeCount === 1 ? "" : "s"}
               </p>
             </div>
-            <div className="rounded-2xl border border-pine/12 bg-cream/80 p-4 shadow-sm">
-              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-ink/45">
+            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                 Unpaid balance
               </p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight text-terracotta">
+              <p className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-[var(--danger)]">
                 {formatMinorAsCurrency(summary.unpaidBalanceMinor, defaultCurrencyCode)}
               </p>
-              <p className="mt-1 text-sm text-ink/60">
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
                 {summary.unpaidCount} unpaid
               </p>
             </div>
-            <div className="rounded-2xl border border-pine/12 bg-cream/80 p-4 shadow-sm">
-              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-ink/45">
+            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                 Collection status
               </p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight text-pine-2">
+              <p className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
                 {summary.paidCount}/{summary.chargeCount}
               </p>
-              <p className="mt-1 text-sm text-ink/60">charges paid</p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">charges paid</p>
             </div>
           </div>
           {totalCount > 0 || paymentStatus !== "all" ? (
-            <fieldset className="flex flex-col gap-2 rounded-2xl border border-pine/12 bg-cream/75 p-3 sm:flex-row sm:items-center sm:justify-between">
-              <legend className="px-1 text-sm font-semibold text-pine-2">
+            <fieldset className="flex flex-col gap-2 rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_78%,transparent)] p-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <legend className="px-1 text-sm font-semibold text-[var(--text-primary)]">
                 Payment status
               </legend>
               <div className="flex flex-wrap gap-2">
@@ -236,7 +236,7 @@ export function HomeChargesSection({
                       );
                     }}
                   />
-                  <span className="block rounded-full border border-pine/15 bg-cream px-3 py-1.5 text-sm font-semibold text-ink/70 transition peer-checked:border-pine/35 peer-checked:bg-pine peer-checked:text-cream">
+                  <span className="block rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm font-semibold text-[var(--text-secondary)] transition peer-checked:border-[color:color-mix(in_srgb,var(--accent)_55%,transparent)] peer-checked:bg-[var(--accent-strong)] peer-checked:text-white">
                     All
                   </span>
                 </label>
@@ -259,7 +259,7 @@ export function HomeChargesSection({
                       );
                     }}
                   />
-                  <span className="block rounded-full border border-pine/15 bg-cream px-3 py-1.5 text-sm font-semibold text-ink/70 transition peer-checked:border-terracotta/45 peer-checked:bg-terracotta peer-checked:text-cream">
+                  <span className="block rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm font-semibold text-[var(--text-secondary)] transition peer-checked:border-[color:color-mix(in_srgb,var(--danger)_55%,transparent)] peer-checked:bg-[var(--danger)] peer-checked:text-white">
                     Unpaid only
                   </span>
                 </label>
@@ -282,26 +282,26 @@ export function HomeChargesSection({
                       );
                     }}
                   />
-                  <span className="block rounded-full border border-pine/15 bg-cream px-3 py-1.5 text-sm font-semibold text-ink/70 transition peer-checked:border-pine/35 peer-checked:bg-pine peer-checked:text-cream">
+                  <span className="block rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm font-semibold text-[var(--text-secondary)] transition peer-checked:border-[color:color-mix(in_srgb,var(--accent)_55%,transparent)] peer-checked:bg-[var(--accent-strong)] peer-checked:text-white">
                     Paid only
                   </span>
                 </label>
               </div>
             </fieldset>
           ) : null}
-          <div className="overflow-hidden rounded-3xl border border-pine/12 bg-cream/90 shadow-[0_20px_58px_-34px_rgba(12,24,20,0.5)]">
-            <div className="flex flex-col gap-1 border-b border-pine/10 bg-[linear-gradient(135deg,rgba(250,247,241,0.96),rgba(240,232,220,0.86))] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] shadow-[0_20px_58px_-34px_color-mix(in_srgb,var(--accent)_34%,transparent)]">
+            <div className="flex flex-col gap-1 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--bg-elevated)_94%,transparent),color-mix(in_srgb,var(--bg-muted)_88%,transparent))] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-ink/45">
+                <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                   Ledger table
                 </p>
-                <h2 className="text-base font-semibold text-pine-2">
+                <h2 className="text-base font-semibold text-[var(--text-primary)]">
                   Resident charge details
                 </h2>
               </div>
               <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
                 <p
-                  className="text-sm text-ink/60"
+                  className="text-sm text-[var(--text-secondary)]"
                   data-testid="charges-ledger-range"
                 >
                   {totalCount === 0
@@ -311,7 +311,7 @@ export function HomeChargesSection({
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    className="rounded border border-pine/25 bg-cream px-3 py-1.5 text-sm text-ink hover:bg-cream/80 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded border border-[color:color-mix(in_srgb,var(--line-strong)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)] disabled:cursor-not-allowed disabled:opacity-40"
                     disabled={!canPrev}
                     onClick={() => {
                       router.push(
@@ -330,7 +330,7 @@ export function HomeChargesSection({
                   </button>
                   <button
                     type="button"
-                    className="rounded border border-pine/25 bg-cream px-3 py-1.5 text-sm text-ink hover:bg-cream/80 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded border border-[color:color-mix(in_srgb,var(--line-strong)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)] disabled:cursor-not-allowed disabled:opacity-40"
                     disabled={!canNext}
                     onClick={() => {
                       router.push(
@@ -350,42 +350,42 @@ export function HomeChargesSection({
                 </div>
               </div>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-b-3xl">
             <table
               aria-label="Monthly charge ledger"
               className="min-w-full border-collapse text-left text-sm"
             >
             <thead>
-              <tr className="border-b border-pine/12 bg-pine-soft/80">
-                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+              <tr className="border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)]">
+                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   Resident
                 </th>
-                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   Status
                 </th>
-                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   Billing month
                 </th>
-                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   Amount
                 </th>
-                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   Ward
                 </th>
-                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-pine">
+                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   Paid
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-pine/8 bg-cream/70">
+            <tbody className="divide-y divide-[color:color-mix(in_srgb,var(--line-subtle)_66%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_84%,transparent)]">
               {totalCount === 0 && paymentStatus === "all" ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center">
-                    <div className="mx-auto max-w-md rounded-2xl border border-dashed border-pine/20 bg-cream-muted/55 px-6 py-7">
-                      <p className="font-semibold text-pine-2">
+                    <div className="mx-auto max-w-md rounded-2xl border border-dashed border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_74%,transparent)] px-6 py-7">
+                      <p className="font-semibold text-[var(--text-primary)]">
                         No monthly charges in this range for this home.
                       </p>
-                      <p className="mt-2 text-sm leading-6 text-ink/60">
+                      <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
                         Adjust the billing window above or select another home
                         to review generated charges.
                       </p>
@@ -396,7 +396,7 @@ export function HomeChargesSection({
                 <tr>
                   <td
                     colSpan={6}
-                    className="px-5 py-12 text-center text-ink/60"
+                    className="px-5 py-12 text-center text-[var(--text-secondary)]"
                     data-testid="charges-ledger-filter-empty"
                   >
                     No rows match this filter.
@@ -406,39 +406,39 @@ export function HomeChargesSection({
                 rows.map((row) => (
                   <tr
                     key={row.id}
-                    className="transition-colors hover:bg-pine-soft/45"
+                    className="transition-colors hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)]"
                   >
                     <td className="px-5 py-4">
                       <Link
                         href={`/dashboard/homes/${selectedHomeId}/residents/${row.residentId}?tab=billing`}
-                        className="font-semibold text-pine underline decoration-terracotta/35 underline-offset-4 transition hover:text-terracotta"
+                        className="font-semibold text-[var(--accent-strong)] underline decoration-[color:color-mix(in_srgb,var(--accent)_36%,transparent)] underline-offset-4 transition hover:text-[var(--accent)]"
                       >
                         {row.residentFullName}
                       </Link>
                     </td>
-                    <td className="px-5 py-4 capitalize text-ink/85">
-                      <span className="rounded-full border border-pine/12 bg-cream px-2.5 py-1 text-xs font-semibold text-ink/70">
+                    <td className="px-5 py-4 capitalize text-[var(--text-primary)]">
+                      <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)]">
                         {row.residentStatus === "active" ? "Active" : "Departed"}
                       </span>
                     </td>
-                    <td className="px-5 py-4 font-mono text-xs tabular-nums text-ink/75">
+                    <td className="px-5 py-4 font-mono text-xs tabular-nums text-[var(--text-secondary)]">
                       {row.billingMonth}
                     </td>
-                    <td className="px-5 py-4 font-semibold tabular-nums text-ink">
+                    <td className="px-5 py-4 font-semibold tabular-nums text-[var(--text-primary)]">
                       {formatMinorAsCurrency(
                         row.amountMinorSnapshot,
                         defaultCurrencyCode,
                       )}
                     </td>
-                    <td className="px-5 py-4 text-ink/75">
+                    <td className="px-5 py-4 text-[var(--text-secondary)]">
                       {row.wardLabel ?? "—"}
                     </td>
                     <td className="px-5 py-4">
                       <span
                         className={
                           row.paid
-                            ? "rounded-full bg-success-muted px-2.5 py-1 text-xs font-semibold text-success"
-                            : "rounded-full bg-danger-bg px-2.5 py-1 text-xs font-semibold text-danger"
+                            ? "rounded-xl bg-success-muted px-2.5 py-1 text-xs font-semibold text-success"
+                            : "rounded-xl bg-danger-bg px-2.5 py-1 text-xs font-semibold text-danger"
                         }
                       >
                         {row.paid ? "Paid" : "Unpaid"}
