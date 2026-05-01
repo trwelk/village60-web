@@ -11,6 +11,7 @@ import {
   isDashboardAnalyticsRevenueCollectionsPath,
   isDashboardChargesPath,
   isDashboardHomesPath,
+  isDashboardLeadsPath,
   isDashboardOtherChargesPath,
   isDashboardPaymentsPath,
   isDashboardResidentsPath,
@@ -28,6 +29,7 @@ import {
   ClipboardList,
   DoorOpen,
   FileStack,
+  Inbox,
   LayoutDashboard,
   LineChart,
   PanelLeft,
@@ -120,7 +122,7 @@ type NavLinkItem = {
   isActive: (pathname: string) => boolean;
 };
 
-type NavAnalyticsSubItem = {
+type NavGroupSubLink = {
   href: string;
   label: string;
   Icon: LucideIcon;
@@ -130,12 +132,33 @@ type NavAnalyticsSubItem = {
 type NavGroupItem = {
   kind: "group";
   label: string;
-  items: NavAnalyticsSubItem[];
+  items: NavGroupSubLink[];
 };
 
 type NavEntry = NavLinkItem | NavGroupItem;
 
 function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
+  const operationsItems: NavGroupSubLink[] = [
+    {
+      href: "/dashboard/residents",
+      label: "Residents",
+      Icon: Users,
+      isActive: isDashboardResidentsPath,
+    },
+    {
+      href: "/dashboard/tasks",
+      label: "Tasks",
+      Icon: ClipboardList,
+      isActive: isDashboardTasksPath,
+    },
+    {
+      href: "/dashboard/homes",
+      label: role === "admin" ? "Retirement homes" : "Your homes",
+      Icon: Building2,
+      isActive: isDashboardHomesPath,
+    },
+  ];
+
   const items: NavEntry[] = [
     {
       kind: "link",
@@ -173,66 +196,73 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
         ]
       : []),
     {
-      kind: "link",
-      href: "/dashboard/account",
-      label: "My account",
-      Icon: UserCircle,
-      isActive: isDashboardAccountPath,
-    },
-    {
-      kind: "link",
-      href: "/dashboard/residents",
-      label: "Residents",
-      Icon: Users,
-      isActive: isDashboardResidentsPath,
-    },
-    {
-      kind: "link",
-      href: "/dashboard/tasks",
-      label: "Tasks",
-      Icon: ClipboardList,
-      isActive: isDashboardTasksPath,
-    },
-    {
-      kind: "link",
-      href: "/dashboard/homes",
-      label: role === "admin" ? "Retirement homes" : "Your homes",
-      Icon: Building2,
-      isActive: isDashboardHomesPath,
+      kind: "group",
+      label: "Operations",
+      items: operationsItems,
     },
   ];
+
   if (role === "admin") {
     items.push(
       {
-        kind: "link",
-        href: "/dashboard/charges",
-        label: "Charges",
-        Icon: Receipt,
-        isActive: isDashboardChargesPath,
+        kind: "group",
+        label: "Billing",
+        items: [
+          {
+            href: "/dashboard/charges",
+            label: "Charges",
+            Icon: Receipt,
+            isActive: isDashboardChargesPath,
+          },
+          {
+            href: "/dashboard/other-charges",
+            label: "Other charges",
+            Icon: FileStack,
+            isActive: isDashboardOtherChargesPath,
+          },
+          {
+            href: "/dashboard/payments",
+            label: "Payments",
+            Icon: Wallet,
+            isActive: isDashboardPaymentsPath,
+          },
+        ],
       },
       {
-        kind: "link",
-        href: "/dashboard/other-charges",
-        label: "Other charges",
-        Icon: FileStack,
-        isActive: isDashboardOtherChargesPath,
+        kind: "group",
+        label: "Growth",
+        items: [
+          {
+            href: "/dashboard/leads",
+            label: "Leads",
+            Icon: Inbox,
+            isActive: isDashboardLeadsPath,
+          },
+        ],
       },
       {
-        kind: "link",
-        href: "/dashboard/payments",
-        label: "Payments",
-        Icon: Wallet,
-        isActive: isDashboardPaymentsPath,
-      },
-      {
-        kind: "link",
-        href: "/dashboard/users",
-        label: "Staff",
-        Icon: UserCog,
-        isActive: isDashboardUsersPath,
+        kind: "group",
+        label: "Organization",
+        items: [
+          {
+            href: "/dashboard/users",
+            label: "Staff",
+            Icon: UserCog,
+            isActive: isDashboardUsersPath,
+          },
+        ],
       },
     );
   }
+
+  items.push({
+    kind: "link",
+    href: "/dashboard/account",
+    label: "My account",
+    Icon: UserCircle,
+    isActive: isDashboardAccountPath,
+  });
+
   return items;
 }
 
@@ -277,18 +307,48 @@ function PrimaryNav({
       <div
         className={
           navLinkLayout === "vertical"
-            ? "village-nav-cluster-animate flex flex-col gap-0.5 rounded-2xl p-1.5 shadow-inner shadow-[color:color-mix(in_srgb,var(--accent)_12%,transparent)]"
+            ? "village-nav-cluster-animate flex flex-col gap-2 rounded-2xl p-1.5 shadow-inner shadow-[color:color-mix(in_srgb,var(--accent)_12%,transparent)]"
             : "village-nav-cluster village-nav-cluster-animate"
         }
       >
         {items.map((entry) => {
           if (entry.kind === "group") {
             const railSubLinkClass = [
-              "village-nav-link block w-full text-left",
+              "village-nav-link block w-full min-w-0 text-left",
               iconRail
                 ? "village-nav-link--rail-collapsed flex items-center"
-                : "flex items-center gap-2.5 border-l-2 pl-3 ml-2 text-left",
+                : "flex items-center gap-2.5 border-l-2 pl-3 text-left",
             ].join(" ");
+            const subLinkNodes = entry.items.map((sub) => {
+              const active = sub.isActive(pathname);
+              const borderAccent = active
+                ? "border-[var(--accent)]"
+                : "border-[color:color-mix(in_srgb,var(--line-subtle)_45%,transparent)]";
+              const subLinkClass =
+                iconRail || navLinkLayout !== "vertical"
+                  ? linkClass
+                  : `${railSubLinkClass} ${borderAccent}`;
+              return (
+                <Link
+                  key={sub.href}
+                  href={sub.href}
+                  className={subLinkClass}
+                  aria-current={active ? "page" : undefined}
+                  aria-label={iconRail ? sub.label : undefined}
+                  title={iconRail ? sub.label : undefined}
+                >
+                  <sub.Icon
+                    className="shrink-0"
+                    size={iconRail ? 20 : 18}
+                    strokeWidth={active && iconRail ? 2.25 : 2}
+                    aria-hidden
+                  />
+                  {iconRail ? null : (
+                    <span className="min-w-0 leading-snug">{sub.label}</span>
+                  )}
+                </Link>
+              );
+            });
             return (
               <div
                 key={entry.label}
@@ -301,36 +361,13 @@ function PrimaryNav({
                     {entry.label}
                   </div>
                 )}
-                {entry.items.map((sub) => {
-                  const active = sub.isActive(pathname);
-                  const borderAccent = active
-                    ? "border-[var(--accent)]"
-                    : "border-[color:color-mix(in_srgb,var(--line-subtle)_45%,transparent)]";
-                  const subLinkClass =
-                    iconRail || navLinkLayout !== "vertical"
-                      ? linkClass
-                      : `${railSubLinkClass} ${borderAccent}`;
-                  return (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      className={subLinkClass}
-                      aria-current={active ? "page" : undefined}
-                      aria-label={iconRail ? sub.label : undefined}
-                      title={iconRail ? sub.label : undefined}
-                    >
-                      <sub.Icon
-                        className="shrink-0"
-                        size={iconRail ? 20 : 18}
-                        strokeWidth={active && iconRail ? 2.25 : 2}
-                        aria-hidden
-                      />
-                      {iconRail ? null : (
-                        <span className="min-w-0 leading-snug">{sub.label}</span>
-                      )}
-                    </Link>
-                  );
-                })}
+                {navLinkLayout === "vertical" && !iconRail ? (
+                  <div className="ml-2 flex min-w-0 flex-col gap-0.5">
+                    {subLinkNodes}
+                  </div>
+                ) : (
+                  subLinkNodes
+                )}
               </div>
             );
           }
@@ -598,7 +635,7 @@ export function DashboardAppShell({
           <PrimaryNav
             pathname={pathname}
             role={role}
-            className="min-h-0 flex-1"
+            className="min-h-0 min-w-0 flex-1"
             railCollapsed={!railExpanded}
           />
         </aside>

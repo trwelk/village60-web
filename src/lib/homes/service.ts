@@ -41,10 +41,19 @@ function normalizeName(raw: string): string {
   return name;
 }
 
+/** Trim outer whitespace; blank → null. Preserves inner newlines. */
+function normalizeOptionalAddress(raw: string | undefined): string | null {
+  if (raw === undefined) {
+    return null;
+  }
+  const t = raw.trim();
+  return t === "" ? null : t;
+}
+
 export function createHome(
   db: AppDb,
   actorRole: SessionUserRole | undefined,
-  input: { name: string; defaultCurrencyCode: string },
+  input: { name: string; defaultCurrencyCode: string; address?: string },
 ): Home {
   requireHomeAdmin(actorRole);
   const now = Date.now();
@@ -52,6 +61,7 @@ export function createHome(
   const row: Home = {
     id,
     name: normalizeName(input.name),
+    address: normalizeOptionalAddress(input.address),
     defaultCurrencyCode: normalizeCurrencyCode(input.defaultCurrencyCode),
     archivedAtUtcMs: null,
     createdAtUtcMs: now,
@@ -148,6 +158,8 @@ export function updateHome(
     name?: string;
     defaultCurrencyCode?: string;
     archived?: boolean;
+    /** Omit = unchanged; `null` clears. */
+    address?: string | null;
   },
 ): Home {
   requireHomeAdmin(actorRole);
@@ -159,6 +171,7 @@ export function updateHome(
   let name = existing.name;
   let defaultCurrencyCode = existing.defaultCurrencyCode;
   let archivedAtUtcMs = existing.archivedAtUtcMs;
+  let address = existing.address ?? null;
 
   if (input.name !== undefined) {
     name = normalizeName(input.name);
@@ -171,10 +184,15 @@ export function updateHome(
   } else if (input.archived === false) {
     archivedAtUtcMs = null;
   }
+  if (input.address !== undefined) {
+    address =
+      input.address === null ? null : normalizeOptionalAddress(input.address);
+  }
 
   db.update(homes)
     .set({
       name,
+      address,
       defaultCurrencyCode,
       archivedAtUtcMs,
       updatedAtUtcMs: now,

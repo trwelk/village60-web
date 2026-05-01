@@ -28,6 +28,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     name?: string;
     defaultCurrencyCode?: string;
     archived?: boolean;
+    address?: string | null;
   } = {};
 
   if ("name" in rec) {
@@ -54,11 +55,21 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     }
     input.archived = rec.archived;
   }
+  if ("address" in rec) {
+    if (rec.address !== null && typeof rec.address !== "string") {
+      return NextResponse.json(
+        { error: "address must be a string or null." },
+        { status: 400 },
+      );
+    }
+    input.address = rec.address === null ? null : rec.address;
+  }
 
   if (
     input.name === undefined &&
     input.defaultCurrencyCode === undefined &&
-    input.archived === undefined
+    input.archived === undefined &&
+    input.address === undefined
   ) {
     return NextResponse.json({ error: "No updates provided." }, { status: 400 });
   }

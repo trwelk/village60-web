@@ -6,6 +6,8 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import type { getDb } from "@/db/client";
 import {
   authEvents,
+  homeInterestLeadSubmitBuckets,
+  homeInterestLeads,
   homes,
   otherCharges,
   residentAllergies,
@@ -318,6 +320,8 @@ function wipeApplicationData(tx: Parameters<Parameters<AppDb["transaction"]>[0]>
   tx.delete(wards).run();
   tx.delete(userAdditionalHomes).run();
   tx.update(users).set({ primaryHomeId: null }).run();
+  tx.delete(homeInterestLeads).run();
+  tx.delete(homeInterestLeadSubmitBuckets).run();
   tx.delete(homes).run();
   tx.delete(authEvents).run();
   tx.delete(users).run();
@@ -388,6 +392,7 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
         .values({
           id: homeId,
           name: h.name,
+          address: null,
           defaultCurrencyCode: h.currency,
           archivedAtUtcMs: null,
           createdAtUtcMs: t,

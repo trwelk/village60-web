@@ -14,6 +14,10 @@ export function isDashboardUsersPath(pathname: string): boolean {
   return pathname.startsWith("/dashboard/users");
 }
 
+export function isDashboardLeadsPath(pathname: string): boolean {
+  return pathname.startsWith("/dashboard/leads");
+}
+
 export function isDashboardChargesPath(pathname: string): boolean {
   return pathname === "/dashboard/charges";
 }

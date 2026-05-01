@@ -34,11 +34,48 @@ export const authEvents = sqliteTable("auth_events", {
 export const homes = sqliteTable("homes", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  /** Physical / postal site address for public enquiry copy; nullable. */
+  address: text("address"),
   defaultCurrencyCode: text("default_currency_code").notNull(),
   archivedAtUtcMs: integer("archived_at_utc_ms"),
   createdAtUtcMs: integer("created_at_utc_ms").notNull(),
   updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
 });
+
+/** Public enquiry leads (`source = web` | `admin`). FK: deleting a home is blocked while leads reference it. */
+export const homeInterestLeads = sqliteTable("home_interest_leads", {
+  id: text("id").primaryKey(),
+  homeId: text("home_id")
+    .notNull()
+    .references(() => homes.id, { onDelete: "restrict" }),
+  homeNameSnapshot: text("home_name_snapshot").notNull(),
+  homeAddressSnapshot: text("home_address_snapshot"),
+  contactName: text("contact_name").notNull(),
+  phone: text("phone").notNull(),
+  email: text("email"),
+  note: text("note"),
+  source: text("source").notNull(),
+  consentAccepted: integer("consent_accepted", { mode: "boolean" }).notNull(),
+  status: text("status").notNull(),
+  createdByUserId: text("created_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+  updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+});
+
+/**
+ * Rolling-window submit counters per client IP key for `/interest` abuse control.
+ * One row per IP key; window resets when expired.
+ */
+export const homeInterestLeadSubmitBuckets = sqliteTable(
+  "home_interest_lead_submit_buckets",
+  {
+    ipKey: text("ip_key").primaryKey(),
+    windowStartUtcMs: integer("window_start_utc_ms").notNull(),
+    count: integer("count").notNull(),
+  },
+);
 
 export const wards = sqliteTable("wards", {
   id: text("id").primaryKey(),

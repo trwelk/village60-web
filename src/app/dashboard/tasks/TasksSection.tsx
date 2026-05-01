@@ -9,7 +9,8 @@ import type {
 } from "@/lib/tasks/service";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 const DEFAULT_INBOX_QUERY: TaskInboxListQuery = {
   status: "open",
@@ -127,6 +128,30 @@ export function TasksSection({
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+
+  const closeCreateTaskModal = useCallback(() => {
+    setCreateModalOpen(false);
+  }, []);
+
+  const openCreateTaskModal = useCallback(() => {
+    setError(null);
+    setCreateModalOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (!createModalOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeCreateTaskModal();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [createModalOpen, closeCreateTaskModal]);
 
   const homeNameById = useMemo(
     () => new Map(homes.map((home) => [home.id, home.name])),
@@ -170,6 +195,7 @@ export function TasksSection({
       });
       setCreateDraft(emptyDraft(createDraft.homeId));
       router.refresh();
+      closeCreateTaskModal();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Task request failed.");
     } finally {
@@ -244,130 +270,9 @@ export function TasksSection({
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="village-card village-reveal village-reveal-delay-1 overflow-hidden p-0">
-        <div className="border-b border-pine/10 bg-[linear-gradient(135deg,rgba(26,77,58,0.09),rgba(184,71,50,0.08)_48%,rgba(250,247,241,0.15))] px-5 py-5 sm:px-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex max-w-2xl gap-4">
-              <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pine text-lg font-display text-cream shadow-[0_14px_34px_-20px_rgba(26,77,58,0.8)]">
-                +
-              </div>
-              <div className="flex flex-col gap-1">
-                <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-terracotta">
-                  New manual task
-                </p>
-                <h2 className="text-xl font-semibold tracking-tight text-pine-2">
-                  Capture a home task
-                </h2>
-                <p className="text-sm leading-6 text-ink/65">
-                  Shared with everyone who can access the selected home.
-                </p>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-pine/10 bg-cream/72 px-4 py-3 text-sm text-ink/65 shadow-sm">
-              <span className="font-semibold text-pine-2">{homes.length}</span>{" "}
-              accessible {homes.length === 1 ? "home" : "homes"}
-            </div>
-          </div>
-        </div>
-        <form className="grid gap-4 p-5 sm:p-6 lg:grid-cols-[minmax(13rem,17rem)_1fr]" onSubmit={onCreate}>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="task-home" className="village-label">
-              Home
-            </label>
-            <select
-              id="task-home"
-              className={selectClass}
-              value={createDraft.homeId}
-              onChange={(e) =>
-                setCreateDraft((draft) => ({ ...draft, homeId: e.target.value }))
-              }
-            >
-              {homes.map((home) => (
-                <option key={home.id} value={home.id}>
-                  {home.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="grid gap-4 md:grid-cols-[1fr_11rem_9rem]">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="task-title" className="village-label">
-                Title
-              </label>
-              <input
-                id="task-title"
-                className={inputClass}
-                value={createDraft.title}
-                onChange={(e) =>
-                  setCreateDraft((draft) => ({ ...draft, title: e.target.value }))
-                }
-                placeholder="e.g. Follow up pharmacy order"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <label htmlFor="task-due-date" className="village-label">
-                Due date
-              </label>
-              <input
-                id="task-due-date"
-                className={inputClass}
-                type="date"
-                value={createDraft.dueDate}
-                onChange={(e) =>
-                  setCreateDraft((draft) => ({ ...draft, dueDate: e.target.value }))
-                }
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <label htmlFor="task-priority" className="village-label">
-                Priority
-              </label>
-              <select
-                id="task-priority"
-                className={selectClass}
-                value={createDraft.priority}
-                onChange={(e) =>
-                  setCreateDraft((draft) => ({
-                    ...draft,
-                    priority: e.target.value as TaskPriority,
-                  }))
-                }
-              >
-                <option value="normal">Normal</option>
-                <option value="urgent">Urgent</option>
-              </select>
-            </div>
-          </div>
-          <div className="lg:col-start-2">
-            <label htmlFor="task-notes" className="village-label">
-              Notes
-            </label>
-            <textarea
-              id="task-notes"
-              className={`${inputClass} mt-2 min-h-28 resize-y`}
-              value={createDraft.notes}
-              onChange={(e) =>
-                setCreateDraft((draft) => ({ ...draft, notes: e.target.value }))
-              }
-              placeholder="Optional details"
-            />
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:col-start-2">
-            <button
-              className="village-btn-primary min-h-10 px-5"
-              type="submit"
-              disabled={creating || !createDraft.title.trim()}
-            >
-              {creating ? "Creating..." : "Create task"}
-            </button>
-            {error ? <p className="text-sm font-medium text-terracotta">{error}</p> : null}
-          </div>
-        </form>
-      </section>
-
       <section className="village-reveal village-reveal-delay-2 space-y-4">
         <div className="rounded-[1.5rem] border border-pine/12 bg-cream/88 p-4 shadow-sm shadow-pine/[0.04] sm:p-5">
-          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="font-mono text-[0.68rem] uppercase tracking-[0.2em] text-ink/48">
                 Inbox controls
@@ -376,9 +281,18 @@ export function TasksSection({
                 Prioritise what needs attention
               </h2>
             </div>
-            <p className="text-sm text-ink/55">
-              {tasks.length} {tasks.length === 1 ? "item" : "items"} shown
-            </p>
+            <div className="flex shrink-0 flex-wrap items-center gap-3">
+              <button
+                type="button"
+                className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
+                onClick={openCreateTaskModal}
+              >
+                New manual task
+              </button>
+              <p className="text-sm text-ink/55">
+                {tasks.length} {tasks.length === 1 ? "item" : "items"} shown
+              </p>
+            </div>
           </div>
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -463,7 +377,7 @@ export function TasksSection({
             <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-ink/65">
             {query.status === "completed"
               ? "No completed manual tasks for the current filters."
-              : "No open tasks or reminders match the current filters. Adjust status, home, or type, or add a task above."}
+              : "No open tasks or reminders match the current filters. Adjust status, home, or type, or add a manual task."}
             </p>
           </div>
         ) : null}
@@ -696,6 +610,183 @@ export function TasksSection({
           })
           : null}
       </section>
+
+      {createModalOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 pb-[env(safe-area-inset-bottom,0px)] sm:items-center sm:p-6 sm:pb-6">
+              <button
+                type="button"
+                className="absolute inset-0 bg-[color:color-mix(in_srgb,var(--text-primary)_42%,transparent)] backdrop-blur-[2px]"
+                aria-label="Dismiss new manual task dialog"
+                onClick={closeCreateTaskModal}
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="tasks-create-modal-heading"
+                data-testid="tasks-create-panel"
+                className="relative z-10 flex max-h-[min(calc(100dvh-env(safe-area-inset-bottom,0px)-0.75rem),52rem)] w-full min-h-0 max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-[color-mix(in_srgb,var(--line-strong)_50%,transparent)] bg-[color-mix(in_srgb,var(--bg-muted)_35%,var(--bg-elevated)_65%)] shadow-[0_-8px_40px_-12px_color-mix(in_srgb,var(--text-primary)_35%,transparent)] sm:max-h-[min(92dvh,56rem)] sm:rounded-2xl sm:shadow-[0_22px_60px_-24px_color-mix(in_srgb,var(--text-primary)_38%,transparent)]"
+              >
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                  <section className="village-card overflow-hidden border-0 p-0 shadow-none">
+                    <div className="border-b border-pine/10 bg-[linear-gradient(135deg,rgba(26,77,58,0.09),rgba(184,71,50,0.08)_48%,rgba(250,247,241,0.15))] px-5 py-5 sm:px-6">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex max-w-2xl gap-4">
+                          <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(145deg,color-mix(in_srgb,var(--accent)_82%,var(--highlight)_18%),var(--accent-strong))] text-lg font-display text-[var(--bg-elevated)] shadow-[0_14px_34px_-18px_color-mix(in_srgb,var(--accent-strong)_85%,transparent)]">
+                            +
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-terracotta">
+                              New manual task
+                            </p>
+                            <h2
+                              id="tasks-create-modal-heading"
+                              className="text-xl font-semibold tracking-tight text-pine-2"
+                            >
+                              Capture a home task
+                            </h2>
+                            <p className="text-sm leading-6 text-ink/65">
+                              Shared with everyone who can access the selected home.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-start">
+                          <div className="rounded-2xl border border-pine/10 bg-cream/72 px-4 py-3 text-sm text-ink/65 shadow-sm">
+                            <span className="font-semibold text-pine-2">
+                              {homes.length}
+                            </span>{" "}
+                            accessible {homes.length === 1 ? "home" : "homes"}
+                          </div>
+                          <button
+                            type="button"
+                            className="rounded-lg border border-transparent px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)] sm:py-2.5"
+                            onClick={closeCreateTaskModal}
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <form
+                      className="grid gap-4 p-5 sm:p-6 lg:grid-cols-[minmax(13rem,17rem)_1fr]"
+                      onSubmit={onCreate}
+                    >
+                      <div className="flex flex-col gap-2">
+                        <label htmlFor="task-home" className="village-label">
+                          Home
+                        </label>
+                        <select
+                          id="task-home"
+                          className={selectClass}
+                          value={createDraft.homeId}
+                          onChange={(e) =>
+                            setCreateDraft((draft) => ({
+                              ...draft,
+                              homeId: e.target.value,
+                            }))
+                          }
+                        >
+                          {homes.map((home) => (
+                            <option key={home.id} value={home.id}>
+                              {home.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-[1fr_11rem_9rem]">
+                        <div className="flex flex-col gap-2">
+                          <label htmlFor="task-title" className="village-label">
+                            Title
+                          </label>
+                          <input
+                            id="task-title"
+                            className={inputClass}
+                            value={createDraft.title}
+                            onChange={(e) =>
+                              setCreateDraft((draft) => ({
+                                ...draft,
+                                title: e.target.value,
+                              }))
+                            }
+                            placeholder="e.g. Follow up pharmacy order"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label htmlFor="task-due-date" className="village-label">
+                            Due date
+                          </label>
+                          <input
+                            id="task-due-date"
+                            className={inputClass}
+                            type="date"
+                            value={createDraft.dueDate}
+                            onChange={(e) =>
+                              setCreateDraft((draft) => ({
+                                ...draft,
+                                dueDate: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label htmlFor="task-priority" className="village-label">
+                            Priority
+                          </label>
+                          <select
+                            id="task-priority"
+                            className={selectClass}
+                            value={createDraft.priority}
+                            onChange={(e) =>
+                              setCreateDraft((draft) => ({
+                                ...draft,
+                                priority: e.target.value as TaskPriority,
+                              }))
+                            }
+                          >
+                            <option value="normal">Normal</option>
+                            <option value="urgent">Urgent</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="lg:col-start-2">
+                        <label htmlFor="task-notes" className="village-label">
+                          Notes
+                        </label>
+                        <textarea
+                          id="task-notes"
+                          className={`${inputClass} mt-2 min-h-28 resize-y`}
+                          value={createDraft.notes}
+                          onChange={(e) =>
+                            setCreateDraft((draft) => ({
+                              ...draft,
+                              notes: e.target.value,
+                            }))
+                          }
+                          placeholder="Optional details"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:col-start-2">
+                        <button
+                          className="inline-flex items-center justify-center rounded-full border border-[color-mix(in_srgb,#c2410c_78%,transparent)] bg-gradient-to-br from-[#fdba74] to-[#ea580c] px-5 py-2.5 text-sm font-bold text-[var(--bg-elevated)] shadow-[inset_0_1px_0_color-mix(in_srgb,#fef3c7_45%,transparent),0_12px_24px_-16px_color-mix(in_srgb,#c2410c_78%,transparent)] transition-all duration-150 ease-out hover:-translate-y-px hover:saturate-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:saturate-100 min-h-10"
+                          type="submit"
+                          disabled={creating || !createDraft.title.trim()}
+                        >
+                          {creating ? "Creating..." : "Create task"}
+                        </button>
+                        {error ? (
+                          <p className="text-sm font-medium text-terracotta">
+                            {error}
+                          </p>
+                        ) : null}
+                      </div>
+                    </form>
+                  </section>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

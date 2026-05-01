@@ -19,4 +19,10 @@ describe("getDashboardContextTitle", () => {
     );
     expect(getDashboardContextTitle("/dashboard/tasks", "care")).toBe("Tasks");
   });
+
+  it("returns Leads for /dashboard/leads", () => {
+    expect(getDashboardContextTitle("/dashboard/leads", "admin")).toBe(
+      "Leads",
+    );
+  });
 });

@@ -290,8 +290,8 @@ export function HomeOtherChargesSection({
               {(
                 [
                   ["all", "All"],
-                  ["unpaid", "Unpaid only"],
-                  ["paid", "Paid only"],
+                  ["unpaid", "Unpaid"],
+                  ["paid", "Paid"],
                 ] as const
               ).map(([value, label]) => (
                 <label key={value} className="cursor-pointer">
@@ -304,7 +304,7 @@ export function HomeOtherChargesSection({
                       setPayFilter(value);
                     }}
                   />
-                  <span className="block rounded-full border border-pine/15 bg-cream px-3 py-1.5 text-sm font-semibold text-ink/70 transition peer-checked:border-pine/35 peer-checked:bg-pine peer-checked:text-cream peer-focus-visible:ring-2 peer-focus-visible:ring-terracotta/35 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-cream">
+                  <span className="block rounded-full border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm font-semibold text-[var(--text-secondary)] transition peer-checked:border-[color:color-mix(in_srgb,var(--accent)_55%,transparent)] peer-checked:bg-[var(--accent-strong)] peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_35%,transparent)] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[var(--bg-elevated)]">
                     {label}
                   </span>
                 </label>

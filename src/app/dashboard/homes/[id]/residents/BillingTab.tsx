@@ -396,7 +396,7 @@ export function BillingTab({
       >
         <button
           type="button"
-          className="village-btn-secondary shrink-0 px-3 py-1.5 text-sm"
+          className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
           onClick={openBatchPay}
         >
           Pay multiple months
@@ -410,8 +410,8 @@ export function BillingTab({
             {(
               [
                 ["all", "All"],
-                ["unpaid", "Unpaid only"],
-                ["paid", "Paid only"],
+                ["unpaid", "Unpaid"],
+                ["paid", "Paid"],
               ] as const
             ).map(([value, label]) => {
               const selected = monthlyShowFilter === value;
@@ -422,7 +422,7 @@ export function BillingTab({
                     "flex min-h-11 min-w-0 flex-1 cursor-pointer select-none items-center justify-center rounded-[calc(var(--radius-md)-3px)] px-3 py-2 text-center text-sm font-medium transition-[color,background-color,box-shadow,transform] duration-150",
                     "focus-within:ring-2 focus-within:ring-[color:color-mix(in_srgb,var(--accent)_40%,transparent)] focus-within:ring-offset-2 focus-within:ring-offset-[color:color-mix(in_srgb,var(--bg-muted)_42%,var(--bg-elevated)_58%)] focus-within:outline-none",
                     selected
-                      ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-[0_1px_3px_-1px_color-mix(in_srgb,var(--text-primary)_18%,transparent),inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_80%,transparent)] ring-1 ring-[color:color-mix(in_srgb,var(--accent)_32%,var(--line-strong))]"
+                      ? "bg-[var(--accent-strong)] text-[var(--bg-elevated)] shadow-[0_1px_3px_-1px_color-mix(in_srgb,var(--accent-strong)_35%,transparent),inset_0_1px_0_color-mix(in_srgb,var(--highlight)_28%,transparent)] ring-1 ring-[color:color-mix(in_srgb,var(--accent-strong)_55%,transparent)]"
                       : "text-[var(--text-secondary)] hover:bg-[color:color-mix(in_srgb,var(--bg-elevated)_52%,transparent)] hover:text-[var(--text-primary)] active:scale-[0.99]",
                   ].join(" ")}
                 >
@@ -771,7 +771,7 @@ export function BillingTab({
                 </div>
                 <button
                   type="button"
-                  className="village-btn-secondary w-full shrink-0 px-3 py-2 text-sm sm:w-auto sm:self-end"
+                  className="village-btn-primary w-full shrink-0 px-3 py-2 text-sm sm:w-auto sm:self-end"
                   onClick={addBatchExtraMonthRange}
                 >
                   Add range

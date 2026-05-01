@@ -127,6 +127,20 @@
       "when": 1777229500000,
       "tag": "0017_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1777613159334,
+      "tag": "0018_magenta_terror",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1777613593206,
+      "tag": "0019_vengeful_spot",
+      "breakpoints": true
     }
   ]
 }

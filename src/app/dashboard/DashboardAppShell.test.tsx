@@ -102,6 +102,7 @@ describe("DashboardAppShell", () => {
       "/dashboard/tasks",
     );
     expect(rail.queryByRole("link", { name: "Staff" })).not.toBeInTheDocument();
+    expect(rail.queryByRole("link", { name: "Leads" })).not.toBeInTheDocument();
   });
 
   it("admin sees Analytics sub‑nav links in the desktop rail", () => {
@@ -116,11 +117,31 @@ describe("DashboardAppShell", () => {
       within(rail).getByRole("link", { name: "Revenue" }),
     ).toHaveAttribute("href", "/dashboard/analytics/revenue-collections");
     expect(
+      within(rail).getByRole("link", { name: "Leads" }),
+    ).toHaveAttribute("href", "/dashboard/leads");
+    expect(
       within(rail).getByRole("link", { name: "Admissions" }),
     ).toHaveAttribute("href", "/dashboard/analytics/admissions-departures");
     expect(
       within(rail).getByRole("link", { name: "Demographics" }),
     ).toHaveAttribute("href", "/dashboard/analytics/demographics-staff");
+  });
+
+  it("care user sees Operations group with Residents, Tasks, and homes", () => {
+    pathRef.current = "/dashboard";
+    renderShell(
+      <DashboardAppShell email="a@b.c" role="care">
+        <p>content</p>
+      </DashboardAppShell>,
+    );
+    const rail = screen.getByRole("complementary", { name: "Primary" });
+    expect(
+      within(rail).getByRole("group", { name: "Operations" }),
+    ).toBeInTheDocument();
+    const ops = within(rail).getByRole("group", { name: "Operations" });
+    expect(
+      within(ops).getByRole("link", { name: "Your homes" }),
+    ).toHaveAttribute("href", "/dashboard/homes");
   });
 
   it("care user does not see Analytics sub‑nav links", () => {
@@ -183,7 +204,7 @@ describe("DashboardAppShell", () => {
     const links = within(dialog).getAllByRole("link");
     expect(links[0] === document.activeElement).toBe(true);
 
-    const lastLink = within(dialog).getByRole("link", { name: "Staff" });
+    const lastLink = within(dialog).getByRole("link", { name: "My account" });
     lastLink?.focus();
     await user.tab();
     expect(menuClose === document.activeElement).toBe(true);

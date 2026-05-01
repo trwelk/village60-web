@@ -4,6 +4,7 @@ import {
   isDashboardAnalyticsPath,
   isDashboardChargesPath,
   isDashboardHomesPath,
+  isDashboardLeadsPath,
   isDashboardOtherChargesPath,
   isDashboardPaymentsPath,
   isDashboardResidentsPath,
@@ -34,5 +35,6 @@ export function getDashboardContextTitle(
   if (isDashboardOtherChargesPath(pathname)) return "Other charges";
   if (isDashboardPaymentsPath(pathname)) return "Payments";
   if (isDashboardUsersPath(pathname)) return "Staff";
+  if (isDashboardLeadsPath(pathname)) return "Leads";
   return "Dashboard";
 }

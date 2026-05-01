@@ -90,6 +90,23 @@ export async function POST(req: Request) {
       ? (body as { defaultCurrencyCode: string }).defaultCurrencyCode
       : "";
 
+  let address: string | undefined;
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "address" in body &&
+    (body as { address: unknown }).address !== undefined
+  ) {
+    const raw = (body as { address: unknown }).address;
+    if (typeof raw !== "string") {
+      return NextResponse.json(
+        { error: "address must be a string when provided." },
+        { status: 400 },
+      );
+    }
+    address = raw;
+  }
+
   if (!name.trim() || !defaultCurrencyCode.trim()) {
     return NextResponse.json(
       { error: "name and defaultCurrencyCode are required." },
@@ -101,6 +118,7 @@ export async function POST(req: Request) {
     const home = createHome(getDb(), session.role, {
       name,
       defaultCurrencyCode,
+      ...(address !== undefined ? { address } : {}),
     });
     return NextResponse.json({ home });
   } catch (e) {
