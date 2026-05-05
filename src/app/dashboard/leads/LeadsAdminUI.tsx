@@ -154,7 +154,7 @@ export function LeadsAdminUI({ initialLeads, homes }: LeadsAdminUIProps) {
           <h2 className="village-section-title mb-0">All leads</h2>
           <button
             type="button"
-            className="village-btn-secondary shrink-0 px-3 py-1.5 text-sm"
+            className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
             onClick={openCreateLeadModal}
           >
             Create lead
