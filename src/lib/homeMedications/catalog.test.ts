@@ -210,7 +210,7 @@ describe("home medication catalog (31a)", () => {
         servingsPerDay: 1,
         directions: "Test",
         prn: false,
-        minimumInStock: null,
+        status: "active",
         sortOrder: 0,
         createdAtUtcMs: 10,
         updatedAtUtcMs: 10,

@@ -21,8 +21,7 @@ export type MedicationRow = {
   servingsPerDay: number | null;
   directions: string;
   prn: boolean;
-  minimumInStock: number | null;
-  currentStock: number;
+  status: string;
 };
 
 type Props = {
@@ -53,11 +52,6 @@ const ADD_UNIT_OPTIONS: VillageSelectOption[] = [
   { value: "__other__", label: "Other" },
 ];
 
-const ADJUST_EVENT_OPTIONS: VillageSelectOption[] = [
-  { value: "delivery", label: "Delivery (receive stock)" },
-  { value: "audit_correction", label: "Audit correction" },
-];
-
 async function parseError(res: Response): Promise<string> {
   try {
     const data: unknown = await res.json();
@@ -79,20 +73,11 @@ function servingsCell(day: number | null): string {
   return day === null ? "—" : String(day);
 }
 
-function formatStockOnHand(n: number): string {
-  if (Number.isInteger(n)) {
-    return String(n);
-  }
-  const r = Math.round(n * 1000) / 1000;
-  return String(r);
-}
-
 function formatMedicationSubtitle(m: MedicationRow): string {
   const pieces = [
     `${m.strength} · ${m.unit} · qty ${m.quantityPerServing}`,
     m.servingsPerDay === null ? "— servings/day" : `${m.servingsPerDay}/day`,
-    m.minimumInStock === null ? "— min in stock" : `reorder ≤ ${m.minimumInStock}`,
-    `stock ${formatStockOnHand(m.currentStock)}`,
+    m.status === "active" ? "active" : `status: ${m.status}`,
   ];
   return pieces.join(" · ");
 }
@@ -105,21 +90,6 @@ function parseNullablePositiveInt(raw: string, label: string): number | null {
   const n = Number.parseInt(t, 10);
   if (!Number.isInteger(n) || n < 1) {
     throw new Error(`${label} must be a positive integer or blank.`);
-  }
-  return n;
-}
-
-function parseNullableNonNegativeInt(
-  raw: string,
-  label: string,
-): number | null {
-  const t = raw.trim();
-  if (t === "" || t === "-") {
-    return null;
-  }
-  const n = Number.parseInt(t, 10);
-  if (!Number.isInteger(n) || n < 0) {
-    throw new Error(`${label} must be a non-negative integer or blank.`);
   }
   return n;
 }
@@ -187,8 +157,6 @@ export function MedicationsTab({
   const [addQtyServing, setAddQtyServing] = useState("");
   const [addServingsDay, setAddServingsDay] = useState("");
   const [addDirections, setAddDirections] = useState("");
-  const [addMinStock, setAddMinStock] = useState("");
-  const [addInitialStock, setAddInitialStock] = useState("");
   const [addPrn, setAddPrn] = useState(false);
 
   const [catalogSearchText, setCatalogSearchText] = useState("");
@@ -204,18 +172,9 @@ export function MedicationsTab({
   const [editQtyServing, setEditQtyServing] = useState("");
   const [editServingsDay, setEditServingsDay] = useState("");
   const [editDirections, setEditDirections] = useState("");
-  const [editMinStock, setEditMinStock] = useState("");
   const [editPrn, setEditPrn] = useState(false);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
-  const [prnModal, setPrnModal] = useState<MedicationRow | null>(null);
-  const [prnQtyText, setPrnQtyText] = useState("");
-  const [adjustModal, setAdjustModal] = useState<MedicationRow | null>(null);
-  const [adjustEventType, setAdjustEventType] = useState<
-    "delivery" | "audit_correction"
-  >("delivery");
-  const [adjustAmountText, setAdjustAmountText] = useState("");
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addSubmitting, setAddSubmitting] = useState(false);
 
@@ -236,27 +195,6 @@ export function MedicationsTab({
     }, 0);
     return () => window.clearTimeout(t);
   }, [refresh]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/me/profile");
-        if (!res.ok || cancelled) {
-          return;
-        }
-        const p = (await res.json()) as { role?: string };
-        if (p.role === "admin" && !cancelled) {
-          setViewerIsAdmin(true);
-        }
-      } catch {
-        /* ignore */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!unitPresets) {
@@ -342,8 +280,6 @@ export function MedicationsTab({
     setActionError(null);
     setAddProductError(null);
     let servingsPerDay: number | null;
-    let minimumInStock: number | null;
-    let initialStock: number | null;
     let quantityPerServing: number;
     try {
       quantityPerServing = parseNullableNonNegativeReal(
@@ -356,14 +292,6 @@ export function MedicationsTab({
       servingsPerDay = parseNullablePositiveInt(
         addServingsDay,
         "Servings/day",
-      );
-      minimumInStock = parseNullableNonNegativeInt(
-        addMinStock,
-        "Minimum in stock",
-      );
-      initialStock = parseNullableNonNegativeReal(
-        addInitialStock,
-        "Initial stock",
       );
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Invalid number.");
@@ -379,9 +307,7 @@ export function MedicationsTab({
           quantityPerServing,
           directions: addDirections,
           servingsPerDay,
-          minimumInStock,
           prn: addPrn,
-          initialStock: initialStock ?? 0,
         };
       } else if (addCreateNewMode) {
         const unitVal = addUnitPayload();
@@ -401,9 +327,7 @@ export function MedicationsTab({
           quantityPerServing,
           directions: addDirections,
           servingsPerDay,
-          minimumInStock,
           prn: addPrn,
-          initialStock: initialStock ?? 0,
         };
       } else {
         setActionError(
@@ -425,9 +349,7 @@ export function MedicationsTab({
         quantityPerServing,
         directions: addDirections,
         servingsPerDay,
-        minimumInStock,
         prn: addPrn,
-        initialStock: initialStock ?? 0,
       };
     }
 
@@ -456,8 +378,6 @@ export function MedicationsTab({
       setAddQtyServing("");
       setAddServingsDay("");
       setAddDirections("");
-      setAddMinStock("");
-      setAddInitialStock("");
       setAddPrn(false);
       if (unitPresets) {
         setPickedCatalog(null);
@@ -481,7 +401,6 @@ export function MedicationsTab({
     setEditQtyServing(String(m.quantityPerServing));
     setEditServingsDay(m.servingsPerDay === null ? "" : String(m.servingsPerDay));
     setEditDirections(m.directions);
-    setEditMinStock(m.minimumInStock === null ? "" : String(m.minimumInStock));
     setEditPrn(m.prn);
   }
 
@@ -499,7 +418,6 @@ export function MedicationsTab({
   async function saveEdit(m: MedicationRow) {
     setActionError(null);
     let servingsPerDay: number | null;
-    let minimumInStock: number | null;
     let quantityPerServing: number;
     try {
       quantityPerServing = parseNullableNonNegativeReal(
@@ -510,10 +428,6 @@ export function MedicationsTab({
         throw new Error("Qty per serving must be greater than 0.");
       }
       servingsPerDay = parseNullablePositiveInt(editServingsDay, "Servings/day");
-      minimumInStock = parseNullableNonNegativeInt(
-        editMinStock,
-        "Minimum in stock",
-      );
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Invalid number.");
       return;
@@ -525,7 +439,6 @@ export function MedicationsTab({
         quantityPerServing,
         directions: editDirections,
         servingsPerDay,
-        minimumInStock,
         prn: editPrn,
       }),
     });
@@ -535,103 +448,6 @@ export function MedicationsTab({
     }
     setEditId(null);
     await refresh();
-  }
-
-  function openPrnModal(m: MedicationRow) {
-    setActionError(null);
-    setPrnModal(m);
-    setPrnQtyText(String(m.quantityPerServing));
-  }
-
-  async function submitPrnDose() {
-    if (!prnModal) {
-      return;
-    }
-    setActionError(null);
-    const n = Number.parseFloat(prnQtyText.trim());
-    if (Number.isNaN(n) || n <= 0) {
-      setActionError("Quantity must be a positive number.");
-      return;
-    }
-    const res = await fetch(`${base}/medications/${prnModal.id}/prn-dispense`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quantity: n }),
-    });
-    if (!res.ok) {
-      setActionError(await parseError(res));
-      return;
-    }
-    setPrnModal(null);
-    await refresh();
-  }
-
-  function openAdjustModal(m: MedicationRow) {
-    setActionError(null);
-    setAdjustModal(m);
-    setAdjustEventType("delivery");
-    setAdjustAmountText("");
-  }
-
-  async function submitStockAdjust() {
-    if (!adjustModal) {
-      return;
-    }
-    setActionError(null);
-    const amount = Number.parseFloat(adjustAmountText.trim());
-    if (Number.isNaN(amount)) {
-      setActionError("Amount must be a number.");
-      return;
-    }
-    if (adjustEventType === "delivery" && amount <= 0) {
-      setActionError("Delivery amount must be positive.");
-      return;
-    }
-    if (adjustEventType === "audit_correction" && amount === 0) {
-      setActionError("Audit correction cannot be zero.");
-      return;
-    }
-    const res = await fetch(
-      `${base}/medications/${adjustModal.id}/stock-adjust`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventType: adjustEventType, amount }),
-      },
-    );
-    if (!res.ok) {
-      setActionError(await parseError(res));
-      return;
-    }
-    setAdjustModal(null);
-    await refresh();
-  }
-
-  function stockActionButtons(
-    m: MedicationRow
-  ) {
-    return (
-      <>
-        {m.prn ? (
-          <button
-            type="button"
-            className="village-link text-sm whitespace-nowrap"
-            onClick={() => openPrnModal(m)}
-          >
-            Log PRN dose
-          </button>
-        ) : null}
-        {viewerIsAdmin ? (
-          <button
-            type="button"
-            className="village-link text-sm whitespace-nowrap"
-            onClick={() => openAdjustModal(m)}
-          >
-            Adjust stock
-          </button>
-        ) : null}
-      </>
-    );
   }
 
   function renderAddUnitField() {
@@ -716,15 +532,6 @@ export function MedicationsTab({
             placeholder="How and when it is taken"
           />
         </label>
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="village-field-label">Minimum in stock (optional)</span>
-          <input
-            className="village-input"
-            value={editMinStock}
-            onChange={(e) => setEditMinStock(e.target.value)}
-            placeholder="Threshold"
-          />
-        </label>
         <label className="flex cursor-pointer items-center gap-2 text-sm sm:col-span-2 lg:col-span-3">
           <input
             type="checkbox"
@@ -762,7 +569,7 @@ export function MedicationsTab({
     return <p className="village-muted">Loading…</p>;
   }
 
-  const colCount = 10;
+  const colCount = 9;
 
   const listRows = medications.map((m) => (
     <li
@@ -814,7 +621,6 @@ export function MedicationsTab({
             <p className="mt-0.5 text-ink/80">{formatMedicationSubtitle(m)}</p>
             <p className="mt-0.5 text-ink/65">{m.directions}</p>
           </div>
-          {stockActionButtons(m)}
           <button
             type="button"
             className="village-link text-sm"
@@ -901,13 +707,9 @@ export function MedicationsTab({
         <td className="py-3 pr-3">{servingsCell(m.servingsPerDay)}</td>
         <td className="max-w-[14rem] py-3 pr-3 text-ink/85">{m.directions}</td>
         <td className="py-3 pr-3">{m.prn ? "Yes" : "—"}</td>
-        <td className="py-3 pr-3 text-ink/90">
-          {m.minimumInStock === null ? "—" : formatStockOnHand(m.minimumInStock)}
-        </td>
-        <td className="py-3 pr-3 text-ink/90">{formatStockOnHand(m.currentStock)}</td>
+        <td className="py-3 pr-3 text-ink/90">{m.status}</td>
         <td className="py-3 pr-0 text-right align-top">
           <div className="flex flex-wrap items-center justify-end gap-3">
-            {stockActionButtons(m)}
             <button
               type="button"
               className="village-link text-sm whitespace-nowrap"
@@ -959,8 +761,7 @@ export function MedicationsTab({
                   <th className="pb-2 pr-3">Servings/day</th>
                   <th className="pb-2 pr-3">Directions</th>
                   <th className="pb-2 pr-3">PRN</th>
-                  <th className="pb-2 pr-3">Min (reorder below)</th>
-                  <th className="pb-2 pr-3">Stock</th>
+                  <th className="pb-2 pr-3">Status</th>
                   <th className="pb-2 text-right">Actions</th>
                 </tr>
               </thead>
@@ -1154,24 +955,6 @@ export function MedicationsTab({
               placeholder="Leave blank if not scheduled daily"
             />
           </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="village-field-label">Minimum in stock (optional)</span>
-            <input
-              className="village-input"
-              value={addMinStock}
-              onChange={(e) => setAddMinStock(e.target.value)}
-              placeholder="Threshold"
-            />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="village-field-label">Initial stock (optional)</span>
-            <input
-              className="village-input"
-              value={addInitialStock}
-              onChange={(e) => setAddInitialStock(e.target.value)}
-              placeholder="Current stock on hand"
-            />
-          </label>
         </div>
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="village-field-label">Directions</span>
@@ -1237,8 +1020,8 @@ export function MedicationsTab({
                               Add medication
                             </h2>
                             <p className="text-sm leading-6 text-ink/65">
-                              Search the home formulary, set dosing and stock, or
-                              create a new catalog product if needed.
+                              Search the home formulary, set dosing, or create a new
+                              catalog product if needed.
                             </p>
                           </div>
                         </div>
@@ -1449,28 +1232,6 @@ export function MedicationsTab({
                             placeholder="Leave blank if not scheduled daily"
                           />
                         </label>
-                        <label className="flex flex-col gap-1.5 text-sm">
-                          <span className="village-field-label">
-                            Minimum in stock (optional)
-                          </span>
-                          <input
-                            className="village-input"
-                            value={addMinStock}
-                            onChange={(e) => setAddMinStock(e.target.value)}
-                            placeholder="Threshold"
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1.5 text-sm">
-                          <span className="village-field-label">
-                            Initial stock (optional)
-                          </span>
-                          <input
-                            className="village-input"
-                            value={addInitialStock}
-                            onChange={(e) => setAddInitialStock(e.target.value)}
-                            placeholder="Current stock on hand"
-                          />
-                        </label>
                       </div>
                       <label className="flex flex-col gap-1.5 text-sm">
                         <span className="village-field-label">Directions</span>
@@ -1508,113 +1269,6 @@ export function MedicationsTab({
             document.body,
           )
         : null}
-
-      {prnModal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="prn-dose-title"
-        >
-          <div className="w-full max-w-md rounded-lg border border-pine/20 bg-white p-5 shadow-lg">
-            <h4 id="prn-dose-title" className="text-base font-semibold text-ink">
-              Log PRN dose — {prnModal.name}
-            </h4>
-            <p className="mt-1 text-sm text-ink/70">
-              Quantity removed from stock (defaults to qty per serving:{" "}
-              {prnModal.quantityPerServing}).
-            </p>
-            <label className="mt-4 flex flex-col gap-1.5 text-sm">
-              <span className="village-field-label">Quantity</span>
-              <input
-                className="village-input"
-                value={prnQtyText}
-                onChange={(e) => setPrnQtyText(e.target.value)}
-                inputMode="decimal"
-              />
-            </label>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="village-btn-primary text-sm"
-                onClick={() => void submitPrnDose()}
-              >
-                Log dose
-              </button>
-              <button
-                type="button"
-                className="village-btn-secondary text-sm"
-                onClick={() => setPrnModal(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {adjustModal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="stock-adj-title"
-        >
-          <div className="w-full max-w-md rounded-lg border border-pine/20 bg-white p-5 shadow-lg">
-            <h4 id="stock-adj-title" className="text-base font-semibold text-ink">
-              Adjust stock — {adjustModal.name}
-            </h4>
-            <p className="mt-1 text-sm text-ink/70">
-              Delivery adds stock (positive amount). Audit correction adjusts the
-              balance (amount may be negative).
-            </p>
-            <label className="mt-4 flex flex-col gap-1.5 text-sm">
-              <span className="village-field-label">Event type</span>
-              <VillageSelect
-                className="w-full"
-                ariaLabel="Stock adjustment event type"
-                value={adjustEventType}
-                onChange={(v) =>
-                  setAdjustEventType(
-                    v === "audit_correction" ? "audit_correction" : "delivery",
-                  )
-                }
-                options={ADJUST_EVENT_OPTIONS}
-              />
-            </label>
-            <label className="mt-3 flex flex-col gap-1.5 text-sm">
-              <span className="village-field-label">Amount</span>
-              <input
-                className="village-input"
-                value={adjustAmountText}
-                onChange={(e) => setAdjustAmountText(e.target.value)}
-                placeholder={
-                  adjustEventType === "delivery"
-                    ? "Units received"
-                    : "Positive or negative adjustment"
-                }
-                inputMode="decimal"
-              />
-            </label>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="village-btn-primary text-sm"
-                onClick={() => void submitStockAdjust()}
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                className="village-btn-secondary text-sm"
-                onClick={() => setAdjustModal(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

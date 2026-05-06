@@ -46,16 +46,6 @@ export function isDashboardMedicationsPath(pathname: string): boolean {
   return pathname === "/dashboard/medications";
 }
 
-/** Per-home medication orders hub (**34b**). */
-export function isDashboardHomeMedicationOrdersPath(pathname: string): boolean {
-  return /\/dashboard\/homes\/[^/]+\/medications\/orders$/.test(pathname);
-}
-
-/** Per-home low-stock operational view (**34d**). */
-export function isDashboardHomeMedicationLowStockPath(pathname: string): boolean {
-  return /\/dashboard\/homes\/[^/]+\/medications\/low-stock$/.test(pathname);
-}
-
 export function isDashboardResidentMedicationsPath(pathname: string): boolean {
   return pathname === "/dashboard/resident-medications";
 }

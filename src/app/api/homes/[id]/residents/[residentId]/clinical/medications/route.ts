@@ -115,22 +115,6 @@ export async function POST(req: Request, { params }: RouteParams) {
       );
     }
   }
-  let minimumInStock: number | null | undefined;
-  if ("minimumInStock" in rec) {
-    if (rec.minimumInStock === null) {
-      minimumInStock = null;
-    } else if (
-      typeof rec.minimumInStock === "number" &&
-      Number.isInteger(rec.minimumInStock)
-    ) {
-      minimumInStock = rec.minimumInStock;
-    } else {
-      return NextResponse.json(
-        { error: "minimumInStock must be an integer or null." },
-        { status: 400 },
-      );
-    }
-  }
   let prn: boolean | undefined;
   if ("prn" in rec) {
     if (typeof rec.prn !== "boolean") {
@@ -140,21 +124,6 @@ export async function POST(req: Request, { params }: RouteParams) {
       );
     }
     prn = rec.prn;
-  }
-
-  let initialStock: number | undefined;
-  if ("initialStock" in rec) {
-    if (
-      typeof rec.initialStock !== "number" ||
-      !Number.isInteger(rec.initialStock) ||
-      rec.initialStock < 0
-    ) {
-      return NextResponse.json(
-        { error: "initialStock must be a non-negative integer." },
-        { status: 400 },
-      );
-    }
-    initialStock = rec.initialStock;
   }
 
   try {
@@ -169,9 +138,7 @@ export async function POST(req: Request, { params }: RouteParams) {
             quantityPerServing: rec.quantityPerServing,
             directions: rec.directions as string,
             servingsPerDay,
-            minimumInStock,
             prn,
-            initialStock,
           },
         )
       : createResidentMedication(
@@ -184,9 +151,7 @@ export async function POST(req: Request, { params }: RouteParams) {
             quantityPerServing: rec.quantityPerServing,
             directions: rec.directions as string,
             servingsPerDay,
-            minimumInStock,
             prn,
-            initialStock,
           },
         );
     return NextResponse.json({ medication: row });

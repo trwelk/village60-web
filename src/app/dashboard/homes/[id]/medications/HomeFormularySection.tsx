@@ -1,7 +1,6 @@
 "use client";
 
 import { MODAL_PRIMARY_BTN_CLASS } from "@/app/dashboard/expenses/ExpenseEditorDialog";
-import Link from "next/link";
 import {
   VillageSelect,
   type VillageSelectOption,
@@ -329,20 +328,6 @@ export function HomeFormularySection({ homeId }: Props) {
           <p className="mt-1 max-w-xl text-sm text-ink/70">
             Product entries for this home ({`name · strength · unit`}). Rows can
             exist before anyone is prescribed them.
-          </p>
-          <p className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm font-medium">
-            <Link
-              className="text-[var(--highlight)] underline decoration-[color:color-mix(in_srgb,var(--highlight)_35%,transparent)] underline-offset-[3px]"
-              href={`/dashboard/homes/${encodeURIComponent(homeId)}/medications/low-stock`}
-            >
-              Low stock
-            </Link>
-            <Link
-              className="text-[var(--highlight)] underline decoration-[color:color-mix(in_srgb,var(--highlight)_35%,transparent)] underline-offset-[3px]"
-              href={`/dashboard/homes/${encodeURIComponent(homeId)}/medications/orders`}
-            >
-              Medication orders
-            </Link>
           </p>
         </div>
         <div className="flex w-full flex-col gap-3 sm:ml-auto sm:w-auto sm:max-w-md sm:flex-row sm:items-end sm:justify-end">

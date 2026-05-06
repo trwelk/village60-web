@@ -457,7 +457,6 @@ type ClinicalProfile = {
     quantityPerServing: number;
     directions: string;
     servingsPerDay: number | null;
-    minimumInStock: number | null;
     prn: boolean;
   }[];
 };
@@ -475,7 +474,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: 2,
         directions: "Twice daily — with breakfast and evening meal.",
-        minimumInStock: null,
         prn: false,
       },
       {
@@ -485,7 +483,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: 1,
         directions: "Once daily.",
-        minimumInStock: null,
         prn: false,
       },
     ],
@@ -501,7 +498,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: 3,
         directions: "Three times daily.",
-        minimumInStock: 20,
         prn: false,
       },
     ],
@@ -517,7 +513,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: 2,
         directions: "Twice daily — 12 hours apart.",
-        minimumInStock: 14,
         prn: false,
       },
     ],
@@ -533,7 +528,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: 1,
         directions: "Once daily at night.",
-        minimumInStock: null,
         prn: false,
       },
     ],
@@ -549,7 +543,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: 1,
         directions: "Morning — monitor fluid balance.",
-        minimumInStock: null,
         prn: false,
       },
     ],
@@ -565,7 +558,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 2,
         servingsPerDay: null,
         directions: "As needed — for wheeze or shortness of breath.",
-        minimumInStock: 1,
         prn: true,
       },
     ],
@@ -581,7 +573,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: 1,
         directions: "Once daily — fasting, 30 min before breakfast.",
-        minimumInStock: null,
         prn: false,
       },
       {
@@ -591,7 +582,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: 1,
         directions: "Once daily.",
-        minimumInStock: null,
         prn: false,
       },
     ],
@@ -607,7 +597,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: 4,
         directions: "Four times daily — align with meals where possible.",
-        minimumInStock: null,
         prn: false,
       },
     ],
@@ -623,7 +612,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: 1,
         directions: "Once daily — before breakfast.",
-        minimumInStock: null,
         prn: false,
       },
     ],
@@ -639,7 +627,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: 2,
         directions: "Twice daily.",
-        minimumInStock: null,
         prn: false,
       },
     ],
@@ -656,7 +643,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         servingsPerDay: null,
         directions:
           "Weekly on Tuesday — folic acid as prescribed Wednesday (not daily dosing).",
-        minimumInStock: null,
         prn: false,
       },
     ],
@@ -672,7 +658,6 @@ const CLINICAL_PROFILES: ClinicalProfile[] = [
         quantityPerServing: 1,
         servingsPerDay: null,
         directions: "Once monthly IM — clinic mornings.",
-        minimumInStock: 2,
         prn: false,
       },
     ],
@@ -1114,8 +1099,8 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
             quantityPerServing: m.quantityPerServing,
             servingsPerDay: m.servingsPerDay,
             directions: m.directions,
-            minimumInStock: m.minimumInStock,
             prn: m.prn,
+            status: "active",
             sortOrder: sort++,
             createdAtUtcMs: t,
             updatedAtUtcMs: t,

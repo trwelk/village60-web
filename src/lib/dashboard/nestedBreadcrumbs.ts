@@ -51,26 +51,6 @@ export function buildHomeAreaBreadcrumbTrail(
   if (rest === "wards") {
     return [hub, home, { label: "Wards", currentPage: true }];
   }
-  if (rest === "medications/orders") {
-    return [
-      hub,
-      home,
-      {
-        label: "Medication orders",
-        currentPage: true,
-      },
-    ];
-  }
-  if (rest === "medications/low-stock") {
-    return [
-      hub,
-      home,
-      {
-        label: "Low stock",
-        currentPage: true,
-      },
-    ];
-  }
   if (rest === "residents/new") {
     return [
       hub,

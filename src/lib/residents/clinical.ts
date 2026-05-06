@@ -6,12 +6,10 @@ import {
   residentAllergies,
   residentConditions,
   residentMedications,
-  residentMedicationStockEvents,
 } from "@/db/schema";
 import { createHomeMedicationCatalogRow } from "@/lib/homeMedications/catalog";
 import type { AppDb } from "@/lib/homes/service";
 import {
-  ForbiddenError,
   NotFoundError,
   ValidationError,
 } from "@/lib/homes/errors";
@@ -33,9 +31,7 @@ export type ResidentMedicationClinicalItem = {
   servingsPerDay: number | null;
   directions: string;
   prn: boolean;
-  minimumInStock: number | null;
   status: string;
-  currentStock: number;
   sortOrder: number;
   createdAtUtcMs: number;
   updatedAtUtcMs: number;
@@ -62,9 +58,7 @@ function mapJoinToClinical(
     servingsPerDay: rm.servingsPerDay,
     directions: rm.directions,
     prn: rm.prn,
-    minimumInStock: rm.minimumInStock,
     status: rm.status,
-    currentStock: rm.currentStock,
     sortOrder: rm.sortOrder,
     createdAtUtcMs: rm.createdAtUtcMs,
     updatedAtUtcMs: rm.updatedAtUtcMs,
@@ -151,19 +145,6 @@ function optionalPositiveInt(input: unknown, field: string): number | null {
   }
   if (input < 1) {
     throw new ValidationError(`${field} must be at least 1 or null.`);
-  }
-  return input;
-}
-
-function optionalNonNegativeInt(input: unknown, field: string): number | null {
-  if (input === undefined || input === null) {
-    return null;
-  }
-  if (typeof input !== "number" || !Number.isInteger(input)) {
-    throw new ValidationError(`${field} must be an integer or null.`);
-  }
-  if (input < 0) {
-    throw new ValidationError(`${field} must be non-negative or null.`);
   }
   return input;
 }
@@ -434,9 +415,7 @@ export type CreateResidentMedicationInput = {
   quantityPerServing: number;
   directions: string;
   servingsPerDay?: number | null;
-  minimumInStock?: number | null;
   prn?: boolean;
-  initialStock?: number;
 } & (
   | { medicationId: string; medication?: never }
   | {
@@ -444,16 +423,6 @@ export type CreateResidentMedicationInput = {
       medicationId?: never;
     }
 );
-
-function optionalReal(input: unknown, field: string): number | null {
-  if (input === undefined || input === null) {
-    return null;
-  }
-  if (typeof input !== "number" || Number.isNaN(input)) {
-    throw new ValidationError(`${field} must be a number or null.`);
-  }
-  return input;
-}
 
 function requiredReal(input: unknown, field: string): number {
   if (typeof input !== "number" || Number.isNaN(input)) {
@@ -495,12 +464,7 @@ export function createResidentMedication(
   );
   const directions = normalizeRequiredClinicalText(input.directions, "directions");
   const servingsPerDay = optionalPositiveInt(input.servingsPerDay, "servingsPerDay");
-  const minimumInStock = optionalNonNegativeInt(
-    input.minimumInStock,
-    "minimumInStock",
-  );
   const prn = input.prn === true;
-  const initialStock = optionalReal(input.initialStock, "initialStock") ?? 0;
 
   if (hasId) {
     const catalogId = idPart!.trim();
@@ -516,31 +480,17 @@ export function createResidentMedication(
       servingsPerDay,
       directions,
       prn,
-      minimumInStock,
       status: "active",
-      currentStock: initialStock,
       sortOrder,
       createdAtUtcMs: now,
       updatedAtUtcMs: now,
     };
-    
-    db.transaction((tx) => {
-      try {
-        tx.insert(residentMedications).values(row).run();
-      } catch (e) {
-        rethrowResidentMedicationConstraint(e);
-      }
-      if (initialStock !== 0) {
-        tx.insert(residentMedicationStockEvents).values({
-          id: randomUUID(),
-          residentMedicationId: id,
-          eventType: "delivery",
-          amount: initialStock,
-          createdAtUtcMs: now,
-          createdByUserId: actor?.userId ?? null,
-        }).run();
-      }
-    });
+
+    try {
+      db.insert(residentMedications).values(row).run();
+    } catch (e) {
+      rethrowResidentMedicationConstraint(e);
+    }
     return getClinicalMedicationByRowId(db, residentId, id);
   }
 
@@ -568,9 +518,7 @@ export function createResidentMedication(
       servingsPerDay,
       directions,
       prn,
-      minimumInStock,
       status: "active",
-      currentStock: initialStock,
       sortOrder,
       createdAtUtcMs: now,
       updatedAtUtcMs: now,
@@ -579,16 +527,6 @@ export function createResidentMedication(
       tx.insert(residentMedications).values(row).run();
     } catch (e) {
       rethrowResidentMedicationConstraint(e);
-    }
-    if (initialStock !== 0) {
-      tx.insert(residentMedicationStockEvents).values({
-        id: randomUUID(),
-        residentMedicationId: id,
-        eventType: "delivery",
-        amount: initialStock,
-        createdAtUtcMs: now,
-        createdByUserId: actor?.userId ?? null,
-      }).run();
     }
     return getClinicalMedicationByRowId(tx, residentId, id);
   });
@@ -604,7 +542,6 @@ export function updateResidentMedication(
     quantityPerServing?: number;
     directions?: string;
     servingsPerDay?: number | null;
-    minimumInStock?: number | null;
     prn?: boolean;
     /** Catalog row id (reassign product); must belong to the resident's home. */
     medicationId?: string;
@@ -622,7 +559,6 @@ export function updateResidentMedication(
   let quantityPerServing = existing.quantityPerServing;
   let directions = existing.directions;
   let servingsPerDay = existing.servingsPerDay;
-  let minimumInStock = existing.minimumInStock;
   let prn = existing.prn;
   let medicationId = existing.medicationId;
 
@@ -647,12 +583,6 @@ export function updateResidentMedication(
   if ("servingsPerDay" in input) {
     servingsPerDay = optionalPositiveInt(input.servingsPerDay, "servingsPerDay");
   }
-  if ("minimumInStock" in input) {
-    minimumInStock = optionalNonNegativeInt(
-      input.minimumInStock,
-      "minimumInStock",
-    );
-  }
   if (input.prn !== undefined) {
     prn = input.prn;
   }
@@ -665,7 +595,6 @@ export function updateResidentMedication(
         servingsPerDay,
         directions,
         prn,
-        minimumInStock,
         updatedAtUtcMs: now,
       })
       .where(eq(residentMedications.id, residentMedicationRowId))
@@ -700,127 +629,4 @@ export function deleteResidentMedication(
       ),
     )
     .run();
-}
-
-function strictPositiveReal(input: unknown, field: string): number {
-  const n = requiredReal(input, field);
-  if (n <= 0) {
-    throw new ValidationError(`${field} must be positive.`);
-  }
-  return n;
-}
-
-/**
- * Log one PRN dose: ledger row `prn_dispensed` with negative `amount`, stock reduced by the dispensed quantity (may go negative).
- */
-export function logResidentMedicationPrnDispensed(
-  db: AppDb,
-  actor: SessionActor | undefined,
-  homeId: string,
-  residentId: string,
-  residentMedicationRowId: string,
-  input?: { quantity?: unknown },
-): ResidentMedicationClinicalItem {
-  getResident(db, actor, homeId, residentId);
-  const existing = db
-    .select()
-    .from(residentMedications)
-    .where(eq(residentMedications.id, residentMedicationRowId))
-    .get();
-  if (!existing || existing.residentId !== residentId) {
-    throw new NotFoundError();
-  }
-  if (!existing.prn) {
-    throw new ValidationError("Only PRN medications can log a PRN dose.");
-  }
-  let qty: number;
-  if (
-    input &&
-    "quantity" in input &&
-    input.quantity !== undefined &&
-    input.quantity !== null
-  ) {
-    qty = strictPositiveReal(input.quantity, "quantity");
-  } else {
-    qty = existing.quantityPerServing;
-    if (typeof qty !== "number" || Number.isNaN(qty) || qty <= 0) {
-      throw new ValidationError(
-        "quantityPerServing must be positive to log a dose (or pass quantity).",
-      );
-    }
-  }
-  const now = Date.now();
-  const ledgerAmount = -qty;
-  const newStock = existing.currentStock - qty;
-  db.transaction((tx) => {
-    tx.insert(residentMedicationStockEvents).values({
-      id: randomUUID(),
-      residentMedicationId: residentMedicationRowId,
-      eventType: "prn_dispensed",
-      amount: ledgerAmount,
-      createdAtUtcMs: now,
-      createdByUserId: actor?.userId ?? null,
-    }).run();
-    tx.update(residentMedications)
-      .set({ currentStock: newStock, updatedAtUtcMs: now })
-      .where(eq(residentMedications.id, residentMedicationRowId))
-      .run();
-  });
-  return getClinicalMedicationByRowId(db, residentId, residentMedicationRowId);
-}
-
-/**
- * Admin-only: add stock (`delivery`, positive amount) or signed adjustment (`audit_correction`).
- */
-export function adjustResidentMedicationStock(
-  db: AppDb,
-  actor: SessionActor | undefined,
-  homeId: string,
-  residentId: string,
-  residentMedicationRowId: string,
-  input: { eventType: unknown; amount: unknown },
-): ResidentMedicationClinicalItem {
-  if (!actor || actor.role !== "admin") {
-    throw new ForbiddenError();
-  }
-  getResident(db, actor, homeId, residentId);
-  if (
-    input.eventType !== "delivery" &&
-    input.eventType !== "audit_correction"
-  ) {
-    throw new ValidationError("eventType must be delivery or audit_correction.");
-  }
-  const eventType = input.eventType;
-  const amount = requiredReal(input.amount, "amount");
-  if (eventType === "delivery" && amount <= 0) {
-    throw new ValidationError("delivery amount must be positive.");
-  }
-  if (eventType === "audit_correction" && amount === 0) {
-    throw new ValidationError("audit_correction amount must not be zero.");
-  }
-  const existing = db
-    .select()
-    .from(residentMedications)
-    .where(eq(residentMedications.id, residentMedicationRowId))
-    .get();
-  if (!existing || existing.residentId !== residentId) {
-    throw new NotFoundError();
-  }
-  const now = Date.now();
-  const newStock = existing.currentStock + amount;
-  db.transaction((tx) => {
-    tx.insert(residentMedicationStockEvents).values({
-      id: randomUUID(),
-      residentMedicationId: residentMedicationRowId,
-      eventType,
-      amount,
-      createdAtUtcMs: now,
-      createdByUserId: actor.userId,
-    }).run();
-    tx.update(residentMedications)
-      .set({ currentStock: newStock, updatedAtUtcMs: now })
-      .where(eq(residentMedications.id, residentMedicationRowId))
-      .run();
-  });
-  return getClinicalMedicationByRowId(db, residentId, residentMedicationRowId);
 }

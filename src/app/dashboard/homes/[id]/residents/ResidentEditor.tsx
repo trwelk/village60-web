@@ -80,7 +80,6 @@ function parseMedicationRows(raw: string): {
     directions: string;
     servingsPerDay: number | null;
     prn: boolean;
-    minimumInStock: number | null;
   }[];
   error: string | null;
 } {
@@ -92,7 +91,6 @@ function parseMedicationRows(raw: string): {
     directions: string;
     servingsPerDay: number | null;
     prn: boolean;
-    minimumInStock: number | null;
   }[] = [];
   const lines = splitLines(raw);
   for (const line of lines) {
@@ -113,7 +111,7 @@ function parseMedicationRows(raw: string): {
       return {
         rows: [],
         error:
-          "Each medication line must start with: name | strength | unit | quantity per serving | directions (optional trailing columns: servings/day | PRN yes/no | min in stock).",
+          "Each medication line must start with: name | strength | unit | quantity per serving | directions (optional trailing columns: servings/day | PRN yes/no).",
       };
     }
     const quantityPerServing = Number.parseFloat(quantityPerServingStr);
@@ -125,7 +123,6 @@ function parseMedicationRows(raw: string): {
     }
     const servingsToken = parts[5] ?? "";
     const prnToken = (parts[6] ?? "").toLowerCase();
-    const minTok = parts[7] ?? "";
     let servingsPerDay: number | null = null;
     const st = servingsToken.trim();
     if (st !== "" && st !== "-") {
@@ -137,19 +134,6 @@ function parseMedicationRows(raw: string): {
         };
       }
       servingsPerDay = n;
-    }
-    let minimumInStock: number | null = null;
-    const mt = minTok.trim();
-    if (mt !== "" && mt !== "-") {
-      const n = Number.parseInt(mt, 10);
-      if (!Number.isInteger(n) || n < 0) {
-        return {
-          rows: [],
-          error:
-            "Minimum in stock must be blank, '-', or a non-negative integer.",
-        };
-      }
-      minimumInStock = n;
     }
     let prn = false;
     const pt = prnToken.trim();
@@ -165,7 +149,6 @@ function parseMedicationRows(raw: string): {
       directions,
       servingsPerDay,
       prn,
-      minimumInStock,
     });
   }
   return { rows, error: null };
@@ -468,7 +451,6 @@ export function ResidentEditor({
               quantityPerServing: med.quantityPerServing,
               directions: med.directions,
               servingsPerDay: med.servingsPerDay,
-              minimumInStock: med.minimumInStock,
               prn: med.prn,
             }),
           }),
@@ -1073,7 +1055,7 @@ export function ResidentEditor({
               Medication format:{" "}
               <code>
                 name | strength | unit | qty/serving | directions [| servings/day
-                [| PRN [| min in stock]]]
+                [| PRN]]
               </code>
               . Omit optional tails or use blank or <code>-</code>.
             </p>

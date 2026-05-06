@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -8,7 +7,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
-import { medications, residentMedications, residentMedicationStockEvents, users } from "@/db/schema";
+import { medications, residentMedications, users } from "@/db/schema";
 import { createHomeMedicationCatalogRow } from "@/lib/homeMedications/catalog";
 import { createHome } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/errors";
@@ -17,7 +16,6 @@ import {
   createResident,
 } from "./service";
 import {
-  adjustResidentMedicationStock,
   createResidentAllergy,
   createResidentCondition,
   createResidentMedication,
@@ -26,7 +24,6 @@ import {
   deleteResidentCondition,
   deleteResidentMedication,
   listResidentClinical,
-  logResidentMedicationPrnDispensed,
   updateResidentAllergy,
   updateResidentCondition,
   updateResidentMedication,
@@ -162,7 +159,7 @@ describe("resident clinical lists (08)", () => {
     expect(snap.allergies.map((x) => x.allergen)).toEqual(["Penicillin"]);
   });
 
-  it("manages medications including PRN, optional servings/day, and min-in-stock threshold", () => {
+  it("manages medications including PRN, optional servings/day, and status updates", () => {
     const db = getDb();
     const home = createHome(db, "admin", {
       name: "H",
@@ -183,7 +180,6 @@ describe("resident clinical lists (08)", () => {
       quantityPerServing: 1,
       servingsPerDay: null,
       directions: "  with food ",
-      minimumInStock: 10,
       prn: true,
     });
     expect(m.medicationId).toMatch(/^[0-9a-f-]{36}$/i);
@@ -191,7 +187,6 @@ describe("resident clinical lists (08)", () => {
     expect(m.prn).toBe(true);
     expect(m.directions).toBe("with food");
     expect(m.servingsPerDay).toBeNull();
-    expect(m.minimumInStock).toBe(10);
     expect(m.quantityPerServing).toBe(1);
 
     const m2 = createResidentMedication(db, adminActor, home.id, r.id, {
@@ -206,20 +201,17 @@ describe("resident clinical lists (08)", () => {
       prn: false,
     });
     expect(m2.servingsPerDay).toBe(2);
-    expect(m2.minimumInStock).toBeNull();
 
     updateResidentMedication(db, adminActor, home.id, r.id, m.id, {
       prn: false,
       directions: "after meals",
       servingsPerDay: 4,
-      minimumInStock: null,
     });
     const snap = listResidentClinical(db, adminActor, home.id, r.id);
     const row = snap.medications.find((x) => x.id === m.id);
     expect(row?.prn).toBe(false);
     expect(row?.directions).toBe("after meals");
     expect(row?.servingsPerDay).toBe(4);
-    expect(row?.minimumInStock).toBeNull();
 
     deleteResidentMedication(db, adminActor, home.id, r.id, m2.id);
     const after = listResidentClinical(db, adminActor, home.id, r.id);
@@ -540,204 +532,5 @@ describe("resident clinical lists (08)", () => {
     );
     expect(updated.medicationId).toBe(b.id);
     expect(updated.name).toBe("New");
-  });
-
-  it("32a: can create resident medication with initial stock and see ledger event", () => {
-    const db = getDb();
-    const home = createHome(db, "admin", {
-      name: "H",
-      defaultCurrencyCode: "NZD",
-    });
-    const r = createResident(db, adminActor, {
-      homeId: home.id,
-      fullName: "Alex",
-      dob: "1940-01-01",
-      admissionDate: "2024-01-01",
-    });
-    const m = createResidentMedication(db, adminActor, home.id, r.id, {
-      medication: { name: "Aspirin", strength: "500mg", unit: "tablet" },
-      quantityPerServing: 2,
-      directions: "take with water",
-      initialStock: 100,
-    });
-
-    expect(m.quantityPerServing).toBe(2);
-    expect(m.status).toBe("active");
-    expect(m.currentStock).toBe(100);
-
-    const events = db
-      .select()
-      .from(residentMedicationStockEvents)
-      .where(eq(residentMedicationStockEvents.residentMedicationId, m.id))
-      .all();
-    expect(events.length).toBe(1);
-    expect(events[0].eventType).toBe("delivery");
-    expect(events[0].amount).toBe(100);
-  });
-
-  it("32b: logs PRN dispense with negative ledger amount and decrements stock", () => {
-    const db = getDb();
-    const home = createHome(db, "admin", {
-      name: "H",
-      defaultCurrencyCode: "NZD",
-    });
-    const r = createResident(db, adminActor, {
-      homeId: home.id,
-      fullName: "Alex",
-      dob: "1940-01-01",
-      admissionDate: "2024-01-01",
-    });
-    const m = createResidentMedication(db, adminActor, home.id, r.id, {
-      medication: { name: "Ibuprofen", strength: "200mg", unit: "tablet" },
-      quantityPerServing: 2,
-      directions: "PRN pain",
-      prn: true,
-      initialStock: 20,
-    });
-    const updated = logResidentMedicationPrnDispensed(
-      db,
-      adminActor,
-      home.id,
-      r.id,
-      m.id,
-    );
-    expect(updated.currentStock).toBe(18);
-
-    const events = db
-      .select()
-      .from(residentMedicationStockEvents)
-      .where(eq(residentMedicationStockEvents.residentMedicationId, m.id))
-      .all()
-      .sort((a, b) => a.createdAtUtcMs - b.createdAtUtcMs);
-    expect(events.length).toBe(2);
-    expect(events[1].eventType).toBe("prn_dispensed");
-    expect(events[1].amount).toBe(-2);
-  });
-
-  it("32b: PRN dispense may drive stock negative", () => {
-    const db = getDb();
-    const home = createHome(db, "admin", {
-      name: "H",
-      defaultCurrencyCode: "NZD",
-    });
-    const r = createResident(db, adminActor, {
-      homeId: home.id,
-      fullName: "Alex",
-      dob: "1940-01-01",
-      admissionDate: "2024-01-01",
-    });
-    const m = createResidentMedication(db, adminActor, home.id, r.id, {
-      medication: { name: "X", strength: "1", unit: "u" },
-      quantityPerServing: 1,
-      directions: "PRN",
-      prn: true,
-      initialStock: 0,
-    });
-    const updated = logResidentMedicationPrnDispensed(
-      db,
-      adminActor,
-      home.id,
-      r.id,
-      m.id,
-    );
-    expect(updated.currentStock).toBe(-1);
-  });
-
-  it("32b: rejects PRN dispense for scheduled medications", () => {
-    const db = getDb();
-    const home = createHome(db, "admin", {
-      name: "H",
-      defaultCurrencyCode: "NZD",
-    });
-    const r = createResident(db, adminActor, {
-      homeId: home.id,
-      fullName: "Alex",
-      dob: "1940-01-01",
-      admissionDate: "2024-01-01",
-    });
-    const m = createResidentMedication(db, adminActor, home.id, r.id, {
-      medication: { name: "Y", strength: "5mg", unit: "tablet" },
-      quantityPerServing: 1,
-      directions: "daily",
-      prn: false,
-    });
-    expect(() =>
-      logResidentMedicationPrnDispensed(db, adminActor, home.id, r.id, m.id),
-    ).toThrow(ValidationError);
-  });
-
-  it("32b: admin can post delivery and audit_correction stock events", () => {
-    const db = getDb();
-    const home = createHome(db, "admin", {
-      name: "H",
-      defaultCurrencyCode: "NZD",
-    });
-    const r = createResident(db, adminActor, {
-      homeId: home.id,
-      fullName: "Alex",
-      dob: "1940-01-01",
-      admissionDate: "2024-01-01",
-    });
-    const m = createResidentMedication(db, adminActor, home.id, r.id, {
-      medication: { name: "Z", strength: "10", unit: "ml" },
-      quantityPerServing: 5,
-      directions: "daily",
-      initialStock: 10,
-    });
-    adjustResidentMedicationStock(db, adminActor, home.id, r.id, m.id, {
-      eventType: "delivery",
-      amount: 3,
-    });
-    let snap = listResidentClinical(db, adminActor, home.id, r.id);
-    expect(snap.medications.find((x) => x.id === m.id)?.currentStock).toBe(13);
-
-    adjustResidentMedicationStock(db, adminActor, home.id, r.id, m.id, {
-      eventType: "audit_correction",
-      amount: -2,
-    });
-    snap = listResidentClinical(db, adminActor, home.id, r.id);
-    expect(snap.medications.find((x) => x.id === m.id)?.currentStock).toBe(11);
-  });
-
-  it("32b: Care can log PRN dispense but cannot adjust stock", async () => {
-    const db = getDb();
-    const home = createHome(db, "admin", {
-      name: "H",
-      defaultCurrencyCode: "NZD",
-    });
-    const r = createResident(db, adminActor, {
-      homeId: home.id,
-      fullName: "Pat",
-      dob: "1950-01-01",
-      admissionDate: "2024-01-01",
-    });
-    const care = await createUser(db, "admin", {
-      email: "care-prn-stock@example.com",
-      password: STRONG,
-      role: "care",
-      primaryHomeId: home.id,
-    });
-    const actor = { userId: care.id, role: "care" as const };
-    const m = createResidentMedication(db, adminActor, home.id, r.id, {
-      medication: { name: "PRNmed", strength: "1", unit: "u" },
-      quantityPerServing: 1,
-      directions: "as needed",
-      prn: true,
-      initialStock: 5,
-    });
-    const afterPrn = logResidentMedicationPrnDispensed(
-      db,
-      actor,
-      home.id,
-      r.id,
-      m.id,
-    );
-    expect(afterPrn.currentStock).toBe(4);
-    expect(() =>
-      adjustResidentMedicationStock(db, actor, home.id, r.id, m.id, {
-        eventType: "delivery",
-        amount: 1,
-      }),
-    ).toThrow(ForbiddenError);
   });
 });

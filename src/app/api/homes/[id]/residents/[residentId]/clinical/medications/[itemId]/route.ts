@@ -34,7 +34,6 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       quantityPerServing?: number;
       directions?: string;
       servingsPerDay?: number | null;
-      minimumInStock?: number | null;
       prn?: boolean;
       medicationId?: string;
   } = {};
@@ -70,21 +69,6 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     } else {
       return NextResponse.json(
         { error: "servingsPerDay must be an integer or null." },
-        { status: 400 },
-      );
-    }
-  }
-  if ("minimumInStock" in rec) {
-    if (rec.minimumInStock === null) {
-      patch.minimumInStock = null;
-    } else if (
-      typeof rec.minimumInStock === "number" &&
-      Number.isInteger(rec.minimumInStock)
-    ) {
-      patch.minimumInStock = rec.minimumInStock;
-    } else {
-      return NextResponse.json(
-        { error: "minimumInStock must be an integer or null." },
         { status: 400 },
       );
     }

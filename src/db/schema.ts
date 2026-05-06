@@ -343,9 +343,7 @@ export const residentMedications = sqliteTable(
     servingsPerDay: integer("servings_per_day"),
     directions: text("directions").notNull(),
     prn: integer("prn", { mode: "boolean" }).notNull().default(false),
-    minimumInStock: integer("minimum_in_stock"),
     status: text("status").notNull().default("active"),
-    currentStock: real("current_stock").notNull().default(0),
     sortOrder: integer("sort_order").notNull(),
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
@@ -356,31 +354,6 @@ export const residentMedications = sqliteTable(
       t.residentId,
       t.medicationId,
     ),
-  ],
-);
-
-export const residentMedicationStockEvents = sqliteTable(
-  "resident_medication_stock_events",
-  {
-    id: text("id").primaryKey(),
-    residentMedicationId: text("resident_medication_id")
-      .notNull()
-      .references(() => residentMedications.id, { onDelete: "cascade" }),
-    eventType: text("event_type").notNull(),
-    amount: real("amount").notNull(),
-    medicationOrderLineId: text("medication_order_line_id").references(
-      () => medicationOrderLines.id,
-      { onDelete: "set null" },
-    ),
-    idempotencyKey: text("idempotency_key"),
-    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
-    createdByUserId: text("created_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-  },
-  (t) => [
-    index("resident_medication_stock_events_med_idx").on(t.residentMedicationId),
-    index("resident_medication_stock_events_order_line_idx").on(t.medicationOrderLineId),
   ],
 );
 
@@ -473,92 +446,3 @@ export const appSettings = sqliteTable("app_settings", {
   valueInt: integer("value_int").notNull(),
   updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
 });
-
-/**
- * Resident medication order (34b, 34c). At most one row per resident with
- * `status` in `pending` | `approved` | `order_placed` (partial unique index).
- */
-export const medicationOrders = sqliteTable(
-  "medication_orders",
-  {
-    id: text("id").primaryKey(),
-    homeId: text("home_id")
-      .notNull()
-      .references(() => homes.id, { onDelete: "cascade" }),
-    residentId: text("resident_id")
-      .notNull()
-      .references(() => residents.id, { onDelete: "cascade" }),
-    /** `pending` | `approved` | `order_placed` | `completed` | `rejected` | `cancelled` — app-enforced. */
-    status: text("status").notNull(),
-    createdByUserId: text("created_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    approvedByUserId: text("approved_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    rejectedByUserId: text("rejected_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    cancelledByUserId: text("cancelled_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    orderPlacedByUserId: text("order_placed_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    approvedAtUtcMs: integer("approved_at_utc_ms"),
-    rejectedAtUtcMs: integer("rejected_at_utc_ms"),
-    cancelledAtUtcMs: integer("cancelled_at_utc_ms"),
-    orderPlacedAtUtcMs: integer("order_placed_at_utc_ms"),
-    completedAtUtcMs: integer("completed_at_utc_ms"),
-    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
-    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
-  },
-  (t) => [
-    index("medication_orders_home_status_idx").on(t.homeId, t.status),
-    uniqueIndex("medication_orders_resident_active_uq")
-      .on(t.residentId)
-      .where(sql`${t.status} in ('pending', 'approved', 'order_placed')`),
-  ],
-);
-
-export const medicationOrderLines = sqliteTable(
-  "medication_order_lines",
-  {
-    id: text("id").primaryKey(),
-    orderId: text("order_id")
-      .notNull()
-      .references(() => medicationOrders.id, { onDelete: "cascade" }),
-    residentMedicationId: text("resident_medication_id")
-      .notNull()
-      .references(() => residentMedications.id, { onDelete: "cascade" }),
-    /**
-     * Human-entered package/container count at order placement time
-     * (for example: 2).
-     */
-    orderedQty: integer("ordered_qty").notNull(),
-    /**
-     * Human-entered package/container label (for example: bottle, box).
-     * Receiving is intentionally decoupled from this label.
-     */
-    orderUnitLabel: text("order_unit_label"),
-    /**
-     * Total dispensing-unit amount received so far for this line
-     * (for example: 300 ml entered manually at receiving).
-     */
-    receivedQty: integer("received_qty").notNull().default(0),
-    closedShortAtUtcMs: integer("closed_short_at_utc_ms"),
-    closedShortReason: text("closed_short_reason"),
-    closedShortByUserId: text("closed_short_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
-    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
-  },
-  (t) => [
-    uniqueIndex("medication_order_lines_order_res_med_uq").on(
-      t.orderId,
-      t.residentMedicationId,
-    ),
-    index("medication_order_lines_order_idx").on(t.orderId),
-  ],
-);

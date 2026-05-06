@@ -26,10 +26,6 @@ import {
 
   isDashboardMedicationsPath,
 
-  isDashboardHomeMedicationOrdersPath,
-
-  isDashboardHomeMedicationLowStockPath,
-
   isDashboardResidentMedicationsPath,
 
   isDashboardUsersPath,
@@ -73,10 +69,6 @@ export function getDashboardContextTitle(
   if (isDashboardTasksPath(pathname)) return "Tasks";
 
   if (isDashboardMedicationsPath(pathname)) return "Medications";
-
-  if (isDashboardHomeMedicationOrdersPath(pathname)) return "Medication orders";
-
-  if (isDashboardHomeMedicationLowStockPath(pathname)) return "Low stock";
 
   if (isDashboardResidentMedicationsPath(pathname)) return "Resident medications";
 
