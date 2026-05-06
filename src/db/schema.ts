@@ -327,6 +327,90 @@ export const medications = sqliteTable(
   ],
 );
 
+/**
+ * Inventory item catalog for stockable products. `unitClass` drives backend
+ * quantity precision validation:
+ * - `countable`: integer-only base units
+ * - `measurable`: fractional base units (up to 3 decimals in v1)
+ */
+export const inventoryItems = sqliteTable(
+  "inventory_items",
+  {
+    id: text("id").primaryKey(),
+    homeId: text("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    baseUnit: text("base_unit").notNull(),
+    unitClass: text("unit_class").notNull(),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    index("inventory_items_home_idx").on(t.homeId),
+    uniqueIndex("inventory_items_home_name_base_unit_uq").on(
+      t.homeId,
+      sql`lower(trim(${t.name}))`,
+      sql`trim(${t.baseUnit})`,
+    ),
+  ],
+);
+
+/** Materialized current stock balance by polymorphic owner + item. */
+export const inventoryBalances = sqliteTable(
+  "inventory_balances",
+  {
+    id: text("id").primaryKey(),
+    ownerType: text("owner_type").notNull(),
+    ownerId: text("owner_id").notNull(),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: "restrict" }),
+    quantityBaseUnits: real("quantity_base_units").notNull(),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    uniqueIndex("inventory_balances_owner_item_uq").on(
+      t.ownerType,
+      t.ownerId,
+      t.itemId,
+    ),
+    index("inventory_balances_item_idx").on(t.itemId),
+  ],
+);
+
+/** Append-only stock movement ledger keyed to external source rows. */
+export const inventoryTransactions = sqliteTable(
+  "inventory_transactions",
+  {
+    id: text("id").primaryKey(),
+    ownerType: text("owner_type").notNull(),
+    ownerId: text("owner_id").notNull(),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: "restrict" }),
+    transactionType: text("transaction_type").notNull(),
+    quantityDeltaBaseUnits: real("quantity_delta_base_units").notNull(),
+    sourceType: text("source_type").notNull(),
+    sourceId: text("source_id").notNull(),
+    note: text("note"),
+    actorUserId: text("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+  },
+  (t) => [
+    index("inventory_transactions_owner_item_created_idx").on(
+      t.ownerType,
+      t.ownerId,
+      t.itemId,
+      t.createdAtUtcMs,
+    ),
+    index("inventory_transactions_source_idx").on(t.sourceType, t.sourceId),
+  ],
+);
+
 export const residentMedications = sqliteTable(
   "resident_medications",
   {
