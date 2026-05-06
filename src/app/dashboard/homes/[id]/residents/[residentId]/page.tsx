@@ -14,10 +14,20 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { ResidentDetailShell } from "../ResidentDetailShell";
 
-type PageParams = { params: Promise<{ id: string; residentId: string }> };
+type PageParams = {
+  params: Promise<{ id: string; residentId: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
+};
 
-export default async function ResidentDetailPage({ params }: PageParams) {
+export default async function ResidentDetailPage({
+  params,
+  searchParams,
+}: PageParams) {
   const { id: homeId, residentId } = await params;
+  const sp = await searchParams;
+  const tabRaw = sp.tab;
+  const tab = Array.isArray(tabRaw) ? tabRaw[0] : tabRaw;
+
   const session = await getIronSession<SessionData>(
     await cookies(),
     getSessionOptions(),
@@ -46,6 +56,12 @@ export default async function ResidentDetailPage({ params }: PageParams) {
       notFound();
     }
     throw e;
+  }
+
+  if (tab === "medications") {
+    redirect(
+      `/dashboard/resident-medications?homeId=${encodeURIComponent(homeId)}&residentId=${encodeURIComponent(residentId)}`,
+    );
   }
 
   return (

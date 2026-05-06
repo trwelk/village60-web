@@ -686,7 +686,7 @@ body {
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
   color: var(--text-primary);
-  min-height: 2.3rem;
+  min-height: 2.55rem;
   padding: 0.5rem 0.7rem;
 }
 
@@ -695,8 +695,8 @@ body {
 }
 
 .village-select-list {
-  border: 1px solid color-mix(in srgb, var(--line-strong) 70%, transparent);
-  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+  /* Opaque surface so the menu stays readable over tables and layered cards */
+  background: var(--bg-elevated);
 }
 
 @keyframes village-select-in {

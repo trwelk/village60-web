@@ -132,7 +132,57 @@ describe("BillingTab", () => {
     expect(body.billingMonths).toEqual(["2026-03"]);
   });
 
-  it("filters the monthly table to unpaid rows when Unpaid only is selected", async () => {
+  it("batch total includes extra months at current ward rate when not on file yet", async () => {
+    const unpaid = {
+      id: "c-un",
+      billingMonth: "2026-03",
+      wardIdSnapshot: "w1",
+      wardLabel: "North",
+      amountMinorSnapshot: 800,
+      paid: false,
+      payment: null,
+    };
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        charges: [unpaid],
+        otherCharges: [],
+        residentStatus: "active",
+        wardMonthlyRatePerPersonMinor: 1000,
+      }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    render(
+      <BillingTab homeId="h1" residentId="r1" defaultCurrencyCode="NZD" />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("2026-03")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Pay multiple months/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("billing-batch-panel")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/^From$/i), {
+      target: { value: "2026-05" },
+    });
+    fireEvent.change(screen.getByLabelText(/^To$/i), {
+      target: { value: "2026-05" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Add range$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("billing-batch-total")).toHaveTextContent(
+        /\$18\.00/,
+      );
+    });
+  });
+
+  it("filters the monthly table to unpaid rows when Unpaid is selected", async () => {
     const unpaid = {
       id: "c-un",
       billingMonth: "2026-03",
@@ -179,7 +229,7 @@ describe("BillingTab", () => {
     expect(within(table).getByText("2026-03")).toBeInTheDocument();
     expect(within(table).getByText("2026-04")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("radio", { name: /^Unpaid only$/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Unpaid$/i }));
 
     await waitFor(() => {
       expect(within(table).getByText("2026-03")).toBeInTheDocument();
@@ -187,7 +237,7 @@ describe("BillingTab", () => {
     expect(within(table).queryByText("2026-04")).not.toBeInTheDocument();
   });
 
-  it("filters the monthly table to paid rows when Paid only is selected", async () => {
+  it("filters the monthly table to paid rows when Paid is selected", async () => {
     const unpaid = {
       id: "c-un",
       billingMonth: "2026-03",
@@ -231,7 +281,7 @@ describe("BillingTab", () => {
     });
 
     const table = screen.getByTestId("billing-monthly-charges-table");
-    fireEvent.click(screen.getByRole("radio", { name: /^Paid only$/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Paid$/i }));
 
     await waitFor(() => {
       expect(within(table).getByText("2026-04")).toBeInTheDocument();
@@ -273,7 +323,7 @@ describe("BillingTab", () => {
       ).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("radio", { name: /^Unpaid only$/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Unpaid$/i }));
 
     await waitFor(() => {
       expect(

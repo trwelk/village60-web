@@ -30,7 +30,16 @@ export type Resident = ResidentRow & {
   departureAtUtcMs: number | null;
 };
 
-export type ResidentWithoutFee = Resident;
+/** Client/UI/API shape: portrait file metadata is hidden; use dedicated photo routes. */
+export type ResidentPublic = Omit<
+  Resident,
+  "portraitStoredRelativePath" | "portraitContentType" | "portraitSizeBytes"
+> & {
+  hasPortrait: boolean;
+};
+
+/** Alias used across dashboard tabs — same as {@link ResidentPublic}. */
+export type ResidentWithoutFee = ResidentPublic;
 
 /** Resolved registration + deposit lines for atomic create (17c). */
 export type CreateResidentOtherChargesIntake = {
@@ -46,8 +55,19 @@ export type CreateResidentOtherChargesIntake = {
   };
 };
 
-export function residentViewForActor(_actor: SessionActor, r: Resident): Resident {
-  return r;
+export function residentViewForActor(_actor: SessionActor, r: Resident): ResidentPublic {
+  const {
+    portraitStoredRelativePath,
+    portraitContentType,
+    portraitSizeBytes,
+    ...rest
+  } = r;
+  void portraitContentType;
+  void portraitSizeBytes;
+  return {
+    ...rest,
+    hasPortrait: Boolean(portraitStoredRelativePath?.trim()),
+  };
 }
 
 /**
@@ -288,6 +308,10 @@ export function createResident(
     poaRelationship,
     assignedNurseUserId,
     assignedNurseDisplayOverride,
+    portraitStoredRelativePath: null,
+    portraitContentType: null,
+    portraitSizeBytes: null,
+    portraitUpdatedAtUtcMs: null,
     createdAtUtcMs: now,
     updatedAtUtcMs: now,
   };

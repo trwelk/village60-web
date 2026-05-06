@@ -17,6 +17,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+async function pickSelectOption(label: string, optionName: string | RegExp) {
+  await userEvent.click(screen.getByLabelText(label));
+  await userEvent.click(
+    await screen.findByRole("option", { name: optionName }),
+  );
+}
+
 describe("ResidentEditor create wizard", () => {
   it("renders immediately when opened as the create modal", async () => {
     const onCloseCreate = vi.fn();
@@ -51,7 +58,7 @@ describe("ResidentEditor create wizard", () => {
     await waitFor(() => {
       expect(screen.getByText(/Step\s*1\s*of\s*5/)).toBeInTheDocument();
     });
-    await userEvent.selectOptions(screen.getByLabelText("Ward"), "w1");
+    await pickSelectOption("Ward", "North");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => {
       expect(screen.getByText(/Step\s*2\s*of\s*5/)).toBeInTheDocument();
@@ -61,77 +68,171 @@ describe("ResidentEditor create wizard", () => {
     expect(screen.getByText(/Step\s*2\s*of\s*5/)).toBeInTheDocument();
   });
 
-  it("submits create payload with required NOK plus optional nurse fields", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ resident: { id: "r1" } }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
+  it(
+    "submits create payload with required NOK plus optional nurse fields",
+    async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ resident: { id: "r1" } }),
+      });
+      vi.stubGlobal("fetch", fetchMock);
 
-    render(
-      <ResidentEditor
-        mode="create"
-        homeId="h1"
-        homeName="Home A"
-        wards={[{ id: "w1", label: "North" }]}
-        careStaffOptions={[{ id: "u1", email: "care@example.com" }]}
-      />,
-    );
+      render(
+        <ResidentEditor
+          mode="create"
+          homeId="h1"
+          homeName="Home A"
+          wards={[{ id: "w1", label: "North" }]}
+          careStaffOptions={[{ id: "u1", email: "care@example.com" }]}
+        />,
+      );
 
-    await waitFor(() => {
-      expect(screen.getByLabelText("Ward")).toBeInTheDocument();
-    });
-    await userEvent.selectOptions(screen.getByLabelText("Ward"), "w1");
-    await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    await userEvent.type(screen.getByLabelText("Full name"), "Taylor Reed");
-    fireEvent.change(screen.getByLabelText("Date of birth"), {
-      target: { value: "1950-01-01" },
-    });
-    fireEvent.change(screen.getByLabelText("Admission date"), {
-      target: { value: "2026-04-30" },
-    });
-    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+      await waitFor(() => {
+        expect(screen.getByLabelText("Ward")).toBeInTheDocument();
+      });
+      await pickSelectOption("Ward", "North");
+      await userEvent.click(screen.getByRole("button", { name: "Next" }));
+      await userEvent.type(screen.getByLabelText("Full name"), "Taylor Reed");
+      fireEvent.change(screen.getByLabelText("Date of birth"), {
+        target: { value: "1950-01-01" },
+      });
+      fireEvent.change(screen.getByLabelText("Admission date"), {
+        target: { value: "2026-04-30" },
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
-    await userEvent.type(screen.getByLabelText("NOK name"), "Nok Name");
-    await userEvent.type(
-      screen.getByLabelText("NOK contact"),
-      "021 999 555",
-    );
-    await userEvent.type(
-      screen.getByLabelText("NOK relationship"),
-      "Daughter",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+      await userEvent.type(screen.getByLabelText("NOK name"), "Nok Name");
+      await userEvent.type(
+        screen.getByLabelText("NOK contact"),
+        "021 999 555",
+      );
+      await userEvent.type(
+        screen.getByLabelText("NOK relationship"),
+        "Daughter",
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
-    await userEvent.selectOptions(
-      screen.getByLabelText("Assigned nurse (optional)"),
-      "u1",
-    );
-    await userEvent.type(
-      screen.getByLabelText("Nurse display override (optional)"),
-      "Agency Nurse",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    await userEvent.click(screen.getByRole("button", { name: "Create resident" }));
+      await pickSelectOption("Assigned nurse (optional)", "care@example.com");
+      await userEvent.type(
+        screen.getByLabelText("Nurse display override (optional)"),
+        "Agency Nurse",
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Next" }));
+      await userEvent.click(screen.getByRole("button", { name: "Create resident" }));
 
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalled();
-    });
-    const createCall = fetchMock.mock.calls.find(
-      (args) => args[0] === "/api/homes/h1/residents",
-    );
-    expect(createCall).toBeDefined();
-    const body = JSON.parse(
-      (createCall?.[1] as { body?: string } | undefined)?.body ?? "{}",
-    );
-    expect(body.fullName).toBe("Taylor Reed");
-    expect(body.wardId).toBe("w1");
-    expect(body.nokName).toBe("Nok Name");
-    expect(body.nokContact).toBe("021 999 555");
-    expect(body.nokRelationship).toBe("Daughter");
-    expect(body.assignedNurseUserId).toBe("u1");
-    expect(body.assignedNurseDisplayOverride).toBe("Agency Nurse");
+      await waitFor(
+        () => {
+          expect(fetchMock).toHaveBeenCalled();
+        },
+        { timeout: 12_000 },
+      );
+      const createCall = fetchMock.mock.calls.find(
+        (args) => args[0] === "/api/homes/h1/residents",
+      );
+      expect(createCall).toBeDefined();
+      const body = JSON.parse(
+        (createCall?.[1] as { body?: string } | undefined)?.body ?? "{}",
+      );
+      expect(body.fullName).toBe("Taylor Reed");
+      expect(body.wardId).toBe("w1");
+      expect(body.nokName).toBe("Nok Name");
+      expect(body.nokContact).toBe("021 999 555");
+      expect(body.nokRelationship).toBe("Daughter");
+      expect(body.assignedNurseUserId).toBe("u1");
+      expect(body.assignedNurseDisplayOverride).toBe("Agency Nurse");
 
-    expect(pushMock).toHaveBeenCalledWith("/dashboard/homes/h1/residents/r1");
-  });
+      expect(pushMock).toHaveBeenCalledWith("/dashboard/homes/h1/residents/r1");
+    },
+    20_000,
+  );
+
+  it(
+    "after create, POSTs wizard bulk medications using 30a fields (no dose/frequency)",
+    async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ resident: { id: "r1" } }),
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(
+        <ResidentEditor
+          mode="create"
+          homeId="h1"
+          homeName="Home A"
+          wards={[{ id: "w1", label: "North" }]}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByLabelText("Ward")).toBeInTheDocument();
+      });
+      await pickSelectOption("Ward", "North");
+      await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+      await userEvent.type(screen.getByLabelText("Full name"), "Taylor Reed");
+      fireEvent.change(screen.getByLabelText("Date of birth"), {
+        target: { value: "1950-01-01" },
+      });
+      fireEvent.change(screen.getByLabelText("Admission date"), {
+        target: { value: "2026-04-30" },
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+      await userEvent.type(screen.getByLabelText("NOK name"), "Nok Name");
+      await userEvent.type(
+        screen.getByLabelText("NOK contact"),
+        "021 999 555",
+      );
+      await userEvent.type(
+        screen.getByLabelText("NOK relationship"),
+        "Daughter",
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+      const medLine =
+        "Metformin | 500 mg | tablet | 1 | With breakfast | - | no | -";
+      await userEvent.type(
+        screen.getByLabelText(/Medications \(optional/i),
+        medLine,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Next" }));
+      await userEvent.click(screen.getByRole("button", { name: "Create resident" }));
+
+      await waitFor(
+        () => {
+          const medCalls = fetchMock.mock.calls.filter(
+            (c) =>
+              typeof c[0] === "string" &&
+              c[0].endsWith("/residents/r1/clinical/medications") &&
+              (c[1] as { method?: string })?.method === "POST",
+          );
+          expect(medCalls.length).toBeGreaterThanOrEqual(1);
+        },
+        { timeout: 12_000 },
+      );
+      const medCall = fetchMock.mock.calls.find(
+        (c) =>
+          typeof c[0] === "string" &&
+          c[0].endsWith("/residents/r1/clinical/medications") &&
+          (c[1] as { method?: string })?.method === "POST",
+      );
+      const body = JSON.parse(
+        (medCall?.[1] as { body?: string } | undefined)?.body ?? "{}",
+      );
+      expect(body).toMatchObject({
+        medication: {
+          name: "Metformin",
+          strength: "500 mg",
+          unit: "tablet",
+        },
+        quantityPerServing: 1,
+        directions: "With breakfast",
+        prn: false,
+      });
+      expect(body).not.toHaveProperty("dose");
+      expect(body).not.toHaveProperty("frequency");
+    },
+    25_000,
+  );
 });

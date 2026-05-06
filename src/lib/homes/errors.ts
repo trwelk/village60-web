@@ -52,3 +52,11 @@ export class BillingBatchError extends Error {
     this.month = month;
   }
 }
+
+/** Domain conflict (e.g. medication order build yields no lines). */
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConflictError";
+  }
+}

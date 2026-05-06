@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import {
   homeInterestLeadSubmitBuckets,
   homeInterestLeads,
   homes,
+  wards,
 } from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/errors";
@@ -13,6 +14,8 @@ export type PublicInterestHomeOption = {
   id: string;
   name: string;
   address: string | null;
+  /** Non-archived wards: sum of `bed_count` (0 if no wards configured). */
+  configuredBeds: number;
 };
 
 /** Default: 20 submissions per IP per rolling hour (production). */
@@ -55,6 +58,7 @@ export type InterestLeadStatus = (typeof INTEREST_LEAD_STATUSES)[number];
 
 export type AdminInterestLeadListItem = {
   id: string;
+  homeId: string;
   createdAtUtcMs: number;
   updatedAtUtcMs: number;
   contactName: string;
@@ -100,6 +104,7 @@ export function listInterestLeadsForAdmin(
   return db
     .select({
       id: homeInterestLeads.id,
+      homeId: homeInterestLeads.homeId,
       createdAtUtcMs: homeInterestLeads.createdAtUtcMs,
       updatedAtUtcMs: homeInterestLeads.updatedAtUtcMs,
       contactName: homeInterestLeads.contactName,
@@ -217,7 +222,7 @@ export function createAdminInterestLead(
 }
 
 export function listPublicInterestHomes(db: AppDb): PublicInterestHomeOption[] {
-  return db
+  const homeRows = db
     .select({
       id: homes.id,
       name: homes.name,
@@ -227,6 +232,28 @@ export function listPublicInterestHomes(db: AppDb): PublicInterestHomeOption[] {
     .where(isNull(homes.archivedAtUtcMs))
     .orderBy(asc(homes.name))
     .all();
+
+  const bedAgg = db
+    .select({
+      homeId: wards.homeId,
+      total: sql<number>`ifnull(sum(${wards.bedCount}), 0)`,
+    })
+    .from(wards)
+    .innerJoin(homes, eq(wards.homeId, homes.id))
+    .where(
+      and(isNull(homes.archivedAtUtcMs), isNull(wards.archivedAtUtcMs)),
+    )
+    .groupBy(wards.homeId)
+    .all();
+
+  const bedsByHome = new Map(
+    bedAgg.map((r) => [r.homeId, Number(r.total)]),
+  );
+
+  return homeRows.map((h) => ({
+    ...h,
+    configuredBeds: bedsByHome.get(h.id) ?? 0,
+  }));
 }
 
 export function submitWebInterestLead(

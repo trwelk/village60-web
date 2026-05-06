@@ -681,6 +681,40 @@ export function listResidentMonthlyCharges(
   }));
 }
 
+/** Mirrors materialization rules in {@link payBillingMonthsForResident} for batch-pay UI totals. */
+export type ResidentMonthlyChargesListMeta = {
+  residentStatus: string;
+  wardMonthlyRatePerPersonMinor: number | null;
+};
+
+export function getResidentMonthlyChargesListMeta(
+  db: AppDb,
+  actor: SessionActor | undefined,
+  homeId: string,
+  residentId: string,
+): ResidentMonthlyChargesListMeta {
+  requireBillingAdmin(actor);
+  const resRow = getResident(db, actor, homeId, residentId);
+  if (resRow.status === "departed") {
+    return { residentStatus: "departed", wardMonthlyRatePerPersonMinor: null };
+  }
+  if (resRow.wardId == null) {
+    return { residentStatus: resRow.status, wardMonthlyRatePerPersonMinor: null };
+  }
+  const ward = db
+    .select()
+    .from(wards)
+    .where(and(eq(wards.id, resRow.wardId), eq(wards.homeId, homeId)))
+    .get();
+  if (!ward || ward.monthlyRatePerPersonMinor == null) {
+    return { residentStatus: resRow.status, wardMonthlyRatePerPersonMinor: null };
+  }
+  return {
+    residentStatus: resRow.status,
+    wardMonthlyRatePerPersonMinor: ward.monthlyRatePerPersonMinor,
+  };
+}
+
 export function createPaymentForCharge(
   db: AppDb,
   actor: SessionActor | undefined,

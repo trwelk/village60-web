@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -11,6 +12,8 @@ import { closeDbConnection, getDb } from "@/db/client";
 import {
   homes,
   medications,
+  medicationOrderLines,
+  medicationOrders,
   residentMedicationStockEvents,
   residentMedications,
   residents,
@@ -785,7 +788,7 @@ describe("medicationOrders service (34c placement + receiving)", () => {
     expect(placed.lines[0]!.receivedQty).toBe(0);
   });
 
-  it("receipt caps at remaining ordered qty; updates stock and ledger link", () => {
+  it("receipt allows manual dispensing-unit amounts; updates stock and ledger link", () => {
     const adminId = randomUUID();
     const careId = randomUUID();
     const homeId = randomUUID();
@@ -812,28 +815,16 @@ describe("medicationOrders service (34c placement + receiving)", () => {
     approveMedicationOrder(db, { userId: adminId, role: "admin" }, homeId, order.id);
     placeMedicationOrder(db, { userId: adminId, role: "admin" }, homeId, order.id);
     const lineId = lines[0]!.id;
-    const ordered = lines[0]!.orderedQty;
-
-    expect(() =>
-      receiveMedicationOrderLine(
-        db,
-        { userId: careId, role: "care" },
-        homeId,
-        order.id,
-        lineId,
-        { amount: ordered + 1 },
-      ),
-    ).toThrow(ValidationError);
-
     const afterPartial = receiveMedicationOrderLine(
       db,
       { userId: careId, role: "care" },
       homeId,
       order.id,
       lineId,
-      { amount: 3 },
+      { amount: 300 },
     );
-    expect(afterPartial.lines[0]!.receivedQty).toBe(3);
+    expect(afterPartial.lines[0]!.receivedQty).toBe(300);
+    expect(afterPartial.order.status).toBe("completed");
 
     const db2 = getDb();
     const rm = db2
@@ -841,7 +832,7 @@ describe("medicationOrders service (34c placement + receiving)", () => {
       .from(residentMedications)
       .where(eq(residentMedications.id, resMedId))
       .get()!;
-    expect(rm.currentStock).toBe(3);
+    expect(rm.currentStock).toBe(300);
 
     const ev = db2
       .select()
@@ -849,19 +840,9 @@ describe("medicationOrders service (34c placement + receiving)", () => {
       .where(eq(residentMedicationStockEvents.medicationOrderLineId, lineId))
       .get()!;
     expect(ev.eventType).toBe("delivery");
-    expect(ev.amount).toBe(3);
+    expect(ev.amount).toBe(300);
     expect(ev.residentMedicationId).toBe(resMedId);
-
-    const finished = receiveMedicationOrderLine(
-      db2,
-      { userId: careId, role: "care" },
-      homeId,
-      order.id,
-      lineId,
-      { amount: ordered - 3 },
-    );
-    expect(finished.order.status).toBe("completed");
-    expect(finished.order.completedAtUtcMs).toBeTypeOf("number");
+    expect(afterPartial.order.completedAtUtcMs).toBeTypeOf("number");
   });
 
   it("idempotent receipt key does not double-apply stock", () => {
@@ -966,7 +947,7 @@ describe("medicationOrders service (34c placement + receiving)", () => {
     ).toThrow(ValidationError);
   });
 
-  it("close line short satisfies completion with partial receipt", () => {
+  it("close line short satisfies completion", () => {
     const adminId = randomUUID();
     const careId = randomUUID();
     const homeId = randomUUID();
@@ -993,9 +974,6 @@ describe("medicationOrders service (34c placement + receiving)", () => {
     approveMedicationOrder(db, { userId: adminId, role: "admin" }, homeId, order.id);
     placeMedicationOrder(db, { userId: adminId, role: "admin" }, homeId, order.id);
     const lineId = lines[0]!.id;
-    receiveMedicationOrderLine(db, { userId: careId, role: "care" }, homeId, order.id, lineId, {
-      amount: 4,
-    });
     const closed = closeMedicationOrderLineShort(
       db,
       { userId: adminId, role: "admin" },
@@ -1207,7 +1185,7 @@ describe("medicationOrders service (35b low-stock merge rules)", () => {
     closeDbConnection();
   }
 
-  it("computes for below-min only and includes unreceived order_placed remainder", () => {
+  it("treats placed lines with receipts as satisfied for low-stock remainder", () => {
     const adminId = randomUUID();
     const careId = randomUUID();
     const homeId = randomUUID();
@@ -1237,7 +1215,7 @@ describe("medicationOrders service (35b low-stock merge rules)", () => {
     approveMedicationOrder(db, { userId: adminId, role: "admin" }, homeId, first.order.id);
     placeMedicationOrder(db, { userId: adminId, role: "admin" }, homeId, first.order.id);
 
-    // Partial receipt of 2
+    // Any posted receipt marks the placed line as operationally satisfied.
     receiveMedicationOrderLine(
       db,
       { userId: adminId, role: "admin" },
@@ -1247,18 +1225,14 @@ describe("medicationOrders service (35b low-stock merge rules)", () => {
       { amount: 2 }
     );
 
-    // Now currentStock is 5 + 2 = 7. In-flight is 5 - 2 = 3.
-    // Projected is 7 + 3 = 10.
-    // Minimum is 10. So projected is 10. Formula qty = 0.
-    // It should still throw "Order placed, arriving stock is sufficient".
-    expect(() =>
-      createOrMergeLowStockMedicationOrderForResident(
-        db,
-        { userId: adminId, role: "admin" },
-        homeId,
-        residentId,
-      ),
-    ).toThrow(ConflictError);
+    const next = createOrMergeLowStockMedicationOrderForResident(
+      db,
+      { userId: adminId, role: "admin" },
+      homeId,
+      residentId,
+    );
+    expect(next.order.id).not.toBe(first.order.id);
+    expect(next.lines[0]!.orderedQty).toBeGreaterThan(0);
   });
 
   it("applies merge rule max(existing, formula) and never auto-deletes existing lines", () => {
@@ -1322,4 +1296,202 @@ describe("medicationOrders service (35b low-stock merge rules)", () => {
     expect(third.order.status).toBe("pending");
     expect(third.lines[0]!.orderedQty).toBe(60);
   });
+});
+
+function runLowStockMergeSmokeCli(
+  dbPath: string,
+  homeId: string,
+  residentId: string,
+  adminId: string,
+): Promise<number> {
+  const tsx = path.join(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
+  const smoke = path.join(
+    process.cwd(),
+    "src",
+    "lib",
+    "medicationOrders",
+    "orderWriteConcurrencySmoke.ts",
+  );
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [tsx, smoke, dbPath, homeId, residentId, adminId, "admin", "lowStock"],
+      { cwd: process.cwd(), env: { ...process.env }, windowsHide: true },
+    );
+    let stderr = "";
+    child.stderr?.on("data", (d) => {
+      stderr += String(d);
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code !== 0 && stderr) {
+        // eslint-disable-next-line no-console
+        console.error(stderr);
+      }
+      resolve(code ?? 1);
+    });
+  });
+}
+
+describe("medicationOrders service (35c integrity + concurrent writers)", () => {
+  let dbPath: string;
+
+  beforeEach(() => {
+    dbPath = path.join(os.tmpdir(), `v60-med-ord-35c-${randomUUID()}.sqlite`);
+    process.env.DATABASE_PATH = dbPath;
+    closeDbConnection();
+    runMigrations(dbPath);
+  });
+
+  afterEach(() => {
+    closeDbConnection();
+    try {
+      fs.unlinkSync(dbPath);
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it(
+    "parallel low-stock merges do not duplicate orders or lines",
+    async () => {
+    const adminId = randomUUID();
+    const careId = randomUUID();
+    const homeId = randomUUID();
+    const residentId = randomUUID();
+    const medId = randomUUID();
+    const resMedId = randomUUID();
+    const t = Date.now();
+    const db0 = getDb();
+    db0
+      .insert(homes)
+      .values({
+        id: homeId,
+        name: "Test Home",
+        defaultCurrencyCode: "USD",
+        createdAtUtcMs: t,
+        updatedAtUtcMs: t,
+      })
+      .run();
+    db0
+      .insert(users)
+      .values({
+        id: adminId,
+        email: `adm-${adminId}@example.com`,
+        passwordHash: "x",
+        role: "admin",
+        failureTimestampsUtcMs: "[]",
+        lockedUntilUtcMs: null,
+        createdAtUtcMs: t,
+        primaryHomeId: null,
+        displayName: null,
+        phone: null,
+        avatarUrl: null,
+      })
+      .run();
+    db0
+      .insert(users)
+      .values({
+        id: careId,
+        email: `care-${careId}@example.com`,
+        passwordHash: "x",
+        role: "care",
+        failureTimestampsUtcMs: "[]",
+        lockedUntilUtcMs: null,
+        createdAtUtcMs: t,
+        primaryHomeId: homeId,
+        displayName: null,
+        phone: null,
+        avatarUrl: null,
+      })
+      .run();
+    db0
+      .insert(residents)
+      .values({
+        id: residentId,
+        homeId,
+        fullName: "Test Resident",
+        normalizedFullName: normalizeFullNameForUniqueness("Test Resident"),
+        dob: "1940-01-01",
+        admissionDate: "2020-01-01",
+        status: "active",
+        createdAtUtcMs: t,
+        updatedAtUtcMs: t,
+        wardId: null,
+        roomText: null,
+        nokName: null,
+        nokContact: null,
+        nokRelationship: null,
+        poaSameAsNok: false,
+        poaName: null,
+        poaContact: null,
+        poaRelationship: null,
+        assignedNurseUserId: null,
+        assignedNurseDisplayOverride: null,
+      })
+      .run();
+    db0
+      .insert(medications)
+      .values({
+        id: medId,
+        homeId,
+        name: "Aspirin",
+        strength: "100",
+        unit: "mg",
+        createdAtUtcMs: t,
+        updatedAtUtcMs: t,
+      })
+      .run();
+    db0
+      .insert(residentMedications)
+      .values({
+        id: resMedId,
+        residentId,
+        medicationId: medId,
+        quantityPerServing: 1,
+        servingsPerDay: 1,
+        directions: "Daily",
+        prn: false,
+        minimumInStock: 10,
+        status: "active",
+        currentStock: 5,
+        sortOrder: 0,
+        createdAtUtcMs: t,
+        updatedAtUtcMs: t,
+      })
+      .run();
+    closeDbConnection();
+
+      const runs = 8;
+      const codes = await Promise.all(
+        Array.from({ length: runs }, () =>
+          runLowStockMergeSmokeCli(dbPath, homeId, residentId, adminId),
+        ),
+      );
+      expect(codes.every((c) => c === 0)).toBe(true);
+
+      const db = getDb();
+      const editable = db
+        .select()
+        .from(medicationOrders)
+        .where(
+          and(
+            eq(medicationOrders.residentId, residentId),
+            inArray(medicationOrders.status, ["pending", "approved"]),
+          ),
+        )
+        .all();
+      expect(editable).toHaveLength(1);
+      const orderId = editable[0]!.id;
+      const lines = db
+        .select()
+        .from(medicationOrderLines)
+        .where(eq(medicationOrderLines.orderId, orderId))
+        .all();
+      const forMed = lines.filter((l) => l.residentMedicationId === resMedId);
+      expect(forMed).toHaveLength(1);
+      expect(forMed[0]!.orderedQty).toBe(25);
+    },
+    30_000,
+  );
 });

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { ResidentWithoutFee } from "@/lib/residents/service";
+import type { ResidentPublic } from "@/lib/residents/service";
 
 type Props = {
   homeId: string;
   residentId: string;
-  resident: ResidentWithoutFee;
+  resident: ResidentPublic;
 };
 
 export function PoaTab({ homeId, residentId, resident }: Props) {

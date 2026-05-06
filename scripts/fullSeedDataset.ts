@@ -9,6 +9,7 @@ import {
   homeInterestLeadSubmitBuckets,
   homeInterestLeads,
   homes,
+  medications,
   otherCharges,
   residentAllergies,
   residentConditions,
@@ -34,8 +35,11 @@ import { randomUUID } from "node:crypto";
 export type FullSeedCredentials = {
   adminEmail: string;
   adminPassword: string;
+  /** First care login (same as `careAccounts[0]` when present). */
   nurseEmail: string;
   nursePassword: string;
+  /** All care-role demo accounts (shared password unless you set per-user env later). */
+  careAccounts: { email: string; password: string; displayName: string }[];
   homesNamed: string[];
   timezoneLabel: string;
   calendarThrough: string;
@@ -125,6 +129,8 @@ type WardSeed = {
 
 type HomeSeed = {
   name: string;
+  /** Full postal-style address for enquiry copy and snapshots. */
+  address: string;
   currency: string;
   wards: WardSeed[];
 };
@@ -132,6 +138,8 @@ type HomeSeed = {
 const HOME_SEEDS: HomeSeed[] = [
   {
     name: "Maple",
+    address:
+      "42 Kauri Road, Mount Eden, Auckland 1024, New Zealand",
     currency: DEFAULT_CURRENCY_CODE,
     wards: [
       {
@@ -156,6 +164,8 @@ const HOME_SEEDS: HomeSeed[] = [
   },
   {
     name: "Harbor",
+    address:
+      "180 Marina Parade, Evans Bay, Wellington 6011, New Zealand",
     currency: DEFAULT_CURRENCY_CODE,
     wards: [
       {
@@ -180,6 +190,8 @@ const HOME_SEEDS: HomeSeed[] = [
   },
   {
     name: "Riverside",
+    address:
+      "9 Oxford Terrace, Christchurch Central 8011, New Zealand",
     currency: DEFAULT_CURRENCY_CODE,
     wards: [
       {
@@ -302,6 +314,371 @@ function pickName(i: number): string {
   return `${FIRST_NAMES[i % FIRST_NAMES.length]} ${LAST_NAMES[(i * 7) % LAST_NAMES.length]}`;
 }
 
+function nzMobileFromSlot(slot: number, salt: number): string {
+  const u = (slot * 31 + salt * 17) >>> 0;
+  const part = String(1000 + (u % 9000)).padStart(4, "0");
+  return `+64 21 555 ${part}`;
+}
+
+function avatarForDisplayName(displayName: string): string {
+  const q = encodeURIComponent(displayName.replace(/[()]/g, " ").trim());
+  return `https://ui-avatars.com/api/?name=${q}&size=128&background=0f766e&color=fff`;
+}
+
+const NOK_RELATIONSHIPS = [
+  "Child",
+  "Spouse",
+  "Grandchild",
+  "Sibling",
+  "Niece",
+  "Nephew",
+  "Friend",
+  "Legal guardian",
+] as const;
+
+/** Varied next-of-kin / POA; keeps demo records realistic in forms and exports. */
+function nokAndPoaForSlot(slot: number) {
+  const nokName = pickName(slot + 2_011);
+  const nokRelationship = NOK_RELATIONSHIPS[slot % NOK_RELATIONSHIPS.length]!;
+  const nokContact = nzMobileFromSlot(slot, 1);
+  const poaSameAsNok = slot % 3 === 0;
+  if (poaSameAsNok) {
+    return {
+      nokName,
+      nokContact,
+      nokRelationship,
+      poaSameAsNok: true,
+      poaName: null as string | null,
+      poaContact: null as string | null,
+      poaRelationship: null as string | null,
+    };
+  }
+  const poaName = pickName(slot + 4_019);
+  return {
+    nokName,
+    nokContact,
+    nokRelationship,
+    poaSameAsNok: false,
+    poaName,
+    poaContact: nzMobileFromSlot(slot, 2),
+    poaRelationship: "Court-appointed EPOA — property & personal care",
+  };
+}
+
+type InterestLeadFixture = {
+  homeIdx: number;
+  contactName: string;
+  phone: string;
+  email: string | null;
+  note: string | null;
+  source: "web" | "admin";
+  status: "new" | "contacted" | "cancelled" | "closed";
+  consentAccepted: boolean;
+  /** Older leads first: subtract days from seed timestamp. */
+  createdDaysAgo: number;
+};
+
+const INTEREST_LEAD_FIXTURES: InterestLeadFixture[] = [
+  {
+    homeIdx: 0,
+    contactName: "Michael Hurst",
+    phone: "+64 9 555 0801",
+    email: "m.hurst@example.com",
+    note: "Asked about memory-care beds; prefers ground-floor room.",
+    source: "web",
+    status: "new",
+    consentAccepted: true,
+    createdDaysAgo: 1,
+  },
+  {
+    homeIdx: 1,
+    contactName: "Priya Maharaj",
+    phone: "+64 4 555 0902",
+    email: "priya.m@gmail.com",
+    note: "Tour booked for next Thursday afternoon.",
+    source: "web",
+    status: "contacted",
+    consentAccepted: true,
+    createdDaysAgo: 4,
+  },
+  {
+    homeIdx: 2,
+    contactName: "Campbell & Sons Trustees",
+    phone: "+64 3 555 0703",
+    email: "enquiries@campbell-trust.co.nz",
+    note: "Follow up on respite block — two weeks in June.",
+    source: "admin",
+    status: "contacted",
+    consentAccepted: true,
+    createdDaysAgo: 7,
+  },
+  {
+    homeIdx: 0,
+    contactName: "Janine Foster",
+    phone: "+64 27 555 0612",
+    email: null,
+    note: "Referred by GP; daughter lives nearby.",
+    source: "admin",
+    status: "new",
+    consentAccepted: true,
+    createdDaysAgo: 0,
+  },
+  {
+    homeIdx: 1,
+    contactName: "Terry Blake",
+    phone: "+64 22 555 0538",
+    email: "tblake@outlook.co.nz",
+    note: "Cancelled — moved to Nelson.",
+    source: "web",
+    status: "cancelled",
+    consentAccepted: true,
+    createdDaysAgo: 21,
+  },
+  {
+    homeIdx: 2,
+    contactName: "Ngāi Tahu Whānui — Hāpai Oranga",
+    phone: "+64 3 555 0449",
+    email: "hapi.oranga@example.org",
+    note: "Closed: whānau chose another facility closer to kaumātua.",
+    source: "admin",
+    status: "closed",
+    consentAccepted: true,
+    createdDaysAgo: 45,
+  },
+];
+
+type ClinicalProfile = {
+  conditions: string[];
+  allergies: { allergen: string; notes: string | null }[];
+  medications: {
+    name: string;
+    strength: string;
+    unit: string;
+    quantityPerServing: number;
+    directions: string;
+    servingsPerDay: number | null;
+    minimumInStock: number | null;
+    prn: boolean;
+  }[];
+};
+
+/** Rotated across all ward-assigned residents so clinical tabs are populated app-wide. */
+const CLINICAL_PROFILES: ClinicalProfile[] = [
+  {
+    conditions: ["Hypertension", "Type 2 diabetes mellitus"],
+    allergies: [{ allergen: "Penicillin", notes: "Anaphylaxis history — avoid beta-lactams." }],
+    medications: [
+      {
+        name: "Metformin",
+        strength: "500 mg",
+        unit: "tablet",
+        quantityPerServing: 1,
+        servingsPerDay: 2,
+        directions: "Twice daily — with breakfast and evening meal.",
+        minimumInStock: null,
+        prn: false,
+      },
+      {
+        name: "Amlodipine",
+        strength: "5 mg",
+        unit: "tablet",
+        quantityPerServing: 1,
+        servingsPerDay: 1,
+        directions: "Once daily.",
+        minimumInStock: null,
+        prn: false,
+      },
+    ],
+  },
+  {
+    conditions: ["Osteoarthritis", "Vitamin D deficiency"],
+    allergies: [{ allergen: "Shellfish", notes: "Mild rash only." }],
+    medications: [
+      {
+        name: "Paracetamol",
+        strength: "1 g",
+        unit: "tablet",
+        quantityPerServing: 1,
+        servingsPerDay: 3,
+        directions: "Three times daily.",
+        minimumInStock: 20,
+        prn: false,
+      },
+    ],
+  },
+  {
+    conditions: ["Atrial fibrillation"],
+    allergies: [],
+    medications: [
+      {
+        name: "Apixaban",
+        strength: "5 mg",
+        unit: "tablet",
+        quantityPerServing: 1,
+        servingsPerDay: 2,
+        directions: "Twice daily — 12 hours apart.",
+        minimumInStock: 14,
+        prn: false,
+      },
+    ],
+  },
+  {
+    conditions: ["Dementia — Alzheimer's type"],
+    allergies: [{ allergen: "Latex", notes: null }],
+    medications: [
+      {
+        name: "Donepezil",
+        strength: "10 mg",
+        unit: "tablet",
+        quantityPerServing: 1,
+        servingsPerDay: 1,
+        directions: "Once daily at night.",
+        minimumInStock: null,
+        prn: false,
+      },
+    ],
+  },
+  {
+    conditions: ["Chronic kidney disease stage 3"],
+    allergies: [],
+    medications: [
+      {
+        name: "Furosemide",
+        strength: "40 mg",
+        unit: "tablet",
+        quantityPerServing: 1,
+        servingsPerDay: 1,
+        directions: "Morning — monitor fluid balance.",
+        minimumInStock: null,
+        prn: false,
+      },
+    ],
+  },
+  {
+    conditions: ["COPD"],
+    allergies: [{ allergen: "NSAIDs", notes: "GI bleed risk — prefer paracetamol." }],
+    medications: [
+      {
+        name: "Salbutamol inhaler",
+        strength: "100 mcg",
+        unit: "puff",
+        quantityPerServing: 2,
+        servingsPerDay: null,
+        directions: "As needed — for wheeze or shortness of breath.",
+        minimumInStock: 1,
+        prn: true,
+      },
+    ],
+  },
+  {
+    conditions: ["Heart failure (NYHA class II)", "Hypothyroidism"],
+    allergies: [{ allergen: "Sulfa drugs", notes: "Rash — document on MAR." }],
+    medications: [
+      {
+        name: "Levothyroxine",
+        strength: "75 mcg",
+        unit: "tablet",
+        quantityPerServing: 1,
+        servingsPerDay: 1,
+        directions: "Once daily — fasting, 30 min before breakfast.",
+        minimumInStock: null,
+        prn: false,
+      },
+      {
+        name: "Bisoprolol",
+        strength: "2.5 mg",
+        unit: "tablet",
+        quantityPerServing: 1,
+        servingsPerDay: 1,
+        directions: "Once daily.",
+        minimumInStock: null,
+        prn: false,
+      },
+    ],
+  },
+  {
+    conditions: ["Parkinson disease"],
+    allergies: [],
+    medications: [
+      {
+        name: "Levodopa + benserazide",
+        strength: "50 / 12.5 mg",
+        unit: "tablet",
+        quantityPerServing: 1,
+        servingsPerDay: 4,
+        directions: "Four times daily — align with meals where possible.",
+        minimumInStock: null,
+        prn: false,
+      },
+    ],
+  },
+  {
+    conditions: ["Gastro-oesophageal reflux disease"],
+    allergies: [],
+    medications: [
+      {
+        name: "Omeprazole",
+        strength: "20 mg",
+        unit: "capsule",
+        quantityPerServing: 1,
+        servingsPerDay: 1,
+        directions: "Once daily — before breakfast.",
+        minimumInStock: null,
+        prn: false,
+      },
+    ],
+  },
+  {
+    conditions: ["Previous CVA — left hemiparesis", "Epilepsy"],
+    allergies: [{ allergen: "Tramadol", notes: "Confusion at low dose." }],
+    medications: [
+      {
+        name: "Levetiracetam",
+        strength: "500 mg",
+        unit: "tablet",
+        quantityPerServing: 1,
+        servingsPerDay: 2,
+        directions: "Twice daily.",
+        minimumInStock: null,
+        prn: false,
+      },
+    ],
+  },
+  {
+    conditions: ["Rheumatoid arthritis — stable"],
+    allergies: [],
+    medications: [
+      {
+        name: "Methotrexate",
+        strength: "10 mg",
+        unit: "tablet",
+        quantityPerServing: 1,
+        servingsPerDay: null,
+        directions:
+          "Weekly on Tuesday — folic acid as prescribed Wednesday (not daily dosing).",
+        minimumInStock: null,
+        prn: false,
+      },
+    ],
+  },
+  {
+    conditions: ["Vitamin B12 deficiency", "Hearing loss — bilateral"],
+    allergies: [],
+    medications: [
+      {
+        name: "Cyanocobalamin",
+        strength: "1000 mcg",
+        unit: "injection",
+        quantityPerServing: 1,
+        servingsPerDay: null,
+        directions: "Once monthly IM — clinic mornings.",
+        minimumInStock: 2,
+        prn: false,
+      },
+    ],
+  },
+];
+
 type HomeBuilt = {
   id: string;
   wardIds: string[];
@@ -333,9 +710,39 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
   const { year, month: monthThrough, day } = zonedDateAtUtcMs(nowUtcMs, tz);
 
   const adminHash = await hashPassword(adminPassword);
-  const nurseHash = await hashPassword(nursePassword);
+  const carePasswordHash = await hashPassword(nursePassword);
   const adminId = randomUUID();
-  const nurseId = randomUUID();
+
+  const careSeedSpecs = [
+    {
+      email: nurseEmail,
+      displayName: "Sam Demo RN",
+      phone: "+64 21 555 0144",
+      primaryHi: 0,
+      extraHis: [1],
+    },
+    {
+      email: "jordan@demo.local",
+      displayName: "Jordan Fraser (EN)",
+      phone: "+64 27 555 0288",
+      primaryHi: 1,
+      extraHis: [2],
+    },
+    {
+      email: "alex@demo.local",
+      displayName: "Alex Chen (RN)",
+      phone: "+64 22 555 0361",
+      primaryHi: 2,
+      extraHis: [0],
+    },
+    {
+      email: "riley@demo.local",
+      displayName: "Riley Park (RN)",
+      phone: "+64 29 555 0402",
+      primaryHi: 0,
+      extraHis: [2],
+    },
+  ];
 
   /** UTC calendar months — aligned with analytics revenue/admissions queries. */
   const bm0 = utcBillingMonthFromMs(nowUtcMs);
@@ -345,8 +752,12 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
   const homeRows: HomeBuilt[] = [];
   /** Active residents with a ward — billing/clinical priorities use earlier rows first. */
   const activeWithWard: { id: string; wardId: string }[] = [];
+  /** Every active resident (including unassigned ward) — clinical charts only. */
+  const activeResidentIdsAll: string[] = [];
   let nameIdx = 0;
   let activeResidentSlot = 0;
+
+  let careUserIds: string[] = [];
 
   db.transaction((tx) => {
     wipeApplicationData(tx);
@@ -363,27 +774,32 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
         primaryHomeId: null,
         displayName: "Jamie Administrator",
         phone: "+64 9 555 0101",
-        avatarUrl: null,
-      })
-      .run();
-
-    tx.insert(users)
-      .values({
-        id: nurseId,
-        email: nurseEmail,
-        passwordHash: nurseHash,
-        role: "care",
-        failureTimestampsUtcMs: "[]",
-        lockedUntilUtcMs: null,
-        createdAtUtcMs: nowUtcMs,
-        primaryHomeId: null,
-        displayName: "Sam Demo RN",
-        phone: "+64 21 555 0144",
-        avatarUrl: null,
+        avatarUrl: avatarForDisplayName("Jamie Administrator"),
       })
       .run();
 
     const t = Date.now();
+    careUserIds = [];
+    for (const spec of careSeedSpecs) {
+      const uid = randomUUID();
+      careUserIds.push(uid);
+      tx.insert(users)
+        .values({
+          id: uid,
+          email: spec.email,
+          passwordHash: carePasswordHash,
+          role: "care",
+          failureTimestampsUtcMs: "[]",
+          lockedUntilUtcMs: null,
+          createdAtUtcMs: nowUtcMs,
+          primaryHomeId: null,
+          displayName: spec.displayName,
+          phone: spec.phone,
+          avatarUrl: avatarForDisplayName(spec.displayName),
+        })
+        .run();
+    }
+
     for (let hi = 0; hi < HOME_SEEDS.length; hi += 1) {
       const h = HOME_SEEDS[hi]!;
       const homeId = randomUUID();
@@ -392,7 +808,7 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
         .values({
           id: homeId,
           name: h.name,
-          address: null,
+          address: h.address,
           defaultCurrencyCode: h.currency,
           archivedAtUtcMs: null,
           createdAtUtcMs: t,
@@ -421,12 +837,45 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
 
     tx.update(users)
       .set({ primaryHomeId: homeRows[0]?.id ?? null })
-      .where(eq(users.id, nurseId))
+      .where(eq(users.id, adminId))
       .run();
 
-    if (homeRows[1]) {
-      tx.insert(userAdditionalHomes)
-        .values({ userId: nurseId, homeId: homeRows[1]!.id })
+    for (let i = 0; i < careSeedSpecs.length; i += 1) {
+      const spec = careSeedSpecs[i]!;
+      const uid = careUserIds[i]!;
+      tx.update(users)
+        .set({ primaryHomeId: homeRows[spec.primaryHi]?.id ?? null })
+        .where(eq(users.id, uid))
+        .run();
+      for (const hi of spec.extraHis) {
+        const hid = homeRows[hi]?.id;
+        if (hid) {
+          tx.insert(userAdditionalHomes).values({ userId: uid, homeId: hid }).run();
+        }
+      }
+    }
+
+    for (const lead of INTEREST_LEAD_FIXTURES) {
+      const hid = homeRows[lead.homeIdx]!.id;
+      const hmeta = HOME_SEEDS[lead.homeIdx]!;
+      const createdAtUtcMs = t - lead.createdDaysAgo * 86_400_000;
+      tx.insert(homeInterestLeads)
+        .values({
+          id: randomUUID(),
+          homeId: hid,
+          homeNameSnapshot: hmeta.name,
+          homeAddressSnapshot: hmeta.address,
+          contactName: lead.contactName,
+          phone: lead.phone,
+          email: lead.email,
+          note: lead.note,
+          source: lead.source,
+          consentAccepted: lead.consentAccepted,
+          status: lead.status,
+          createdByUserId: lead.source === "admin" ? adminId : null,
+          createdAtUtcMs,
+          updatedAtUtcMs: createdAtUtcMs,
+        })
         .run();
     }
 
@@ -439,15 +888,17 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
         occurredAtUtcMs: nowUtcMs - 3 * 86_400_000,
       })
       .run();
-    tx.insert(authEvents)
-      .values({
-        id: randomUUID(),
-        userId: nurseId,
-        email: nurseEmail,
-        eventType: "sign_in",
-        occurredAtUtcMs: nowUtcMs - 86_400_000,
-      })
-      .run();
+    for (let ci = 0; ci < careSeedSpecs.length; ci += 1) {
+      tx.insert(authEvents)
+        .values({
+          id: randomUUID(),
+          userId: careUserIds[ci]!,
+          email: careSeedSpecs[ci]!.email,
+          eventType: "sign_in",
+          occurredAtUtcMs: nowUtcMs - (2 + ci) * 86_400_000,
+        })
+        .run();
+    }
     tx.insert(authEvents)
       .values({
         id: randomUUID(),
@@ -469,6 +920,8 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
       const wardId =
         spec.wi === null ? null : homeRows[spec.hi]!.wardIds[spec.wi]!;
       return {
+        hi: spec.hi,
+        wi: spec.wi,
         homeId: homeRows[spec.hi]!.id,
         wardId,
         departMs,
@@ -502,6 +955,12 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
               ? dobWeekBirthday(activeResidentSlot, nowUtcMs)
               : dobMonthScatter(activeResidentSlot, nowUtcMs);
 
+          const wardLabel =
+            wardId && wi < HOME_SEEDS[hi]!.wards.length
+              ? HOME_SEEDS[hi]!.wards[wi]!.label
+              : "General";
+          const contact = nokAndPoaForSlot(activeResidentSlot + hi * 100 + k * 17);
+          const assignedNurse = careUserIds[activeResidentSlot % careUserIds.length]!;
           const id = randomUUID();
 
           tx.insert(residents)
@@ -513,17 +972,18 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
               dob,
               admissionDate,
               wardId,
-              roomText: `Room ${100 + nameIdx}`,
+              roomText: `${wardLabel} — Room ${201 + k + wi * 25 + (hi + 1) * 3}`,
               status: "active",
-              nokName: "Family contact",
-              nokContact: "+64 21 555 0100",
-              nokRelationship: "Child",
-              poaSameAsNok: false,
-              poaName: null,
-              poaContact: null,
-              poaRelationship: null,
-              assignedNurseUserId: nurseId,
-              assignedNurseDisplayOverride: null,
+              nokName: contact.nokName,
+              nokContact: contact.nokContact,
+              nokRelationship: contact.nokRelationship,
+              poaSameAsNok: contact.poaSameAsNok,
+              poaName: contact.poaName,
+              poaContact: contact.poaContact,
+              poaRelationship: contact.poaRelationship,
+              assignedNurseUserId: assignedNurse,
+              assignedNurseDisplayOverride:
+                activeResidentSlot % 19 === 0 ? "Night agency — Wellstaff Ltd" : null,
               createdAtUtcMs: t,
               updatedAtUtcMs: t,
             })
@@ -531,6 +991,7 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
           if (wardId) {
             activeWithWard.push({ id, wardId });
           }
+          activeResidentIdsAll.push(id);
           activeResidentSlot += 1;
         }
       }
@@ -538,9 +999,18 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
 
     for (const d of departedForCensus) {
       const fullName = pickName(nameIdx);
+      const departedSlot = nameIdx + 8_000;
+      const contact = nokAndPoaForSlot(departedSlot);
       nameIdx += 1;
       const dob = iso(1941 + (nameIdx % 15), 4, 10 + (nameIdx % 15));
       const id = randomUUID();
+      const wardLabel =
+        d.wi === null ? "Admissions holding" : HOME_SEEDS[d.hi]!.wards[d.wi]!.label;
+      const roomText =
+        d.wi === null
+          ? `Holding — Bed ${310 + (nameIdx % 25)}`
+          : `${wardLabel} — Room ${215 + (nameIdx % 35)}`;
+      const departedNurse = careUserIds[nameIdx % careUserIds.length]!;
       tx.insert(residents)
         .values({
           id,
@@ -550,16 +1020,16 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
           dob,
           admissionDate: d.admit,
           wardId: d.wardId,
-          roomText: null,
+          roomText,
           status: "departed",
-          nokName: "Family contact",
-          nokContact: "+64 27 555 0200",
-          nokRelationship: "Sibling",
-          poaSameAsNok: true,
-          poaName: null,
-          poaContact: null,
-          poaRelationship: null,
-          assignedNurseUserId: null,
+          nokName: contact.nokName,
+          nokContact: contact.nokContact,
+          nokRelationship: contact.nokRelationship,
+          poaSameAsNok: contact.poaSameAsNok,
+          poaName: contact.poaName,
+          poaContact: contact.poaContact,
+          poaRelationship: contact.poaRelationship,
+          assignedNurseUserId: departedNurse,
           assignedNurseDisplayOverride: null,
           createdAtUtcMs: t,
           updatedAtUtcMs: t,
@@ -574,115 +1044,25 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
         .run();
     }
 
-    const clinicalSubjects = activeWithWard.slice(0, 6);
-    const clinicalDefs: {
-      conditions: string[];
-      allergies: { allergen: string; notes: string | null }[];
-      medications: {
-        name: string;
-        dose: string;
-        frequency: string;
-        timingNotes: string | null;
-        prn: boolean;
-      }[];
-    }[] = [
-      {
-        conditions: ["Hypertension", "Type 2 diabetes mellitus"],
-        allergies: [{ allergen: "Penicillin", notes: "Anaphylaxis history — avoid beta-lactams." }],
-        medications: [
-          {
-            name: "Metformin",
-            dose: "500 mg",
-            frequency: "Twice daily",
-            timingNotes: "With breakfast and evening meal",
-            prn: false,
-          },
-          {
-            name: "Amlodipine",
-            dose: "5 mg",
-            frequency: "Once daily",
-            timingNotes: null,
-            prn: false,
-          },
-        ],
-      },
-      {
-        conditions: ["Osteoarthritis", "Vitamin D deficiency"],
-        allergies: [{ allergen: "Shellfish", notes: "Mild rash only." }],
-        medications: [
-          {
-            name: "Paracetamol",
-            dose: "1 g",
-            frequency: "Three times daily",
-            timingNotes: null,
-            prn: false,
-          },
-        ],
-      },
-      {
-        conditions: ["Atrial fibrillation"],
-        allergies: [],
-        medications: [
-          {
-            name: "Apixaban",
-            dose: "5 mg",
-            frequency: "Twice daily",
-            timingNotes: "12 hours apart",
-            prn: false,
-          },
-        ],
-      },
-      {
-        conditions: ["Dementia — Alzheimer's type"],
-        allergies: [{ allergen: "Latex", notes: null }],
-        medications: [
-          {
-            name: "Donepezil",
-            dose: "10 mg",
-            frequency: "Once daily at night",
-            timingNotes: null,
-            prn: false,
-          },
-        ],
-      },
-      {
-        conditions: ["Chronic kidney disease stage 3"],
-        allergies: [],
-        medications: [
-          {
-            name: "Furosemide",
-            dose: "40 mg",
-            frequency: "Morning",
-            timingNotes: "Monitor fluid balance",
-            prn: false,
-          },
-        ],
-      },
-      {
-        conditions: ["COPD"],
-        allergies: [{ allergen: "NSAIDs", notes: "GI bleed risk — prefer paracetamol." }],
-        medications: [
-          {
-            name: "Salbutamol inhaler",
-            dose: "100 mcg",
-            frequency: "As needed",
-            timingNotes: "For wheeze or SOB",
-            prn: true,
-          },
-        ],
-      },
-    ];
+    const medicationCatalogCache = new Map<string, string>();
 
-    let clinicalIdx = 0;
-    for (const sub of clinicalSubjects) {
-      const def = clinicalDefs[clinicalIdx]!;
-      clinicalIdx += 1;
+    for (let ci = 0; ci < activeResidentIdsAll.length; ci += 1) {
+      const residentId = activeResidentIdsAll[ci]!;
+      const resRow = tx
+        .select({ homeId: residents.homeId })
+        .from(residents)
+        .where(eq(residents.id, residentId))
+        .get();
+      if (!resRow) {
+        throw new Error(`Seed: missing resident ${residentId}`);
+      }
+      const def = CLINICAL_PROFILES[ci % CLINICAL_PROFILES.length]!;
       let sort = 0;
       for (const label of def.conditions) {
         tx.insert(residentConditions)
           .values({
             id: randomUUID(),
-            residentId: sub.id,
+            residentId,
             label,
             sortOrder: sort++,
             createdAtUtcMs: t,
@@ -695,7 +1075,7 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
         tx.insert(residentAllergies)
           .values({
             id: randomUUID(),
-            residentId: sub.id,
+            residentId,
             allergen: a.allergen,
             notes: a.notes,
             sortOrder: sort++,
@@ -706,14 +1086,35 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
       }
       sort = 0;
       for (const m of def.medications) {
+        const name = m.name.trim().replace(/\s+/g, " ");
+        const strength = m.strength.trim().replace(/\s+/g, " ");
+        const unit = m.unit.trim();
+        const cacheKey = `${resRow.homeId}\0${name}\0${strength}\0${unit}`;
+        let medicationCatalogId = medicationCatalogCache.get(cacheKey);
+        if (!medicationCatalogId) {
+          medicationCatalogId = randomUUID();
+          tx.insert(medications)
+            .values({
+              id: medicationCatalogId,
+              homeId: resRow.homeId,
+              name,
+              strength,
+              unit,
+              createdAtUtcMs: t,
+              updatedAtUtcMs: t,
+            })
+            .run();
+          medicationCatalogCache.set(cacheKey, medicationCatalogId);
+        }
         tx.insert(residentMedications)
           .values({
             id: randomUUID(),
-            residentId: sub.id,
-            name: m.name,
-            dose: m.dose,
-            frequency: m.frequency,
-            timingNotes: m.timingNotes,
+            residentId,
+            medicationId: medicationCatalogId,
+            quantityPerServing: m.quantityPerServing,
+            servingsPerDay: m.servingsPerDay,
+            directions: m.directions,
+            minimumInStock: m.minimumInStock,
             prn: m.prn,
             sortOrder: sort++,
             createdAtUtcMs: t,
@@ -754,7 +1155,7 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
         dueDate: dueDone,
         priority: "normal",
         status: "completed",
-        createdByUserId: nurseId,
+        createdByUserId: careUserIds[0]!,
         completedAtUtcMs: nowUtcMs - 9 * 86_400_000,
         createdAtUtcMs: t - 12 * 86_400_000,
         updatedAtUtcMs: t,
@@ -881,6 +1282,11 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
     adminPassword,
     nurseEmail,
     nursePassword,
+    careAccounts: careSeedSpecs.map((s) => ({
+      email: s.email,
+      password: nursePassword,
+      displayName: s.displayName,
+    })),
     homesNamed: HOME_SEEDS.map((h) => h.name),
     timezoneLabel: tz,
     calendarThrough: bm0,

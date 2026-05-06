@@ -30,12 +30,42 @@ export function isDashboardPaymentsPath(pathname: string): boolean {
   return pathname === "/dashboard/payments";
 }
 
+export function isDashboardExpenseTypesPath(pathname: string): boolean {
+  return pathname === "/dashboard/expenses/types";
+}
+
+export function isDashboardExpensesPath(pathname: string): boolean {
+  return pathname === "/dashboard/expenses";
+}
+
 export function isDashboardTasksPath(pathname: string): boolean {
   return pathname === "/dashboard/tasks";
 }
 
+export function isDashboardMedicationsPath(pathname: string): boolean {
+  return pathname === "/dashboard/medications";
+}
+
+/** Per-home medication orders hub (**34b**). */
+export function isDashboardHomeMedicationOrdersPath(pathname: string): boolean {
+  return /\/dashboard\/homes\/[^/]+\/medications\/orders$/.test(pathname);
+}
+
+/** Per-home low-stock operational view (**34d**). */
+export function isDashboardHomeMedicationLowStockPath(pathname: string): boolean {
+  return /\/dashboard\/homes\/[^/]+\/medications\/low-stock$/.test(pathname);
+}
+
+export function isDashboardResidentMedicationsPath(pathname: string): boolean {
+  return pathname === "/dashboard/resident-medications";
+}
+
 export function isDashboardAccountPath(pathname: string): boolean {
   return pathname === "/dashboard/account";
+}
+
+export function isDashboardAdminSettingsPath(pathname: string): boolean {
+  return pathname.startsWith("/dashboard/admin/settings");
 }
 
 export function isDashboardAnalyticsPath(pathname: string): boolean {

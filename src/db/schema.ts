@@ -1,7 +1,9 @@
+import { sql } from "drizzle-orm";
 import {
   index,
   integer,
   primaryKey,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
@@ -166,6 +168,11 @@ export const residents = sqliteTable(
       { onDelete: "set null" },
     ),
     assignedNurseDisplayOverride: text("assigned_nurse_display_override"),
+    /** **33a**: Single portrait; bytes under `RESIDENT_PORTRAITS_DIR`; path relative to that base. */
+    portraitStoredRelativePath: text("portrait_stored_relative_path"),
+    portraitContentType: text("portrait_content_type"),
+    portraitSizeBytes: integer("portrait_size_bytes"),
+    portraitUpdatedAtUtcMs: integer("portrait_updated_at_utc_ms"),
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
   },
@@ -291,6 +298,35 @@ export const residentAllergies = sqliteTable(
   (t) => [index("resident_allergies_resident_idx").on(t.residentId)],
 );
 
+/**
+ * Per-home medication product catalog (**31a**). Regimen lines on residents may
+ * reference rows here (`resident_medications.medication_id`, **31b**).
+ * Uniqueness: `lower(trim(name))`, `lower(trim(strength))`, `trim(unit)` per home.
+ */
+export const medications = sqliteTable(
+  "medications",
+  {
+    id: text("id").primaryKey(),
+    homeId: text("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    strength: text("strength").notNull(),
+    unit: text("unit").notNull(),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    index("medications_home_idx").on(t.homeId),
+    uniqueIndex("medications_home_name_strength_unit_uq").on(
+      t.homeId,
+      sql`lower(trim(${t.name}))`,
+      sql`lower(trim(${t.strength}))`,
+      sql`trim(${t.unit})`,
+    ),
+  ],
+);
+
 export const residentMedications = sqliteTable(
   "resident_medications",
   {
@@ -298,14 +334,231 @@ export const residentMedications = sqliteTable(
     residentId: text("resident_id")
       .notNull()
       .references(() => residents.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    dose: text("dose").notNull(),
-    frequency: text("frequency").notNull(),
-    timingNotes: text("timing_notes"),
+    medicationId: text("medication_id")
+      .notNull()
+      .references(() => medications.id, {
+        onDelete: "restrict",
+      }),
+    quantityPerServing: real("quantity_per_serving").notNull(),
+    servingsPerDay: integer("servings_per_day"),
+    directions: text("directions").notNull(),
     prn: integer("prn", { mode: "boolean" }).notNull().default(false),
+    minimumInStock: integer("minimum_in_stock"),
+    status: text("status").notNull().default("active"),
+    currentStock: real("current_stock").notNull().default(0),
     sortOrder: integer("sort_order").notNull(),
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
   },
-  (t) => [index("resident_medications_resident_idx").on(t.residentId)],
+  (t) => [
+    index("resident_medications_resident_idx").on(t.residentId),
+    uniqueIndex("resident_medications_resident_medication_uq").on(
+      t.residentId,
+      t.medicationId,
+    ),
+  ],
+);
+
+export const residentMedicationStockEvents = sqliteTable(
+  "resident_medication_stock_events",
+  {
+    id: text("id").primaryKey(),
+    residentMedicationId: text("resident_medication_id")
+      .notNull()
+      .references(() => residentMedications.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),
+    amount: real("amount").notNull(),
+    medicationOrderLineId: text("medication_order_line_id").references(
+      () => medicationOrderLines.id,
+      { onDelete: "set null" },
+    ),
+    idempotencyKey: text("idempotency_key"),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    createdByUserId: text("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => [
+    index("resident_medication_stock_events_med_idx").on(t.residentMedicationId),
+    index("resident_medication_stock_events_order_line_idx").on(t.medicationOrderLineId),
+  ],
+);
+
+/**
+ * Global catalog for home operating expenses (29a). Names are immutable after
+ * insert (app-enforced). Case-insensitive uniqueness on trim(name).
+ */
+export const expenseTypes = sqliteTable(
+  "expense_types",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    createdByUserId: text("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => [
+    uniqueIndex("expense_types_name_ci_uq").on(sql`lower(trim(${t.name}))`),
+  ],
+);
+
+/**
+ * Per-home operating expenses (29b). Amounts are in the home’s
+ * `default_currency_code` as minor units. Date-only fields are ISO
+ * `YYYY-MM-DD` (UTC calendar for defaults; no TZ conversion on storage).
+ */
+export const homeExpenses = sqliteTable(
+  "home_expenses",
+  {
+    id: text("id").primaryKey(),
+    homeId: text("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "restrict" }),
+    expenseTypeId: text("expense_type_id")
+      .notNull()
+      .references(() => expenseTypes.id, { onDelete: "restrict" }),
+    amountMinor: integer("amount_minor").notNull(),
+    incurredOn: text("incurred_on").notNull(),
+    paidOn: text("paid_on"),
+    vendor: text("vendor"),
+    invoiceReference: text("invoice_reference"),
+    note: text("note"),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+    createdByUserId: text("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: text("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => [
+    index("home_expenses_home_incurred_idx").on(t.homeId, t.incurredOn),
+    index("home_expenses_type_idx").on(t.expenseTypeId),
+  ],
+);
+
+/**
+ * Receipt files for home expenses (**29c**). Bytes live on disk under
+ * `EXPENSE_ATTACHMENTS_DIR`; `stored_relative_path` is relative to that base.
+ * Rows CASCADE-delete when the parent **`home_expenses`** row is removed.
+ */
+export const homeExpenseAttachments = sqliteTable(
+  "home_expense_attachments",
+  {
+    id: text("id").primaryKey(),
+    homeExpenseId: text("home_expense_id")
+      .notNull()
+      .references(() => homeExpenses.id, { onDelete: "cascade" }),
+    originalFilename: text("original_filename").notNull(),
+    storedRelativePath: text("stored_relative_path").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    createdByUserId: text("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => [
+    index("home_expense_attachments_expense_idx").on(t.homeExpenseId),
+  ],
+);
+
+/**
+ * Global key/value settings (**34a**). Integer values only in v1; extend as needed.
+ */
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  valueInt: integer("value_int").notNull(),
+  updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+});
+
+/**
+ * Resident medication order (34b, 34c). At most one row per resident with
+ * `status` in `pending` | `approved` | `order_placed` (partial unique index).
+ */
+export const medicationOrders = sqliteTable(
+  "medication_orders",
+  {
+    id: text("id").primaryKey(),
+    homeId: text("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    residentId: text("resident_id")
+      .notNull()
+      .references(() => residents.id, { onDelete: "cascade" }),
+    /** `pending` | `approved` | `order_placed` | `completed` | `rejected` | `cancelled` — app-enforced. */
+    status: text("status").notNull(),
+    createdByUserId: text("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    approvedByUserId: text("approved_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    rejectedByUserId: text("rejected_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    cancelledByUserId: text("cancelled_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    orderPlacedByUserId: text("order_placed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    approvedAtUtcMs: integer("approved_at_utc_ms"),
+    rejectedAtUtcMs: integer("rejected_at_utc_ms"),
+    cancelledAtUtcMs: integer("cancelled_at_utc_ms"),
+    orderPlacedAtUtcMs: integer("order_placed_at_utc_ms"),
+    completedAtUtcMs: integer("completed_at_utc_ms"),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    index("medication_orders_home_status_idx").on(t.homeId, t.status),
+    uniqueIndex("medication_orders_resident_active_uq")
+      .on(t.residentId)
+      .where(sql`${t.status} in ('pending', 'approved', 'order_placed')`),
+  ],
+);
+
+export const medicationOrderLines = sqliteTable(
+  "medication_order_lines",
+  {
+    id: text("id").primaryKey(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => medicationOrders.id, { onDelete: "cascade" }),
+    residentMedicationId: text("resident_medication_id")
+      .notNull()
+      .references(() => residentMedications.id, { onDelete: "cascade" }),
+    /**
+     * Human-entered package/container count at order placement time
+     * (for example: 2).
+     */
+    orderedQty: integer("ordered_qty").notNull(),
+    /**
+     * Human-entered package/container label (for example: bottle, box).
+     * Receiving is intentionally decoupled from this label.
+     */
+    orderUnitLabel: text("order_unit_label"),
+    /**
+     * Total dispensing-unit amount received so far for this line
+     * (for example: 300 ml entered manually at receiving).
+     */
+    receivedQty: integer("received_qty").notNull().default(0),
+    closedShortAtUtcMs: integer("closed_short_at_utc_ms"),
+    closedShortReason: text("closed_short_reason"),
+    closedShortByUserId: text("closed_short_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    uniqueIndex("medication_order_lines_order_res_med_uq").on(
+      t.orderId,
+      t.residentMedicationId,
+    ),
+    index("medication_order_lines_order_idx").on(t.orderId),
+  ],
 );

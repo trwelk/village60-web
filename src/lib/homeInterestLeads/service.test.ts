@@ -169,6 +169,7 @@ describe("home interest leads — public submit", () => {
     const list = listPublicInterestHomes(db);
     expect(list.map((h) => h.id)).toEqual([active.id]);
     expect(list[0]!.name).toBe("Active Villa");
+    expect(list[0]!.configuredBeds).toBe(0);
   });
 });
 
@@ -244,6 +245,8 @@ describe("home interest leads — admin dashboard", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]!.contactName).toBe("B");
     expect(rows[1]!.contactName).toBe("A");
+    expect(rows[0]!.homeId).toBe(home.id);
+    expect(rows[1]!.homeId).toBe(home.id);
   });
 
   it("updates status and bumps updated_at for admin", () => {

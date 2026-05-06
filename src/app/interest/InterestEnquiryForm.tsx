@@ -1,5 +1,6 @@
 "use client";
 
+import { VillageSelect } from "@/components/VillageSelect";
 import type { PublicInterestHomeOption } from "@/lib/homeInterestLeads/service";
 import { useState } from "react";
 
@@ -30,6 +31,10 @@ export function InterestEnquiryForm({ homes }: Props) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!homeId.trim()) {
+      setError("Please select a home.");
+      return;
+    }
     setPending(true);
     try {
       const res = await fetch("/api/interest/leads", {
@@ -120,21 +125,14 @@ export function InterestEnquiryForm({ homes }: Props) {
         <div className="flex flex-col gap-4">
           <label className="group flex flex-col gap-2 text-sm font-semibold text-[var(--text-secondary)]">
             Home
-            <select
-              className="village-input px-4 py-2.5 font-sans text-base"
+            <VillageSelect
+              className="w-full font-sans [&_.village-select-trigger]:px-4 [&_.village-select-trigger]:py-2.5 [&_.village-select-trigger]:text-base"
               value={homeId}
-              onChange={(e) => setHomeId(e.target.value)}
-              required
-            >
-              <option value="" disabled>
-                Select a home
-              </option>
-              {homes.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.name}
-                </option>
-              ))}
-            </select>
+              onChange={setHomeId}
+              placeholder="Select a home"
+              ariaRequired
+              options={homes.map((h) => ({ value: h.id, label: h.name }))}
+            />
           </label>
 
           <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_52%,transparent)] px-4 py-3 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_80%,transparent)]">

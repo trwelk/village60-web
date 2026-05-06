@@ -1,17 +1,24 @@
 "use client";
 
+import { VillageSelect } from "@/components/VillageSelect";
 import {
   INTEREST_LEAD_STATUSES,
   type AdminInterestLeadListItem,
   type PublicInterestHomeOption,
 } from "@/lib/homeInterestLeads/service";
+import {
+  buildLeadGrowthSnapshot,
+  INTEREST_LEAD_STATUS_LABELS,
+} from "@/lib/homeInterestLeads/growthMetrics";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { LeadsFunnelBoard } from "./LeadsFunnelBoard";
 
 type LeadsAdminUIProps = {
   initialLeads: AdminInterestLeadListItem[];
   homes: PublicInterestHomeOption[];
+  residentCountByHomeId: Record<string, number>;
 };
 
 const submittedFmt = new Intl.DateTimeFormat("en-NZ", {
@@ -26,7 +33,10 @@ const MODAL_PRIMARY_BTN_CLASS =
 const MODAL_CLOSE_BTN_CLASS =
   "rounded-lg border border-transparent px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)] sm:py-2.5";
 
-const LEAD_CREATE_SELECT_CLASS = "village-select w-full min-w-0";
+const LEAD_STATUS_SELECT_OPTIONS = INTEREST_LEAD_STATUSES.map((s) => ({
+  value: s,
+  label: INTEREST_LEAD_STATUS_LABELS[s],
+}));
 
 async function parseError(res: Response): Promise<string> {
   try {
@@ -45,10 +55,21 @@ async function parseError(res: Response): Promise<string> {
   return "Request failed.";
 }
 
-export function LeadsAdminUI({ initialLeads, homes }: LeadsAdminUIProps) {
+export function LeadsAdminUI({
+  initialLeads,
+  homes,
+  residentCountByHomeId,
+}: LeadsAdminUIProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [statusSavingId, setStatusSavingId] = useState<string | null>(null);
+  const [view, setView] = useState<"pipeline" | "table">("pipeline");
+
+  const snapshot = useMemo(
+    () =>
+      buildLeadGrowthSnapshot(initialLeads, homes, residentCountByHomeId),
+    [initialLeads, homes, residentCountByHomeId],
+  );
 
   const [createHomeId, setCreateHomeId] = useState("");
   const [createName, setCreateName] = useState("");
@@ -81,28 +102,35 @@ export function LeadsAdminUI({ initialLeads, homes }: LeadsAdminUIProps) {
     };
   }, [createModalOpen, closeCreateLeadModal]);
 
-  async function onStatusChange(leadId: string, status: string) {
-    setStatusSavingId(leadId);
-    setError(null);
-    try {
-      const res = await fetch(`/api/dashboard/interest-leads/${leadId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) {
-        setError(await parseError(res));
-        return;
+  const onStatusChange = useCallback(
+    async (leadId: string, status: string) => {
+      setStatusSavingId(leadId);
+      setError(null);
+      try {
+        const res = await fetch(`/api/dashboard/interest-leads/${leadId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        if (!res.ok) {
+          setError(await parseError(res));
+          return;
+        }
+        router.refresh();
+      } finally {
+        setStatusSavingId(null);
       }
-      router.refresh();
-    } finally {
-      setStatusSavingId(null);
-    }
-  }
+    },
+    [router],
+  );
 
   async function onCreateLead(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!createHomeId.trim()) {
+      setError("Select a home.");
+      return;
+    }
     setCreatePending(true);
     try {
       const res = await fetch("/api/dashboard/interest-leads", {
@@ -140,8 +168,10 @@ export function LeadsAdminUI({ initialLeads, homes }: LeadsAdminUIProps) {
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-ink/70">
           Triage enquiries from the public site or add phone and walk-in
-          contacts. Only status can be changed on existing rows; contact
-          details and home snapshots stay as recorded.
+          contacts. Use the pipeline to move stages; metrics compare open
+          enquiries to configured capacity by site. Only status can be changed
+          on existing rows; contact details and home snapshots stay as
+          recorded.
         </p>
       </header>
 
@@ -150,82 +180,114 @@ export function LeadsAdminUI({ initialLeads, homes }: LeadsAdminUIProps) {
       ) : null}
 
       <section className="village-card p-6 sm:p-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="village-section-title mb-0">All leads</h2>
-          <button
-            type="button"
-            className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
-            onClick={openCreateLeadModal}
-          >
-            Create lead
-          </button>
+        <h2 className="village-section-title">Growth snapshot</h2>
+        <p className="mt-2 max-w-3xl text-sm text-ink/70">
+          Active pipeline counts new plus contacted enquiries. Win rate compares
+          completed leads to all closed outcomes—use alongside occupancy when
+          talking revenue and fill.
+        </p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-[color-mix(in_srgb,var(--line-subtle)_74%,transparent)] bg-[color-mix(in_srgb,var(--bg-elevated)_62%,transparent)] px-4 py-3">
+            <span className="village-field-label block">Active pipeline</span>
+            <span className="mt-1 block font-display text-2xl tabular-nums text-[var(--text-primary)]">
+              {snapshot.pipelineTotal}
+            </span>
+            <span className="mt-1 block text-xs text-ink/58">
+              {snapshot.countsByStatus.new} new ·{" "}
+              {snapshot.countsByStatus.contacted} contacted
+            </span>
+          </div>
+          <div className="rounded-2xl border border-[color-mix(in_srgb,var(--line-subtle)_74%,transparent)] bg-[color-mix(in_srgb,var(--bg-elevated)_62%,transparent)] px-4 py-3">
+            <span className="village-field-label block">Completed</span>
+            <span className="mt-1 block font-display text-2xl tabular-nums text-[var(--text-primary)]">
+              {snapshot.closedWon}
+            </span>
+            <span className="mt-1 block text-xs text-ink/58">
+              Finalized or won enquiries
+            </span>
+          </div>
+          <div className="rounded-2xl border border-[color-mix(in_srgb,var(--line-subtle)_74%,transparent)] bg-[color-mix(in_srgb,var(--bg-elevated)_62%,transparent)] px-4 py-3">
+            <span className="village-field-label block">Disqualified</span>
+            <span className="mt-1 block font-display text-2xl tabular-nums text-[var(--text-primary)]">
+              {snapshot.cancelledLost}
+            </span>
+            <span className="mt-1 block text-xs text-ink/58">
+              Won&apos;t proceed
+            </span>
+          </div>
+          <div className="rounded-2xl border border-[color-mix(in_srgb,var(--line-subtle)_74%,transparent)] bg-[color-mix(in_srgb,var(--bg-elevated)_62%,transparent)] px-4 py-3">
+            <span className="village-field-label block">Win rate</span>
+            <span className="mt-1 block font-display text-2xl tabular-nums text-[var(--text-primary)]">
+              {snapshot.winRatePercent == null
+                ? "—"
+                : `${snapshot.winRatePercent}%`}
+            </span>
+            <span className="mt-1 block text-xs text-ink/58">
+              Completed ÷ (completed + disqualified)
+            </span>
+          </div>
         </div>
-        <div className="village-table-wrap mt-5">
+
+        <h3 className="mt-10 text-sm font-semibold uppercase tracking-wide text-ink/55">
+          By site
+        </h3>
+        <div className="village-table-wrap mt-3">
           <table className="village-table">
             <thead className="village-thead">
               <tr>
-                <th className="village-th">Submitted</th>
-                <th className="village-th">Name</th>
-                <th className="village-th">Phone</th>
-                <th className="village-th">Email</th>
                 <th className="village-th">Home</th>
-                <th className="village-th">Note</th>
-                <th className="village-th">Status</th>
+                <th className="village-th">Residents / beds</th>
+                <th className="village-th">Spare capacity</th>
+                <th className="village-th">Open pipeline</th>
               </tr>
             </thead>
             <tbody className="village-tbody">
-              {initialLeads.length === 0 ? (
+              {snapshot.homeRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="village-td-muted py-10 text-center">
-                    No leads yet.
+                  <td
+                    colSpan={4}
+                    className="village-td-muted py-10 text-center"
+                  >
+                    No active homes in the public catalogue.
                   </td>
                 </tr>
               ) : (
-                initialLeads.map((row) => (
-                  <tr key={row.id}>
-                    <td className="village-td-muted whitespace-nowrap text-sm">
-                      {submittedFmt.format(new Date(row.createdAtUtcMs))}
-                    </td>
-                    <td className="village-td font-medium">{row.contactName}</td>
-                    <td className="village-td-muted">{row.phone}</td>
-                    <td className="village-td-muted">
-                      {row.email ?? (
-                        <span className="text-ink/45">—</span>
+                snapshot.homeRows.map((row) => (
+                  <tr key={row.homeId}>
+                    <td className="village-td font-medium">{row.homeName}</td>
+                    <td className="village-td-muted tabular-nums text-sm">
+                      {row.configuredBeds > 0 ? (
+                        <>
+                          {row.residentCount} / {row.configuredBeds}
+                        </>
+                      ) : (
+                        <span title="No ward beds configured">
+                          {row.residentCount}{" "}
+                          <span className="text-ink/45">· no bed cap</span>
+                        </span>
                       )}
                     </td>
-                    <td className="village-td-muted">
-                      <span className="font-medium text-ink">
-                        {row.homeNameSnapshot}
-                      </span>
-                      {row.homeAddressSnapshot ? (
-                        <span className="mt-1 block text-xs text-ink/55">
-                          {row.homeAddressSnapshot}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="village-td-muted max-w-[14rem] text-sm">
-                      {row.note ? (
-                        <span className="line-clamp-3">{row.note}</span>
+                    <td className="village-td-muted tabular-nums text-sm">
+                      {row.configuredBeds > 0 ? (
+                        row.spareBeds > 0 ? (
+                          `${row.spareBeds} beds`
+                        ) : (
+                          <span className="font-medium text-terracotta">
+                            At capacity
+                          </span>
+                        )
                       ) : (
                         <span className="text-ink/45">—</span>
                       )}
                     </td>
-                    <td className="village-td align-top">
-                      <select
-                        className="village-input max-w-[11rem] py-1.5 text-sm"
-                        value={row.status}
-                        disabled={statusSavingId === row.id}
-                        aria-label={`Status for ${row.contactName}`}
-                        onChange={(e) =>
-                          onStatusChange(row.id, e.target.value)
-                        }
-                      >
-                        {INTEREST_LEAD_STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                    <td className="village-td-muted tabular-nums text-sm">
+                      {row.openPipelineCount > 0 ? (
+                        <span className="font-semibold text-[var(--text-primary)]">
+                          {row.openPipelineCount}
+                        </span>
+                      ) : (
+                        <span className="text-ink/45">0</span>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -233,6 +295,136 @@ export function LeadsAdminUI({ initialLeads, homes }: LeadsAdminUIProps) {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="village-card p-6 sm:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="village-section-title mb-0">All leads</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className="inline-flex rounded-full border border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] bg-[color-mix(in_srgb,var(--bg-muted)_40%,transparent)] p-0.5"
+              role="group"
+              aria-label="Lead list view"
+            >
+              <button
+                type="button"
+                className={[
+                  "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                  view === "pipeline"
+                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                ].join(" ")}
+                onClick={() => setView("pipeline")}
+              >
+                Pipeline
+              </button>
+              <button
+                type="button"
+                className={[
+                  "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                  view === "table"
+                    ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] shadow-sm"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                ].join(" ")}
+                onClick={() => setView("table")}
+              >
+                Table
+              </button>
+            </div>
+            <button
+              type="button"
+              className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
+              onClick={openCreateLeadModal}
+            >
+              Create lead
+            </button>
+          </div>
+        </div>
+        <p className="mt-2 text-sm text-ink/70">
+          {view === "pipeline"
+            ? "Drag cards between columns or use the status control on each card. Table view keeps a full scan of every field."
+            : "Newest enquiries first."}
+        </p>
+        {view === "pipeline" ? (
+          <div className="mt-5">
+            <LeadsFunnelBoard
+              leads={initialLeads}
+              submittedFmt={submittedFmt}
+              statusSavingId={statusSavingId}
+              onStatusChange={onStatusChange}
+            />
+          </div>
+        ) : (
+          <div className="village-table-wrap mt-5">
+            <table className="village-table">
+              <thead className="village-thead">
+                <tr>
+                  <th className="village-th">Submitted</th>
+                  <th className="village-th">Name</th>
+                  <th className="village-th">Phone</th>
+                  <th className="village-th">Email</th>
+                  <th className="village-th">Home</th>
+                  <th className="village-th">Note</th>
+                  <th className="village-th">Status</th>
+                </tr>
+              </thead>
+              <tbody className="village-tbody">
+                {initialLeads.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="village-td-muted py-10 text-center"
+                    >
+                      No leads yet.
+                    </td>
+                  </tr>
+                ) : (
+                  initialLeads.map((row) => (
+                    <tr key={row.id}>
+                      <td className="village-td-muted whitespace-nowrap text-sm">
+                        {submittedFmt.format(new Date(row.createdAtUtcMs))}
+                      </td>
+                      <td className="village-td font-medium">
+                        {row.contactName}
+                      </td>
+                      <td className="village-td-muted">{row.phone}</td>
+                      <td className="village-td-muted">
+                        {row.email ?? <span className="text-ink/45">—</span>}
+                      </td>
+                      <td className="village-td-muted">
+                        <span className="font-medium text-ink">
+                          {row.homeNameSnapshot}
+                        </span>
+                        {row.homeAddressSnapshot ? (
+                          <span className="mt-1 block text-xs text-ink/55">
+                            {row.homeAddressSnapshot}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="village-td-muted max-w-[14rem] text-sm">
+                        {row.note ? (
+                          <span className="line-clamp-3">{row.note}</span>
+                        ) : (
+                          <span className="text-ink/45">—</span>
+                        )}
+                      </td>
+                      <td className="village-td align-top">
+                        <VillageSelect
+                          className="max-w-[11rem] [&_.village-select-trigger]:min-h-0 [&_.village-select-trigger]:py-1.5 [&_.village-select-trigger]:text-sm"
+                          value={row.status}
+                          disabled={statusSavingId === row.id}
+                          ariaLabel={`Status for ${row.contactName}`}
+                          onChange={(v) => onStatusChange(row.id, v)}
+                          options={LEAD_STATUS_SELECT_OPTIONS}
+                        />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {createModalOpen
@@ -321,22 +513,18 @@ export function LeadsAdminUI({ initialLeads, homes }: LeadsAdminUIProps) {
                             >
                               Home
                             </label>
-                            <select
+                            <VillageSelect
                               id="lead-create-home"
-                              className={LEAD_CREATE_SELECT_CLASS}
+                              className="w-full min-w-0"
                               value={createHomeId}
-                              onChange={(e) => setCreateHomeId(e.target.value)}
-                              required
-                            >
-                              <option value="" disabled>
-                                Select a home
-                              </option>
-                              {homes.map((h) => (
-                                <option key={h.id} value={h.id}>
-                                  {h.name}
-                                </option>
-                              ))}
-                            </select>
+                              onChange={setCreateHomeId}
+                              placeholder="Select a home"
+                              ariaRequired
+                              options={homes.map((h) => ({
+                                value: h.id,
+                                label: h.name,
+                              }))}
+                            />
                           </div>
                           <div className="flex flex-col gap-2">
                             <label

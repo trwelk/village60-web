@@ -30,8 +30,12 @@ describe("resolveActiveTab", () => {
     expect(resolveActiveTab("payment", "admin")).toBe("nok");
   });
 
+  it("defaults to nok for medications tab param (profile uses dedicated medications page)", () => {
+    expect(resolveActiveTab("medications", "admin")).toBe("nok");
+    expect(resolveActiveTab("medications", "care")).toBe("nok");
+  });
+
   it("returns the tab when a valid param is given", () => {
-    expect(resolveActiveTab("medications", "admin")).toBe("medications");
     expect(resolveActiveTab("conditions", "care")).toBe("conditions");
     expect(resolveActiveTab("allergies", "admin")).toBe("allergies");
     expect(resolveActiveTab("poa", "care")).toBe("poa");

@@ -7,6 +7,7 @@ import type {
   TaskListItem,
   TaskPriority,
 } from "@/lib/tasks/service";
+import { VillageSelect } from "@/components/VillageSelect";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -79,7 +80,10 @@ function dueLabel(dueDate: string | null): string {
 }
 
 const inputClass = "village-input w-full";
-const selectClass = "village-select w-full";
+const TASK_PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
+  { value: "normal", label: "Normal" },
+  { value: "urgent", label: "Urgent" },
+];
 const taskCardClass =
   "group relative overflow-hidden rounded-[1.75rem] border border-pine/12 bg-cream/92 p-5 shadow-[0_18px_52px_-36px_rgba(12,24,20,0.45)] transition duration-200 hover:-translate-y-0.5 hover:border-pine/20 hover:shadow-[0_24px_64px_-38px_rgba(12,24,20,0.55)] motion-reduce:transform-none sm:p-6";
 
@@ -299,56 +303,54 @@ export function TasksSection({
             <label htmlFor="inbox-status" className="village-label">
               Status
             </label>
-            <select
+            <VillageSelect
               id="inbox-status"
-              className={selectClass}
+              className="w-full"
               value={query.status}
-              onChange={(e) => {
-                const v = e.target.value;
+              onChange={(v) => {
                 if (v !== "open" && v !== "completed") {
                   return;
                 }
                 navigateInbox({ ...query, status: v });
               }}
-            >
-              <option value="open">Open</option>
-              <option value="completed">Completed (manual only)</option>
-            </select>
+              options={[
+                { value: "open", label: "Open" },
+                { value: "completed", label: "Completed (manual only)" },
+              ]}
+            />
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <label htmlFor="inbox-home" className="village-label">
               Home
             </label>
-            <select
+            <VillageSelect
               id="inbox-home"
-              className={selectClass}
+              className="w-full"
               value={query.homeId ?? ""}
-              onChange={(e) => {
-                const v = e.target.value;
+              onChange={(v) => {
                 navigateInbox({
                   ...query,
                   homeId: v === "" ? null : v,
                 });
               }}
-            >
-              <option value="">All accessible homes</option>
-              {homes.map((home) => (
-                <option key={home.id} value={home.id}>
-                  {home.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "All accessible homes" },
+                ...homes.map((home) => ({
+                  value: home.id,
+                  label: home.name,
+                })),
+              ]}
+            />
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
             <label htmlFor="inbox-type" className="village-label">
               Type
             </label>
-            <select
+            <VillageSelect
               id="inbox-type"
-              className={selectClass}
+              className="w-full"
               value={query.inboxType}
-              onChange={(e) => {
-                const v = e.target.value;
+              onChange={(v) => {
                 if (
                   v === "all" ||
                   v === "manual" ||
@@ -361,12 +363,13 @@ export function TasksSection({
                   });
                 }
               }}
-            >
-              <option value="all">All</option>
-              <option value="manual">Manual tasks</option>
-              <option value="payment_overdue">Payment overdue</option>
-              <option value="birthday">Birthdays</option>
-            </select>
+              options={[
+                { value: "all", label: "All" },
+                { value: "manual", label: "Manual tasks" },
+                { value: "payment_overdue", label: "Payment overdue" },
+                { value: "birthday", label: "Birthdays" },
+              ]}
+            />
           </div>
         </div>
         </div>
@@ -470,23 +473,21 @@ export function TasksSection({
                       <label className="village-label" htmlFor={`task-edit-home-${task.id}`}>
                         Home
                       </label>
-                      <select
+                      <VillageSelect
                         id={`task-edit-home-${task.id}`}
-                        className={selectClass}
+                        className="w-full"
                         value={editDraft.homeId}
-                        onChange={(e) =>
+                        onChange={(v) =>
                           setEditDraft((draft) => ({
                             ...draft,
-                            homeId: e.target.value,
+                            homeId: v,
                           }))
                         }
-                      >
-                        {homes.map((home) => (
-                          <option key={home.id} value={home.id}>
-                            {home.name}
-                          </option>
-                        ))}
-                      </select>
+                        options={homes.map((home) => ({
+                          value: home.id,
+                          label: home.name,
+                        }))}
+                      />
                     </div>
                     <div className="grid gap-4 md:grid-cols-[1fr_11rem_9rem]">
                       <input
@@ -512,20 +513,18 @@ export function TasksSection({
                           }))
                         }
                       />
-                      <select
-                        className={selectClass}
-                        aria-label="Edit task priority"
+                      <VillageSelect
+                        ariaLabel="Edit task priority"
+                        className="w-full"
                         value={editDraft.priority}
-                        onChange={(e) =>
+                        onChange={(v) =>
                           setEditDraft((draft) => ({
                             ...draft,
-                            priority: e.target.value as TaskPriority,
+                            priority: v as TaskPriority,
                           }))
                         }
-                      >
-                        <option value="normal">Normal</option>
-                        <option value="urgent">Urgent</option>
-                      </select>
+                        options={TASK_PRIORITY_OPTIONS}
+                      />
                     </div>
                     <textarea
                       className={`${inputClass} min-h-28 resize-y lg:col-start-2`}
@@ -675,23 +674,21 @@ export function TasksSection({
                         <label htmlFor="task-home" className="village-label">
                           Home
                         </label>
-                        <select
+                        <VillageSelect
                           id="task-home"
-                          className={selectClass}
+                          className="w-full"
                           value={createDraft.homeId}
-                          onChange={(e) =>
+                          onChange={(v) =>
                             setCreateDraft((draft) => ({
                               ...draft,
-                              homeId: e.target.value,
+                              homeId: v,
                             }))
                           }
-                        >
-                          {homes.map((home) => (
-                            <option key={home.id} value={home.id}>
-                              {home.name}
-                            </option>
-                          ))}
-                        </select>
+                          options={homes.map((home) => ({
+                            value: home.id,
+                            label: home.name,
+                          }))}
+                        />
                       </div>
                       <div className="grid gap-4 md:grid-cols-[1fr_11rem_9rem]">
                         <div className="flex flex-col gap-2">
@@ -732,20 +729,18 @@ export function TasksSection({
                           <label htmlFor="task-priority" className="village-label">
                             Priority
                           </label>
-                          <select
+                          <VillageSelect
                             id="task-priority"
-                            className={selectClass}
+                            className="w-full"
                             value={createDraft.priority}
-                            onChange={(e) =>
+                            onChange={(v) =>
                               setCreateDraft((draft) => ({
                                 ...draft,
-                                priority: e.target.value as TaskPriority,
+                                priority: v as TaskPriority,
                               }))
                             }
-                          >
-                            <option value="normal">Normal</option>
-                            <option value="urgent">Urgent</option>
-                          </select>
+                            options={TASK_PRIORITY_OPTIONS}
+                          />
                         </div>
                       </div>
                       <div className="lg:col-start-2">

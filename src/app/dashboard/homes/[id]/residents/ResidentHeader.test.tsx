@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResidentWithoutFee } from "@/lib/residents/service";
 import { ResidentHeader } from "./ResidentHeader";
 
+const routerState = vi.hoisted(() => ({ refresh: vi.fn() }));
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => routerState,
 }));
 
 afterEach(cleanup);
@@ -32,6 +34,8 @@ const BASE_RESIDENT: ResidentWithoutFee = {
   poaRelationship: null,
   assignedNurseUserId: null,
   assignedNurseDisplayOverride: null,
+  hasPortrait: false,
+  portraitUpdatedAtUtcMs: null,
   createdAtUtcMs: 0,
   updatedAtUtcMs: 0,
 };
@@ -40,6 +44,7 @@ const WARDS = [{ id: "w1", label: "Ward A" }];
 
 describe("ResidentHeader", () => {
   beforeEach(() => {
+    routerState.refresh.mockReset();
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -51,6 +56,201 @@ describe("ResidentHeader", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("shows portrait image in read mode when hasPortrait is true", () => {
+    render(
+      <ResidentHeader
+        homeId="h1"
+        resident={{
+          ...BASE_RESIDENT,
+          hasPortrait: true,
+          portraitUpdatedAtUtcMs: 1_700_000_000_000,
+        }}
+        wards={WARDS}
+      />,
+    );
+    const img = screen.getByRole("img", { name: /^portrait of jane doe$/i });
+    expect(img.getAttribute("src")).toContain(
+      "/api/homes/h1/residents/r1/photo?v=1700000000000",
+    );
+  });
+
+  it("shows portrait placeholder in read mode when hasPortrait is false", () => {
+    render(
+      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+    );
+    expect(screen.getByLabelText(/no portrait/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: /^portrait of jane doe$/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not show portrait file input in read-only mode", () => {
+    render(
+      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+    );
+    expect(screen.queryByTestId("resident-portrait-file")).not.toBeInTheDocument();
+  });
+
+  it("shows portrait file input in edit mode for an active resident", async () => {
+    render(
+      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /edit/i }));
+    expect(screen.getByTestId("resident-portrait-file")).toBeInTheDocument();
+  });
+
+  it("disables Remove portrait when there is no portrait", async () => {
+    render(
+      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /edit/i }));
+    expect(screen.getByRole("button", { name: /remove portrait/i })).toBeDisabled();
+  });
+
+  it("does not show portrait file input in edit mode for a departed resident", async () => {
+    render(
+      <ResidentHeader
+        homeId="h1"
+        resident={{ ...BASE_RESIDENT, status: "departed" }}
+        wards={WARDS}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /edit/i }));
+    expect(screen.queryByTestId("resident-portrait-file")).not.toBeInTheDocument();
+  });
+
+  it("POSTs portrait on file choose and refreshes the router", async () => {
+    const mockFetch = vi.fn(async (url: RequestInfo) => {
+      const s = typeof url === "string" ? url : url.toString();
+      if (s.includes("/residents/r1/photo")) {
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ portraitUpdatedAtUtcMs: 99 }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({ resident: BASE_RESIDENT }),
+      };
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    render(
+      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /edit/i }));
+    const file = new File([new Uint8Array([1, 2, 3])], "p.jpg", {
+      type: "image/jpeg",
+    });
+    await userEvent.upload(screen.getByTestId("resident-portrait-file"), file);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/homes/h1/residents/r1/photo",
+        expect.objectContaining({ method: "POST", body: expect.any(FormData) }),
+      );
+      expect(routerState.refresh).toHaveBeenCalled();
+    });
+  });
+
+  it("DELETEs portrait after confirm and refreshes the router", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const mockFetch = vi.fn(async (url: RequestInfo, init?: RequestInit) => {
+      const s = typeof url === "string" ? url : url.toString();
+      if (s.includes("/residents/r1/photo") && init?.method === "DELETE") {
+        return { ok: true, status: 204 };
+      }
+      return {
+        ok: true,
+        json: async () => ({ resident: BASE_RESIDENT }),
+      };
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    render(
+      <ResidentHeader
+        homeId="h1"
+        resident={{
+          ...BASE_RESIDENT,
+          hasPortrait: true,
+          portraitUpdatedAtUtcMs: 1,
+        }}
+        wards={WARDS}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /edit/i }));
+    await userEvent.click(screen.getByRole("button", { name: /remove portrait/i }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/homes/h1/residents/r1/photo",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+      expect(routerState.refresh).toHaveBeenCalled();
+    });
+  });
+
+  it("does not DELETE portrait when remove confirm is cancelled", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ resident: BASE_RESIDENT }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    render(
+      <ResidentHeader
+        homeId="h1"
+        resident={{
+          ...BASE_RESIDENT,
+          hasPortrait: true,
+          portraitUpdatedAtUtcMs: 1,
+        }}
+        wards={WARDS}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /edit/i }));
+    await userEvent.click(screen.getByRole("button", { name: /remove portrait/i }));
+
+    expect(mockFetch).not.toHaveBeenCalledWith(
+      "/api/homes/h1/residents/r1/photo",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(routerState.refresh).not.toHaveBeenCalled();
+  });
+
+  it("shows portrait API error in edit mode", async () => {
+    const mockFetch = vi.fn(async (url: RequestInfo) => {
+      const s = typeof url === "string" ? url : url.toString();
+      if (s.includes("/residents/r1/photo")) {
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({ error: "Portrait too large." }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({ resident: BASE_RESIDENT }),
+      };
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    render(
+      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /edit/i }));
+    const file = new File([new Uint8Array([1])], "p.jpg", {
+      type: "image/jpeg",
+    });
+    await userEvent.upload(screen.getByTestId("resident-portrait-file"), file);
+
+    await waitFor(() => {
+      expect(screen.getByText("Portrait too large.")).toBeInTheDocument();
+    });
   });
 
   it("shows full name in read-only mode", () => {
@@ -72,6 +272,30 @@ describe("ResidentHeader", () => {
       <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
     );
     expect(screen.getByRole("button", { name: /^depart$/i })).toBeInTheDocument();
+  });
+
+  it("links Manage medications to resident medications with home and resident selected", () => {
+    render(
+      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+    );
+    const link = screen.getByRole("link", { name: /manage medications/i });
+    expect(link).toHaveAttribute(
+      "href",
+      "/dashboard/resident-medications?homeId=h1&residentId=r1",
+    );
+  });
+
+  it("does not show Manage medications for a departed resident", () => {
+    render(
+      <ResidentHeader
+        homeId="h1"
+        resident={{ ...BASE_RESIDENT, status: "departed" }}
+        wards={WARDS}
+      />,
+    );
+    expect(
+      screen.queryByRole("link", { name: /manage medications/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not show Depart for a departed resident", () => {

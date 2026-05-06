@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 export type VillageSelectOption = {
   value: string;
@@ -25,10 +26,42 @@ type VillageSelectProps = {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /** For screen readers when there is no associated visible label. */
+  ariaLabel?: string;
+  ariaRequired?: boolean;
 };
 
 function mergeClassNames(...parts: (string | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
+}
+
+const MENU_MAX_PX = 240; // matches max-h-60
+
+type MenuPlacement = {
+  top: number;
+  left: number;
+  width: number;
+  maxHeight: number;
+};
+
+function computeMenuPlacement(trigger: DOMRectReadOnly): MenuPlacement {
+  const gap = 6;
+  const pad = 8;
+  let left = trigger.left;
+  if (left + trigger.width > window.innerWidth - pad) {
+    left = Math.max(pad, window.innerWidth - pad - trigger.width);
+  }
+  if (left < pad) {
+    left = pad;
+  }
+  const spaceBelow = window.innerHeight - trigger.bottom - gap - pad;
+  const maxHeight = Math.min(MENU_MAX_PX, Math.max(120, spaceBelow));
+  return {
+    top: trigger.bottom + gap,
+    left,
+    width: trigger.width,
+    maxHeight,
+  };
 }
 
 export function VillageSelect({
@@ -39,6 +72,8 @@ export function VillageSelect({
   placeholder = "Select…",
   disabled,
   className,
+  ariaLabel,
+  ariaRequired,
 }: VillageSelectProps) {
   const autoId = useId();
   const listId = `${autoId}-list`;
@@ -47,6 +82,9 @@ export function VillageSelect({
   const listRef = useRef<HTMLUListElement>(null);
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  const [menuPlacement, setMenuPlacement] = useState<MenuPlacement | null>(
+    null,
+  );
 
   const enabledIndices = useMemo(() => {
     const idx: number[] = [];
@@ -77,13 +115,36 @@ export function VillageSelect({
     const el = listRef.current?.querySelector<HTMLElement>(
       `[data-village-option-index="${highlight}"]`,
     );
-    el?.scrollIntoView({ block: "nearest" });
+    el?.scrollIntoView?.({ block: "nearest" });
   }, [highlight, open]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPlacement(null);
+      return;
+    }
+    function updatePlacement() {
+      const btn = btnRef.current;
+      if (!btn) return;
+      setMenuPlacement(computeMenuPlacement(btn.getBoundingClientRect()));
+    }
+    updatePlacement();
+    window.addEventListener("scroll", updatePlacement, true);
+    window.addEventListener("resize", updatePlacement);
+    return () => {
+      window.removeEventListener("scroll", updatePlacement, true);
+      window.removeEventListener("resize", updatePlacement);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     function onDocMouseDown(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) {
+      const t = e.target as Node;
+      if (
+        !rootRef.current?.contains(t) &&
+        !listRef.current?.contains(t)
+      ) {
         setOpen(false);
       }
     }
@@ -150,6 +211,56 @@ export function VillageSelect({
   const activeDescendantId =
     open && options.length > 0 ? `${listId}-opt-${highlight}` : undefined;
 
+  const listMarkup =
+    open && menuPlacement ? (
+      <ul
+        ref={listRef}
+        id={listId}
+        role="listbox"
+        tabIndex={-1}
+        className="village-select-list fixed z-[260] overflow-y-auto rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_46%,transparent)] bg-[var(--bg-elevated)] py-1.5 text-[var(--text-primary)] shadow-[0_18px_48px_-20px_color-mix(in_srgb,var(--text-primary)_32%,transparent)] ring-1 ring-[color:color-mix(in_srgb,var(--accent)_12%,transparent)] motion-safe:animate-[village-select-in_140ms_ease-out]"
+        style={{
+          top: menuPlacement.top,
+          left: menuPlacement.left,
+          width: menuPlacement.width,
+          maxHeight: menuPlacement.maxHeight,
+        }}
+      >
+        {options.map((opt, i) => {
+          const selected = opt.value === value;
+          const hi = i === highlight;
+          return (
+            <li
+              key={`${opt.value}-${i}`}
+              id={`${listId}-opt-${i}`}
+              role="option"
+              aria-selected={selected}
+              data-village-option-index={i}
+              className={mergeClassNames(
+                "mx-1 cursor-pointer rounded-[var(--radius-sm)] px-3 py-2.5 text-sm transition-colors motion-reduce:transition-none",
+                opt.disabled
+                  ? "cursor-not-allowed text-ink/35"
+                  : selected
+                    ? "bg-[color:color-mix(in_srgb,var(--accent)_14%,var(--bg-muted)_86%)] font-medium text-pine-2"
+                    : hi
+                      ? "bg-[color:color-mix(in_srgb,var(--accent)_9%,var(--bg-muted)_91%)] text-ink"
+                      : "text-ink hover:bg-[color:color-mix(in_srgb,var(--accent)_7%,var(--bg-muted)_93%)]",
+              )}
+              onMouseEnter={() => {
+                if (!opt.disabled) setHighlight(i);
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+              }}
+              onClick={() => pickIndex(i)}
+            >
+              {opt.label}
+            </li>
+          );
+        })}
+      </ul>
+    ) : null;
+
   return (
     <div ref={rootRef} className={mergeClassNames("relative w-full", className)}>
       <button
@@ -163,6 +274,8 @@ export function VillageSelect({
         aria-expanded={open}
         aria-controls={listId}
         aria-activedescendant={activeDescendantId}
+        aria-label={ariaLabel}
+        aria-required={ariaRequired}
         className={mergeClassNames(
           "village-select-trigger flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 text-left",
           open ? "border-terracotta ring-2 ring-terracotta/25" : "",
@@ -188,48 +301,9 @@ export function VillageSelect({
           <ChevronIcon />
         </span>
       </button>
-      {open ? (
-        <ul
-          ref={listRef}
-          id={listId}
-          role="listbox"
-          tabIndex={-1}
-          className="village-select-list absolute left-0 right-0 top-[calc(100%+0.35rem)] z-[100] max-h-60 overflow-y-auto rounded-lg border border-pine/18 bg-cream py-1 shadow-[0_14px_44px_-18px_rgba(12,24,20,0.45)] ring-1 ring-pine/8 motion-safe:animate-[village-select-in_140ms_ease-out]"
-        >
-          {options.map((opt, i) => {
-            const selected = opt.value === value;
-            const hi = i === highlight;
-            return (
-              <li
-                key={`${opt.value}-${i}`}
-                id={`${listId}-opt-${i}`}
-                role="option"
-                aria-selected={selected}
-                data-village-option-index={i}
-                className={mergeClassNames(
-                  "mx-1 cursor-pointer rounded-md px-3 py-2.5 text-sm transition-colors motion-reduce:transition-none",
-                  opt.disabled
-                    ? "cursor-not-allowed text-ink/35"
-                    : selected
-                      ? "bg-pine-soft font-medium text-pine-2"
-                      : hi
-                        ? "bg-cream-muted text-ink"
-                        : "text-ink hover:bg-pine-soft/70",
-                )}
-                onMouseEnter={() => {
-                  if (!opt.disabled) setHighlight(i);
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                }}
-                onClick={() => pickIndex(i)}
-              >
-                {opt.label}
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
+      {listMarkup && typeof document !== "undefined"
+        ? createPortal(listMarkup, document.body)
+        : null}
     </div>
   );
 }

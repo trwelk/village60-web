@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import Database from "better-sqlite3";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { assertActorMayAccessHome } from "@/lib/authz/homeScope";
 import type { SessionActor } from "@/lib/authz/sessionActor";
@@ -51,6 +52,7 @@ export type MedicationOrderLineDetail = {
   id: string;
   residentMedicationId: string;
   orderedQty: number;
+  orderUnitLabel: string | null;
   receivedQty: number;
   closedShortAtUtcMs: number | null;
   closedShortReason: string | null;
@@ -92,6 +94,31 @@ export type ActiveResidentMedicationOption = {
   suggestedOrderedQty: number;
 };
 
+/** Serialize medication-order mutations and map SQLite contention to retryable conflicts (35c). */
+function withImmediateMedicationWrite<T>(db: AppDb, fn: (tx: AppDb) => T): T {
+  try {
+    return db.transaction(fn, { behavior: "immediate" });
+  } catch (e) {
+    mapSqliteMedicationOrderWriteError(e);
+  }
+}
+
+function mapSqliteMedicationOrderWriteError(e: unknown): never {
+  if (e instanceof Database.SqliteError) {
+    if (e.code === "SQLITE_BUSY" || e.code === "SQLITE_LOCKED") {
+      throw new ConflictError(
+        "Another medication order update is in progress. Please try again in a moment.",
+      );
+    }
+    if (e.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      throw new ConflictError(
+        "This medication order changed while saving. Please refresh and try again.",
+      );
+    }
+  }
+  throw e;
+}
+
 function requireActor(actor: SessionActor | undefined): asserts actor is SessionActor {
   if (!actor) {
     throw new ForbiddenError();
@@ -114,6 +141,18 @@ function assertPositiveIntQty(n: number, label: string): void {
   if (!Number.isInteger(n) || n < 1) {
     throw new ValidationError(`${label} must be a positive integer.`);
   }
+}
+
+function assertPositiveAmount(n: number, label: string): void {
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new ValidationError(`${label} must be a positive number.`);
+  }
+}
+
+function normalizeOrderUnitLabel(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 type DesiredLine = { residentMedicationId: string; orderedQty: number };
@@ -235,7 +274,7 @@ function tryCompleteMedicationOrderIfReady(db: AppDb, orderId: string, now: numb
   for (const ln of lines) {
     const received = ln.receivedQty;
     const closed = ln.closedShortAtUtcMs != null;
-    const fullyReceived = received >= ln.orderedQty;
+    const fullyReceived = received > 0;
     if (!closed && !fullyReceived) {
       return;
     }
@@ -281,18 +320,19 @@ export function createOrMergeMedicationOrderForResident(
   }
 
   const now = Date.now();
-  const existing = db
-    .select()
-    .from(medicationOrders)
-    .where(
-      and(
-        eq(medicationOrders.residentId, residentId),
-        inArray(medicationOrders.status, ["pending", "approved"]),
-      ),
-    )
-    .get();
 
-  return db.transaction((tx) => {
+  return withImmediateMedicationWrite(db, (tx) => {
+    const existing = tx
+      .select()
+      .from(medicationOrders)
+      .where(
+        and(
+          eq(medicationOrders.residentId, residentId),
+          inArray(medicationOrders.status, ["pending", "approved"]),
+        ),
+      )
+      .get();
+
     let orderId: string;
     if (!existing) {
       orderId = randomUUID();
@@ -327,6 +367,7 @@ export function createOrMergeMedicationOrderForResident(
     return getMedicationOrderDetail(tx, actor, homeId, orderId);
   });
 }
+
 
 export function createOrMergeLowStockMedicationOrderForResident(
   db: AppDb,
@@ -384,7 +425,7 @@ export function createOrMergeLowStockMedicationOrderForResident(
   const inFlightRemainderByMed = new Map<string, number>();
   for (const line of inFlightLines) {
     if (line.closedShortAtUtcMs == null) {
-      const remainder = Math.max(0, line.orderedQty - line.receivedQty);
+      const remainder = line.receivedQty > 0 ? 0 : Math.max(0, line.orderedQty);
       const current = inFlightRemainderByMed.get(line.residentMedicationId) ?? 0;
       inFlightRemainderByMed.set(line.residentMedicationId, current + remainder);
     }
@@ -426,28 +467,26 @@ export function createOrMergeLowStockMedicationOrderForResident(
   }
 
   const now = Date.now();
-  const existing = db
-    .select()
-    .from(medicationOrders)
-    .where(
-      and(
-        eq(medicationOrders.residentId, residentId),
-        inArray(medicationOrders.status, ["pending", "approved"]),
-      ),
-    )
-    .orderBy(
-      sql`case when ${medicationOrders.status} = 'pending' then 0 else 1 end`,
-      desc(medicationOrders.updatedAtUtcMs),
-    )
-    .get();
 
-  return db.transaction((tx) => {
+  return withImmediateMedicationWrite(db, (tx) => {
+    const existing = tx
+      .select()
+      .from(medicationOrders)
+      .where(
+        and(
+          eq(medicationOrders.residentId, residentId),
+          inArray(medicationOrders.status, ["pending", "approved"]),
+        ),
+      )
+      .orderBy(
+        sql`case when ${medicationOrders.status} = 'pending' then 0 else 1 end`,
+        desc(medicationOrders.updatedAtUtcMs),
+      )
+      .get();
+
     const orderId = existing ? existing.id : randomUUID();
 
-    let changed = false;
-
     if (!existing) {
-      changed = true;
       tx.insert(medicationOrders)
         .values({
           id: orderId,
@@ -458,6 +497,9 @@ export function createOrMergeLowStockMedicationOrderForResident(
           approvedByUserId: null,
           rejectedByUserId: null,
           cancelledByUserId: null,
+          orderPlacedByUserId: null,
+          orderPlacedAtUtcMs: null,
+          completedAtUtcMs: null,
           approvedAtUtcMs: null,
           rejectedAtUtcMs: null,
           cancelledAtUtcMs: null,
@@ -465,52 +507,59 @@ export function createOrMergeLowStockMedicationOrderForResident(
           updatedAtUtcMs: now,
         })
         .run();
-    } else {
-      if (existing.homeId !== homeId) {
-        throw new NotFoundError();
-      }
+    } else if (existing.homeId !== homeId) {
+      throw new NotFoundError();
     }
 
-    // Merge rule: max(existingOrderedQty, formulaQty), never auto-delete
     const existingLines = tx
       .select()
       .from(medicationOrderLines)
       .where(eq(medicationOrderLines.orderId, orderId))
       .all();
-    
-    const existingLineMap = new Map(
-      existingLines.map((l) => [l.residentMedicationId, l]),
-    );
+    const beforeQty = new Map(existingLines.map((l) => [l.residentMedicationId, l.orderedQty]));
 
+    // Merge rule: max(existingOrderedQty, formulaQty), never auto-delete; upsert avoids duplicate lines under races (35c).
     for (const line of desired) {
-      const existingLine = existingLineMap.get(line.residentMedicationId);
-      if (existingLine) {
-        const newQty = Math.max(existingLine.orderedQty, line.orderedQty);
-        if (newQty !== existingLine.orderedQty) {
-          changed = true;
-          tx.update(medicationOrderLines)
-            .set({ orderedQty: newQty, updatedAtUtcMs: now })
-            .where(eq(medicationOrderLines.id, existingLine.id))
-            .run();
-        }
-      } else {
-        changed = true;
-        tx.insert(medicationOrderLines)
-          .values({
-            id: randomUUID(),
-            orderId,
-            residentMedicationId: line.residentMedicationId,
-            orderedQty: line.orderedQty,
-            receivedQty: 0,
-            createdAtUtcMs: now,
+      tx.insert(medicationOrderLines)
+        .values({
+          id: randomUUID(),
+          orderId,
+          residentMedicationId: line.residentMedicationId,
+          orderedQty: line.orderedQty,
+          receivedQty: 0,
+          closedShortAtUtcMs: null,
+          closedShortReason: null,
+          closedShortByUserId: null,
+          createdAtUtcMs: now,
+          updatedAtUtcMs: now,
+        })
+        .onConflictDoUpdate({
+          target: [medicationOrderLines.orderId, medicationOrderLines.residentMedicationId],
+          set: {
+            orderedQty: sql`max(${medicationOrderLines.orderedQty}, excluded.ordered_qty)`,
             updatedAtUtcMs: now,
-          })
-          .run();
-      }
+          },
+        })
+        .run();
     }
 
+    const afterRows = tx
+      .select()
+      .from(medicationOrderLines)
+      .where(eq(medicationOrderLines.orderId, orderId))
+      .all();
+
+    let changed = !existing;
     if (existing) {
-      // Auto-revert approved to pending ONLY if we changed something
+      for (const d of desired) {
+        const prev = beforeQty.get(d.residentMedicationId);
+        const next = afterRows.find((r) => r.residentMedicationId === d.residentMedicationId)?.orderedQty;
+        if (prev === undefined || (next != null && next > prev)) {
+          changed = true;
+          break;
+        }
+      }
+
       if (existing.status === "approved" && changed) {
         tx.update(medicationOrders)
           .set({
@@ -541,7 +590,9 @@ export function addMedicationOrderLineForResident(
   residentId: string,
   residentMedicationId: string,
   orderedQty: number,
+  orderUnitLabel?: string | null,
 ): MedicationOrderDetail {
+  const normalizedUnitLabel = normalizeOrderUnitLabel(orderUnitLabel);
   requireActor(actor);
   requireAdminOrCare(actor);
   assertActorMayAccessHome(db, actor, homeId);
@@ -565,7 +616,7 @@ export function addMedicationOrderLineForResident(
   }
 
   const now = Date.now();
-  return db.transaction((tx) => {
+  return withImmediateMedicationWrite(db, (tx) => {
     const existing = findEditableOrderForResident(tx, homeId, residentId);
     let orderId = existing?.id;
     if (!orderId) {
@@ -598,6 +649,7 @@ export function addMedicationOrderLineForResident(
         orderId,
         residentMedicationId,
         orderedQty,
+        orderUnitLabel: normalizedUnitLabel,
         receivedQty: 0,
         closedShortAtUtcMs: null,
         closedShortReason: null,
@@ -608,7 +660,8 @@ export function addMedicationOrderLineForResident(
       .onConflictDoUpdate({
         target: [medicationOrderLines.orderId, medicationOrderLines.residentMedicationId],
         set: {
-          orderedQty,
+          orderedQty: sql`max(${medicationOrderLines.orderedQty}, excluded.ordered_qty)`,
+          orderUnitLabel: sql`coalesce(excluded.order_unit_label, ${medicationOrderLines.orderUnitLabel})`,
           updatedAtUtcMs: now,
         },
       })
@@ -811,6 +864,7 @@ export function getMedicationOrderDetail(
       id: line.id,
       residentMedicationId: line.residentMedicationId,
       orderedQty: line.orderedQty,
+      orderUnitLabel: line.orderUnitLabel,
       receivedQty: line.receivedQty,
       closedShortAtUtcMs: line.closedShortAtUtcMs,
       closedShortReason: line.closedShortReason,
@@ -959,10 +1013,6 @@ export function receiveMedicationOrderLine(
   requireAdminOrCare(actor);
   assertActorMayAccessHome(db, actor, homeId);
   const orderRow = loadOrderForHome(db, homeId, orderId);
-  if (orderRow.status !== "order_placed") {
-    throw new ValidationError("Receipts can only be posted while the order is placed.");
-  }
-
   const line = loadOrderLineForOrder(db, orderId, lineId);
   const trimmedKey =
     input.idempotencyKey !== undefined &&
@@ -987,18 +1037,15 @@ export function receiveMedicationOrderLine(
     }
   }
 
-  assertPositiveIntQty(input.amount, "amount");
+  if (orderRow.status !== "order_placed") {
+    throw new ValidationError("Receipts can only be posted while the order is placed.");
+  }
+
+  assertPositiveAmount(input.amount, "amount");
   const amount = input.amount;
 
   if (line.closedShortAtUtcMs != null) {
     throw new ValidationError("This line was closed short; further receipts are not allowed.");
-  }
-
-  const remaining = line.orderedQty - line.receivedQty;
-  if (amount > remaining) {
-    throw new ValidationError(
-      `Receipt exceeds remaining quantity for this line (${remaining} remaining).`,
-    );
   }
 
   const rm = db
@@ -1014,7 +1061,7 @@ export function receiveMedicationOrderLine(
   const newReceived = line.receivedQty + amount;
   const newStock = rm.currentStock + amount;
 
-  db.transaction((tx) => {
+  withImmediateMedicationWrite(db, (tx) => {
     tx.insert(residentMedicationStockEvents)
       .values({
         id: randomUUID(),
@@ -1072,7 +1119,7 @@ export function closeMedicationOrderLineShort(
   }
 
   const now = Date.now();
-  db.transaction((tx) => {
+  withImmediateMedicationWrite(db, (tx) => {
     tx.update(medicationOrderLines)
       .set({
         closedShortAtUtcMs: now,
@@ -1128,32 +1175,34 @@ export function patchMedicationOrderApprovedLineQtys(
   requireActor(actor);
   requireAdmin(actor);
   assertActorMayAccessHome(db, actor, homeId);
-  const o = loadOrderForHome(db, homeId, orderId);
-  if (o.status !== "approved") {
-    throw new ValidationError("Line quantities can only be edited on approved orders.");
-  }
 
-  const existingLines = db
-    .select()
-    .from(medicationOrderLines)
-    .where(eq(medicationOrderLines.orderId, orderId))
-    .all();
-  const allowedIds = new Set(existingLines.map((l) => l.residentMedicationId));
   const entries = Object.entries(lineQtyByResidentMedicationId);
   if (entries.length === 0) {
     throw new ValidationError("No line updates provided.");
   }
-  for (const [residentMedicationId, qty] of entries) {
-    if (!allowedIds.has(residentMedicationId)) {
-      throw new ValidationError(
-        "Ordered quantities may only be updated for medications already on this order.",
-      );
-    }
-    assertPositiveIntQty(qty, "orderedQty");
-  }
 
-  const now = Date.now();
-  db.transaction((tx) => {
+  return withImmediateMedicationWrite(db, (tx) => {
+    const o = loadOrderForHome(tx, homeId, orderId);
+    if (o.status !== "approved") {
+      throw new ValidationError("Line quantities can only be edited on approved orders.");
+    }
+
+    const existingLines = tx
+      .select()
+      .from(medicationOrderLines)
+      .where(eq(medicationOrderLines.orderId, orderId))
+      .all();
+    const allowedIds = new Set(existingLines.map((l) => l.residentMedicationId));
+    for (const [residentMedicationId, qty] of entries) {
+      if (!allowedIds.has(residentMedicationId)) {
+        throw new ValidationError(
+          "Ordered quantities may only be updated for medications already on this order.",
+        );
+      }
+      assertPositiveIntQty(qty, "orderedQty");
+    }
+
+    const now = Date.now();
     for (const [residentMedicationId, qty] of entries) {
       tx.update(medicationOrderLines)
         .set({ orderedQty: qty, updatedAtUtcMs: now })
@@ -1169,9 +1218,8 @@ export function patchMedicationOrderApprovedLineQtys(
       .set({ updatedAtUtcMs: now })
       .where(eq(medicationOrders.id, orderId))
       .run();
+    return getMedicationOrderDetail(tx, actor, homeId, orderId);
   });
-
-  return getMedicationOrderDetail(db, actor, homeId, orderId);
 }
 
 export function updateMedicationOrderLineQty(
@@ -1181,20 +1229,24 @@ export function updateMedicationOrderLineQty(
   orderId: string,
   lineId: string,
   orderedQty: number,
+  orderUnitLabel?: string | null,
 ): MedicationOrderDetail {
   requireActor(actor);
   requireAdminOrCare(actor);
   assertActorMayAccessHome(db, actor, homeId);
   assertPositiveIntQty(orderedQty, "orderedQty");
-  const order = loadOrderForHome(db, homeId, orderId);
-  if (order.status !== "pending" && order.status !== "approved") {
-    throw new ValidationError("Lines can only be edited on pending or approved orders.");
-  }
-  const line = loadOrderLineForOrder(db, orderId, lineId);
-  const now = Date.now();
-  db.transaction((tx) => {
+
+  const normalizedUnitLabel = normalizeOrderUnitLabel(orderUnitLabel);
+
+  return withImmediateMedicationWrite(db, (tx) => {
+    const order = loadOrderForHome(tx, homeId, orderId);
+    if (order.status !== "pending" && order.status !== "approved") {
+      throw new ValidationError("Lines can only be edited on pending or approved orders.");
+    }
+    const line = loadOrderLineForOrder(tx, orderId, lineId);
+    const now = Date.now();
     tx.update(medicationOrderLines)
-      .set({ orderedQty, updatedAtUtcMs: now })
+      .set({ orderedQty, orderUnitLabel: normalizedUnitLabel, updatedAtUtcMs: now })
       .where(eq(medicationOrderLines.id, line.id))
       .run();
     if (order.status === "approved") {
@@ -1213,8 +1265,8 @@ export function updateMedicationOrderLineQty(
         .where(eq(medicationOrders.id, orderId))
         .run();
     }
+    return getMedicationOrderDetail(tx, actor, homeId, orderId);
   });
-  return getMedicationOrderDetail(db, actor, homeId, orderId);
 }
 
 export function removeMedicationOrderLine(
@@ -1227,13 +1279,14 @@ export function removeMedicationOrderLine(
   requireActor(actor);
   requireAdminOrCare(actor);
   assertActorMayAccessHome(db, actor, homeId);
-  const order = loadOrderForHome(db, homeId, orderId);
-  if (order.status !== "pending" && order.status !== "approved") {
-    throw new ValidationError("Lines can only be removed from pending or approved orders.");
-  }
-  loadOrderLineForOrder(db, orderId, lineId);
-  const now = Date.now();
-  db.transaction((tx) => {
+
+  return withImmediateMedicationWrite(db, (tx) => {
+    const order = loadOrderForHome(tx, homeId, orderId);
+    if (order.status !== "pending" && order.status !== "approved") {
+      throw new ValidationError("Lines can only be removed from pending or approved orders.");
+    }
+    loadOrderLineForOrder(tx, orderId, lineId);
+    const now = Date.now();
     tx.delete(medicationOrderLines).where(eq(medicationOrderLines.id, lineId)).run();
     const remaining = tx
       .select({ id: medicationOrderLines.id })
@@ -1268,6 +1321,6 @@ export function removeMedicationOrderLine(
         .where(eq(medicationOrders.id, orderId))
         .run();
     }
+    return getMedicationOrderDetail(tx, actor, homeId, orderId);
   });
-  return getMedicationOrderDetail(db, actor, homeId, orderId);
 }

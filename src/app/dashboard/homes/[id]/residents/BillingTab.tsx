@@ -20,8 +20,11 @@ function formatMinorAsCurrency(minor: number, currencyCode: string): string {
 function summarizeBatchPaySelection(
   billingMonths: Iterable<string>,
   charges: ResidentMonthlyChargeListItem[],
+  wardMonthlyRatePerPersonMinor: number | null,
 ): {
-  knownTotalMinor: number;
+  fileChargesTotalMinor: number;
+  projectedMinor: number;
+  totalMinor: number;
   selectedCount: number;
   unknownMonths: string[];
   alreadyPaidMonths: string[];
@@ -33,7 +36,7 @@ function summarizeBatchPaySelection(
     ]),
   );
   const merged = [...new Set(billingMonths)].sort();
-  let knownTotalMinor = 0;
+  let fileChargesTotalMinor = 0;
   const unknownMonths: string[] = [];
   const alreadyPaidMonths: string[] = [];
   for (const m of merged) {
@@ -46,10 +49,21 @@ function summarizeBatchPaySelection(
       alreadyPaidMonths.push(m);
       continue;
     }
-    knownTotalMinor += row.amountMinor;
+    fileChargesTotalMinor += row.amountMinor;
   }
+  const rate =
+    wardMonthlyRatePerPersonMinor != null &&
+    Number.isFinite(wardMonthlyRatePerPersonMinor)
+      ? wardMonthlyRatePerPersonMinor
+      : null;
+  const projectedMinor =
+    rate != null && unknownMonths.length > 0
+      ? rate * unknownMonths.length
+      : 0;
   return {
-    knownTotalMinor,
+    fileChargesTotalMinor,
+    projectedMinor,
+    totalMinor: fileChargesTotalMinor + projectedMinor,
     selectedCount: merged.length,
     unknownMonths,
     alreadyPaidMonths,
@@ -62,6 +76,8 @@ export function BillingTab({
   defaultCurrencyCode,
 }: Props) {
   const [charges, setCharges] = useState<ResidentMonthlyChargeListItem[]>([]);
+  const [wardMonthlyRatePerPersonMinor, setWardMonthlyRatePerPersonMinor] =
+    useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -103,14 +119,22 @@ export function BillingTab({
       return;
     }
     const data: unknown = await res.json();
-    const list =
-      typeof data === "object" &&
-      data !== null &&
-      "charges" in data &&
-      Array.isArray((data as { charges: unknown }).charges)
-        ? (data as { charges: ResidentMonthlyChargeListItem[] }).charges
-        : [];
+    const obj =
+      typeof data === "object" && data !== null
+        ? (data as Record<string, unknown>)
+        : {};
+    const list = Array.isArray(obj.charges)
+      ? (obj.charges as ResidentMonthlyChargeListItem[])
+      : [];
     setCharges(list);
+    const rateRaw = obj.wardMonthlyRatePerPersonMinor;
+    setWardMonthlyRatePerPersonMinor(
+      typeof rateRaw === "number" &&
+        Number.isFinite(rateRaw) &&
+        Number.isInteger(rateRaw)
+        ? rateRaw
+        : null,
+    );
     setLoading(false);
   }, [homeId, residentId]);
 
@@ -361,9 +385,12 @@ export function BillingTab({
     ? summarizeBatchPaySelection(
         new Set([...selectedBillingMonths, ...batchExtraMonths]),
         charges,
+        wardMonthlyRatePerPersonMinor,
       )
     : {
-        knownTotalMinor: 0,
+        fileChargesTotalMinor: 0,
+        projectedMinor: 0,
+        totalMinor: 0,
         selectedCount: 0,
         unknownMonths: [] as string[],
         alreadyPaidMonths: [] as string[],
@@ -373,7 +400,16 @@ export function BillingTab({
 
   if (loading) {
     return (
-      <div className="text-sm text-ink/70">Loading monthly charges…</div>
+      <div className="village-panel-card px-5 py-10 sm:px-8">
+        <div className="mx-auto max-w-sm space-y-3">
+          <div className="h-2 w-28 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--line-subtle)_55%,transparent)]" />
+          <div className="h-4 w-full animate-pulse rounded-md bg-[color:color-mix(in_srgb,var(--bg-muted)_72%,var(--bg-elevated)_28%)]" />
+          <div className="h-4 w-[80%] animate-pulse rounded-md bg-[color:color-mix(in_srgb,var(--bg-muted)_72%,var(--bg-elevated)_28%)]" />
+          <p className="pt-2 text-center text-sm text-[var(--text-secondary)]">
+            Loading monthly charges…
+          </p>
+        </div>
+      </div>
     );
   }
 
@@ -382,25 +418,37 @@ export function BillingTab({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="village-panel-card overflow-hidden">
+      <header className="border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_18%,var(--bg-elevated)_82%)] px-5 py-4 sm:px-6">
+        <p className="village-kicker mb-2">Billing</p>
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="font-display text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-[1.35rem]">
+              Monthly charges
+            </h3>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">
+              Ward amounts by UTC month. Record payments individually or in one
+              batch when a resident pays multiple months at once.
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex flex-col gap-6 px-5 py-5 sm:px-6 sm:py-6">
       {batchSuccess ? (
-        <p className="text-sm text-success" data-testid="billing-batch-success">
+        <div
+          className="rounded-[var(--radius-md)] border border-[color:color-mix(in_srgb,var(--success)_38%,transparent)] bg-success-muted px-4 py-3 text-sm font-medium text-success"
+          data-testid="billing-batch-success"
+        >
           {batchSuccess}
-        </p>
+        </div>
       ) : null}
       {actionError ? <p className="village-alert-error">{actionError}</p> : null}
 
       <div
-        className="flex flex-wrap items-center gap-3"
+        className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
         data-testid="billing-month-filter"
       >
-        <button
-          type="button"
-          className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
-          onClick={openBatchPay}
-        >
-          Pay multiple months
-        </button>
         {charges.length > 0 ? (
           <div
             role="group"
@@ -441,23 +489,44 @@ export function BillingTab({
             })}
           </div>
         ) : null}
+        <button
+          type="button"
+          className="village-btn-primary shrink-0 px-4 py-2 text-sm sm:ml-auto"
+          onClick={openBatchPay}
+        >
+          Pay multiple months
+        </button>
       </div>
 
       {charges.length === 0 ? (
-        <p className="text-sm text-ink/65">
-          No monthly charges yet for this resident.
-        </p>
+        <div className="village-card-soft py-10 text-center">
+          <p className="text-base font-semibold text-[var(--text-primary)]">
+            No monthly charges yet
+          </p>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[var(--text-secondary)]">
+            Charges for this resident will show up here after monthly billing
+            generates rows. You can still use batch pay to add months by range if
+            needed.
+          </p>
+        </div>
       ) : (
         <>
           {visibleMonthlyCharges.length === 0 ? (
-            <p
-              className="mt-3 text-sm text-ink/65"
+            <div
+              className="village-card-soft py-8 text-center"
               data-testid="billing-monthly-filter-empty"
             >
-              No months match this filter.
-            </p>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">
+                No months match this filter
+              </p>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-[var(--text-secondary)]">
+                Try switching to{" "}
+                <span className="font-medium text-[var(--text-primary)]">All</span>{" "}
+                or adjust paid vs. unpaid.
+              </p>
+            </div>
           ) : (
-        <div className="village-table-wrap mt-3">
+        <div className="village-table-wrap mt-1">
           <table
             data-testid="billing-monthly-charges-table"
             className="village-table"
@@ -473,41 +542,50 @@ export function BillingTab({
             </thead>
             <tbody className="village-tbody">
               {visibleMonthlyCharges.map((c) => (
-                <tr key={c.id}>
-                  <td className="village-td font-medium">{c.billingMonth}</td>
+                <tr
+                  key={c.id}
+                  className="transition-colors duration-150 hover:bg-[color:color-mix(in_srgb,var(--partner-green)_6%,var(--bg-elevated)_94%)]"
+                >
+                  <td className="village-td font-mono text-[0.8125rem] font-semibold tracking-tight text-[var(--text-primary)]">
+                    {c.billingMonth}
+                  </td>
                   <td className="village-td-muted text-sm">
                     {c.wardLabel ?? "—"}
                   </td>
                   <td className="village-td-muted">
-                    <span className="font-medium text-ink">
+                    <span className="font-semibold tabular-nums text-[var(--text-primary)]">
                       {formatMinorAsCurrency(
                         c.amountMinorSnapshot,
                         defaultCurrencyCode,
                       )}
                     </span>
-                    <span className="mt-0.5 block text-xs text-ink/60">
+                    <span className="mt-0.5 block font-mono text-[0.7rem] tabular-nums text-[var(--text-muted)]">
                       {c.amountMinorSnapshot} minor
                     </span>
                   </td>
                   <td className="village-td-muted">
                     {c.paid ? (
-                      <span className="text-pine font-medium">Paid</span>
+                      <span className="inline-flex items-center rounded-full border border-[color:color-mix(in_srgb,var(--success)_40%,transparent)] bg-success-muted px-2.5 py-0.5 text-[0.7rem] font-bold uppercase tracking-[0.04em] text-success">
+                        Paid
+                      </span>
                     ) : (
-                      <span className="text-terracotta font-medium">Unpaid</span>
+                      <span className="inline-flex items-center rounded-full border border-[color:color-mix(in_srgb,var(--accent-strong)_32%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_10%,var(--bg-elevated)_90%)] px-2.5 py-0.5 text-[0.7rem] font-bold uppercase tracking-[0.04em] text-[var(--accent-strong)]">
+                        Unpaid
+                      </span>
                     )}
                   </td>
                   <td className="village-td">
                     {!c.paid && recordingId !== c.id ? (
                       <button
                         type="button"
-                        className="village-btn-primary px-3 py-1.5 text-xs"
+                        className="village-btn-secondary px-3.5 py-1.5 text-xs font-semibold"
                         onClick={() => startRecord(c)}
                       >
                         Record payment
                       </button>
                     ) : null}
                     {!c.paid && recordingId === c.id ? (
-                      <div className="flex min-w-[14rem] flex-col gap-2">
+                      <div className="village-card-soft flex min-w-[14rem] flex-col gap-3">
                         <label className="flex flex-col gap-1 text-xs">
                           <span className="village-field-label">Paid on</span>
                           <input
@@ -545,31 +623,50 @@ export function BillingTab({
                       </div>
                     ) : null}
                     {c.paid && c.payment && editingId !== c.id ? (
-                      <div className="flex flex-col gap-1 text-xs text-ink/80">
-                        <span>Paid {c.payment.paidOn}</span>
+                      <div className="flex max-w-[16rem] flex-col gap-1">
+                        <p className="text-[0.75rem] leading-snug text-[var(--text-secondary)]">
+                          Paid on{" "}
+                          <time
+                            dateTime={c.payment.paidOn}
+                            className="font-mono text-[0.8125rem] font-semibold tabular-nums text-[var(--text-primary)]"
+                          >
+                            {c.payment.paidOn}
+                          </time>
+                        </p>
                         {c.payment.notes ? (
-                          <span className="text-ink/65">{c.payment.notes}</span>
+                          <p
+                            className="line-clamp-2 text-[0.72rem] leading-snug text-[var(--text-muted)]"
+                            title={c.payment.notes}
+                          >
+                            {c.payment.notes}
+                          </p>
                         ) : null}
-                        <div className="mt-1 flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5">
                           <button
                             type="button"
-                            className="village-link cursor-pointer border-0 bg-transparent p-0 text-sm font-semibold text-pine underline"
+                            className="village-link cursor-pointer border-0 bg-transparent p-0 text-[0.78rem] font-semibold"
                             onClick={() => startEdit(c)}
                           >
                             Edit
                           </button>
+                          <span
+                            className="select-none text-[0.6rem] font-medium text-[var(--text-muted)]"
+                            aria-hidden
+                          >
+                            ·
+                          </span>
                           <button
                             type="button"
-                            className="text-sm font-semibold text-danger underline"
+                            className="cursor-pointer border-0 bg-transparent p-0 text-[0.78rem] font-semibold text-[var(--danger)] underline decoration-[color:color-mix(in_srgb,var(--danger)_38%,transparent)] underline-offset-[3px] transition hover:text-[color-mix(in_srgb,var(--danger)_88%,var(--text-primary)_12%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--danger)_32%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-elevated)]"
                             onClick={() => void removePayment(c)}
                           >
-                            Delete payment
+                            Remove payment
                           </button>
                         </div>
                       </div>
                     ) : null}
                     {c.paid && editingId === c.id ? (
-                      <div className="flex min-w-[14rem] flex-col gap-2">
+                      <div className="village-card-soft flex min-w-[14rem] flex-col gap-3">
                         <label className="flex flex-col gap-1 text-xs">
                           <span className="village-field-label">Paid on</span>
                           <input
@@ -615,6 +712,8 @@ export function BillingTab({
         </>
       )}
 
+      </div>
+
       {batchOpen
         ? createPortal(
             <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 pb-[env(safe-area-inset-bottom,0px)] sm:items-center sm:p-6 sm:pb-6">
@@ -629,18 +728,24 @@ export function BillingTab({
             aria-modal="true"
             aria-labelledby="billing-batch-modal-title"
             data-testid="billing-batch-panel"
-            className="relative z-10 flex max-h-[min(calc(100dvh-env(safe-area-inset-bottom,0px)-0.75rem),52rem)] w-full min-h-0 max-w-2xl flex-col rounded-t-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_35%,var(--bg-elevated)_65%)] shadow-[0_-8px_40px_-12px_color-mix(in_srgb,var(--text-primary)_35%,transparent)] sm:max-h-[min(90dvh,52rem)] sm:rounded-2xl sm:shadow-[0_22px_60px_-24px_color-mix(in_srgb,var(--text-primary)_38%,transparent)]"
+            className="relative z-10 flex max-h-[min(calc(100dvh-env(safe-area-inset-bottom,0px)-0.75rem),52rem)] w-full min-h-0 max-w-2xl flex-col rounded-t-[var(--radius-xl)] border border-[color:color-mix(in_srgb,var(--line-strong)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_30%,var(--bg-elevated)_70%)] shadow-[0_-12px_48px_-14px_color-mix(in_srgb,var(--text-primary)_32%,transparent)] sm:max-h-[min(90dvh,52rem)] sm:rounded-[var(--radius-xl)] sm:shadow-[var(--shadow-lg)]"
           >
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] px-4 py-3 sm:px-5">
-              <h2
-                id="billing-batch-modal-title"
-                className="text-lg font-semibold tracking-tight text-[var(--text-primary)]"
-              >
-                Record batch payment
-              </h2>
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] px-4 py-4 sm:px-6">
+              <div className="min-w-0 pr-2">
+                <p className="village-kicker mb-1.5">Batch action</p>
+                <h2
+                  id="billing-batch-modal-title"
+                  className="font-display text-xl font-semibold tracking-tight text-[var(--text-primary)]"
+                >
+                  Record batch payment
+                </h2>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  Select months, optionally add a range, then confirm the total.
+                </p>
+              </div>
               <button
                 type="button"
-                className="rounded-lg border border-transparent px-2 py-1 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color:color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)]"
+                className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--line-subtle)_78%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_88%,transparent)] px-3.5 py-1.5 text-sm font-semibold text-[var(--text-secondary)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_75%,transparent)] transition hover:border-[color:color-mix(in_srgb,var(--accent)_28%,var(--line-strong))] hover:text-[var(--text-primary)]"
                 onClick={cancelBatchPay}
               >
                 Close
@@ -689,7 +794,7 @@ export function BillingTab({
                         >
                           <input
                             type="checkbox"
-                            className="h-4 w-4 shrink-0 rounded border-ink/25"
+                            className="village-checkbox h-4 w-4 shrink-0"
                             disabled={c.paid}
                             checked={
                               c.paid ? false : selectedBillingMonths.has(c.billingMonth)
@@ -830,7 +935,7 @@ export function BillingTab({
                   {batchPaySummary.selectedCount === 0
                     ? "—"
                     : formatMinorAsCurrency(
-                        batchPaySummary.knownTotalMinor,
+                        batchPaySummary.totalMinor,
                         defaultCurrencyCode,
                       )}
                 </p>
@@ -839,11 +944,32 @@ export function BillingTab({
                     {batchPaySummary.selectedCount === 1
                       ? "1 month selected"
                       : `${batchPaySummary.selectedCount} months selected`}
-                    {batchPaySummary.knownTotalMinor > 0 ? (
+                    {batchPaySummary.fileChargesTotalMinor > 0 ||
+                    batchPaySummary.projectedMinor > 0 ? (
                       <span>
                         {" "}
-                        · sums charges already on file (
-                        {batchPaySummary.knownTotalMinor.toLocaleString()} minor)
+                        ·{" "}
+                        {batchPaySummary.fileChargesTotalMinor > 0 ? (
+                          <>
+                            {batchPaySummary.fileChargesTotalMinor.toLocaleString()}{" "}
+                            minor from charges on file
+                          </>
+                        ) : null}
+                        {batchPaySummary.fileChargesTotalMinor > 0 &&
+                        batchPaySummary.projectedMinor > 0
+                          ? "; "
+                          : null}
+                        {batchPaySummary.projectedMinor > 0 ? (
+                          <>
+                            {batchPaySummary.projectedMinor.toLocaleString()} minor
+                            projected ({batchPaySummary.unknownMonths.length}{" "}
+                            month
+                            {batchPaySummary.unknownMonths.length === 1
+                              ? ""
+                              : "s"}{" "}
+                            × current ward rate)
+                          </>
+                        ) : null}
                       </span>
                     ) : null}
                   </p>
@@ -852,13 +978,30 @@ export function BillingTab({
                     Select months above or add a range.
                   </p>
                 )}
-                {batchPaySummary.unknownMonths.length > 0 ? (
+                {batchPaySummary.unknownMonths.length > 0 &&
+                wardMonthlyRatePerPersonMinor == null ? (
                   <p className="mt-2 text-xs leading-snug text-terracotta">
                     {batchPaySummary.unknownMonths.length} month
                     {batchPaySummary.unknownMonths.length === 1 ? "" : "s"} not in
-                    this list yet—amount{batchPaySummary.unknownMonths.length === 1 ? "" : "s"}{" "}
-                    appear after charges exist:{" "}
-                    <span className="font-mono">{batchPaySummary.unknownMonths.join(", ")}</span>
+                    this list yet—assign a ward with a monthly rate to project
+                    amounts, or create charges first:{" "}
+                    <span className="font-mono">
+                      {batchPaySummary.unknownMonths.join(", ")}
+                    </span>
+                  </p>
+                ) : null}
+                {batchPaySummary.unknownMonths.length > 0 &&
+                wardMonthlyRatePerPersonMinor != null ? (
+                  <p className="mt-2 text-xs leading-snug text-[var(--text-secondary)]">
+                    Month(s) not on file yet are included at the current ward rate (
+                    {formatMinorAsCurrency(
+                      wardMonthlyRatePerPersonMinor,
+                      defaultCurrencyCode,
+                    )}
+                    /mo):{" "}
+                    <span className="font-mono">
+                      {batchPaySummary.unknownMonths.join(", ")}
+                    </span>
                   </p>
                 ) : null}
                 {batchPaySummary.alreadyPaidMonths.length > 0 ? (

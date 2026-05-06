@@ -22,6 +22,7 @@ function getSqlite(): Database.Database {
     globalForDb.sqlite = new Database(file);
     globalForDb.sqlite.pragma("journal_mode = WAL");
     globalForDb.sqlite.pragma("foreign_keys = ON");
+    globalForDb.sqlite.pragma("busy_timeout = 8000");
   }
   return globalForDb.sqlite;
 }

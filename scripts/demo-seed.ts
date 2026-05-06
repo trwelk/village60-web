@@ -18,10 +18,13 @@ async function main() {
   const db = getDb();
   const creds = await runFullApplicationSeed(db);
 
+  const careLines = creds.careAccounts
+    .map((a) => `    — ${a.displayName}: ${a.email} / ${a.password}`)
+    .join("\n");
   console.log(
     `Demo data loaded (${creds.timezoneLabel}, calendar through ${creds.calendarThrough}).\n` +
       `  Admin: ${creds.adminEmail} / ${creds.adminPassword}\n` +
-      `  Care:  ${creds.nurseEmail} / ${creds.nursePassword}\n` +
+      `  Care (${creds.careAccounts.length} accounts):\n${careLines}\n` +
       `  Homes: ${creds.homesNamed.join(", ")}`,
   );
 }

@@ -6,7 +6,7 @@ import {
   type TabId,
 } from "@/lib/residents/tabs";
 import type { SessionUserRole } from "@/lib/session";
-import type { Resident, ResidentWithoutFee } from "@/lib/residents/service";
+import type { ResidentPublic } from "@/lib/residents/service";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ResidentHeader } from "./ResidentHeader";
@@ -16,7 +16,6 @@ import { PoaTab } from "./PoaTab";
 import { AssignedNurseTab } from "./AssignedNurseTab";
 import { ConditionsTab } from "./ConditionsTab";
 import { AllergiesTab } from "./AllergiesTab";
-import { MedicationsTab } from "./MedicationsTab";
 import { BillingTab } from "./BillingTab";
 import { OtherChargeTab } from "./OtherChargeTab";
 
@@ -28,7 +27,7 @@ type Props = {
   homeName: string;
   homeDefaultCurrencyCode: string;
   userRole: SessionUserRole;
-  resident: Resident | ResidentWithoutFee;
+  resident: ResidentPublic;
   wards: WardOption[];
   careStaffOptions: CareStaffOption[];
 };
@@ -106,9 +105,6 @@ export function ResidentDetailShell({
         )}
         {activeTab === "allergies" && (
           <AllergiesTab homeId={homeId} residentId={resident.id} />
-        )}
-        {activeTab === "medications" && (
-          <MedicationsTab homeId={homeId} residentId={resident.id} />
         )}
         {activeTab === "other-charge" && userRole === "admin" && (
           <OtherChargeTab

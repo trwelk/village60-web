@@ -10,13 +10,18 @@ import {
   isDashboardAnalyticsDemographicsStaffPath,
   isDashboardAnalyticsRevenueCollectionsPath,
   isDashboardChargesPath,
+  isDashboardExpenseTypesPath,
+  isDashboardExpensesPath,
   isDashboardHomesPath,
   isDashboardLeadsPath,
   isDashboardOtherChargesPath,
   isDashboardPaymentsPath,
   isDashboardResidentsPath,
   isDashboardTasksPath,
+  isDashboardMedicationsPath,
+  isDashboardResidentMedicationsPath,
   isDashboardUsersPath,
+  isDashboardAdminSettingsPath,
 } from "@/lib/dashboard/dashboardPaths";
 import {
   DASHBOARD_SIDEBAR_EXPANDED_KEY,
@@ -27,6 +32,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Building2,
   ClipboardList,
+  Coins,
   DoorOpen,
   FileStack,
   Inbox,
@@ -35,7 +41,11 @@ import {
   PanelLeft,
   PanelLeftClose,
   PieChart,
+  Pill,
   Receipt,
+  Settings,
+  Stethoscope,
+  Tags,
   UserCircle,
   UserCog,
   Users,
@@ -200,6 +210,24 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
       label: "Operations",
       items: operationsItems,
     },
+    {
+      kind: "group",
+      label: "Clinical",
+      items: [
+        {
+          href: "/dashboard/medications",
+          label: "Medications",
+          Icon: Pill,
+          isActive: isDashboardMedicationsPath,
+        },
+        {
+          href: "/dashboard/resident-medications",
+          label: "Resident medications",
+          Icon: Stethoscope,
+          isActive: isDashboardResidentMedicationsPath,
+        },
+      ],
+    },
   ];
 
   if (role === "admin") {
@@ -226,6 +254,18 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
             Icon: Wallet,
             isActive: isDashboardPaymentsPath,
           },
+          {
+            href: "/dashboard/expenses",
+            label: "Expenses",
+            Icon: Coins,
+            isActive: isDashboardExpensesPath,
+          },
+          {
+            href: "/dashboard/expenses/types",
+            label: "Expense types",
+            Icon: Tags,
+            isActive: isDashboardExpenseTypesPath,
+          },
         ],
       },
       {
@@ -249,6 +289,12 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
             label: "Staff",
             Icon: UserCog,
             isActive: isDashboardUsersPath,
+          },
+          {
+            href: "/dashboard/admin/settings",
+            label: "Admin settings",
+            Icon: Settings,
+            isActive: isDashboardAdminSettingsPath,
           },
         ],
       },
@@ -635,7 +681,7 @@ export function DashboardAppShell({
           <PrimaryNav
             pathname={pathname}
             role={role}
-            className="min-h-0 min-w-0 flex-1"
+            className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
             railCollapsed={!railExpanded}
           />
         </aside>

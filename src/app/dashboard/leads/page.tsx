@@ -1,4 +1,5 @@
 import { getDb } from "@/db/client";
+import { listResidentsPerHomeChart } from "@/lib/dashboard/charts";
 import {
   listInterestLeadsForAdmin,
   listPublicInterestHomes,
@@ -23,5 +24,15 @@ export default async function DashboardLeadsPage() {
   const db = getDb();
   const leads = listInterestLeadsForAdmin(db, session.role);
   const homes = listPublicInterestHomes(db);
-  return <LeadsAdminUI initialLeads={leads} homes={homes} />;
+  const residentsPerHome = listResidentsPerHomeChart(db);
+  const residentCountByHomeId = Object.fromEntries(
+    residentsPerHome.map((r) => [r.homeId, r.residentCount]),
+  );
+  return (
+    <LeadsAdminUI
+      initialLeads={leads}
+      homes={homes}
+      residentCountByHomeId={residentCountByHomeId}
+    />
+  );
 }

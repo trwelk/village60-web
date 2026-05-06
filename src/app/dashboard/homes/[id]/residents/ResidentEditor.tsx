@@ -1,10 +1,8 @@
 "use client";
 
 import { LocalTime } from "@/components/LocalTime";
-import type {
-  Resident,
-  ResidentWithoutFee,
-} from "@/lib/residents/service";
+import { VillageSelect } from "@/components/VillageSelect";
+import type { ResidentPublic } from "@/lib/residents/service";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -13,7 +11,7 @@ import { DepartResidentModal } from "./DepartResidentModal";
 
 type WardOption = { id: string; label: string };
 
-type ResidentInitial = Resident | ResidentWithoutFee;
+type ResidentInitial = ResidentPublic;
 
 type Props = {
   homeId: string;
@@ -46,7 +44,6 @@ async function parseError(res: Response): Promise<string> {
 const fieldLabelClass = "flex flex-col gap-1.5 text-sm";
 const fieldTextClass = "village-field-label";
 const inputClass = "village-input w-full";
-const selectClass = "village-select w-full";
 const subsectionTitleClass =
   "text-sm font-semibold uppercase tracking-[0.18em] text-pine/75";
 const wizardSteps = [
@@ -75,21 +72,101 @@ function splitLines(raw: string): string[] {
 }
 
 function parseMedicationRows(raw: string): {
-  rows: { name: string; dose: string; frequency: string }[];
+  rows: {
+    name: string;
+    strength: string;
+    unit: string;
+    quantityPerServing: number;
+    directions: string;
+    servingsPerDay: number | null;
+    prn: boolean;
+    minimumInStock: number | null;
+  }[];
   error: string | null;
 } {
-  const rows: { name: string; dose: string; frequency: string }[] = [];
+  const rows: {
+    name: string;
+    strength: string;
+    unit: string;
+    quantityPerServing: number;
+    directions: string;
+    servingsPerDay: number | null;
+    prn: boolean;
+    minimumInStock: number | null;
+  }[] = [];
   const lines = splitLines(raw);
   for (const line of lines) {
     const parts = line.split("|").map((p) => p.trim());
-    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
+    const name = parts[0] ?? "";
+    const strength = parts[1] ?? "";
+    const unit = parts[2] ?? "";
+    const quantityPerServingStr = parts[3] ?? "";
+    const directions = parts[4] ?? "";
+    if (
+      parts.length < 5 ||
+      !name ||
+      !strength ||
+      !unit ||
+      !quantityPerServingStr ||
+      !directions
+    ) {
       return {
         rows: [],
         error:
-          "Each medication line must use the format: name | dose | frequency.",
+          "Each medication line must start with: name | strength | unit | quantity per serving | directions (optional trailing columns: servings/day | PRN yes/no | min in stock).",
       };
     }
-    rows.push({ name: parts[0], dose: parts[1], frequency: parts[2] });
+    const quantityPerServing = Number.parseFloat(quantityPerServingStr);
+    if (Number.isNaN(quantityPerServing) || quantityPerServing <= 0) {
+      return {
+        rows: [],
+        error: "Quantity per serving must be a positive number.",
+      };
+    }
+    const servingsToken = parts[5] ?? "";
+    const prnToken = (parts[6] ?? "").toLowerCase();
+    const minTok = parts[7] ?? "";
+    let servingsPerDay: number | null = null;
+    const st = servingsToken.trim();
+    if (st !== "" && st !== "-") {
+      const n = Number.parseInt(st, 10);
+      if (!Number.isInteger(n) || n < 1) {
+        return {
+          rows: [],
+          error: "Servings per day must be blank, '-', or a positive integer.",
+        };
+      }
+      servingsPerDay = n;
+    }
+    let minimumInStock: number | null = null;
+    const mt = minTok.trim();
+    if (mt !== "" && mt !== "-") {
+      const n = Number.parseInt(mt, 10);
+      if (!Number.isInteger(n) || n < 0) {
+        return {
+          rows: [],
+          error:
+            "Minimum in stock must be blank, '-', or a non-negative integer.",
+        };
+      }
+      minimumInStock = n;
+    }
+    let prn = false;
+    const pt = prnToken.trim();
+    if (pt !== "" && pt !== "-") {
+      prn =
+        pt === "yes" || pt === "y" || pt === "true" || pt === "1" || pt === "prn";
+    }
+    rows.push({
+      name,
+      strength,
+      unit,
+      quantityPerServing,
+      directions,
+      servingsPerDay,
+      prn,
+      minimumInStock,
+    });
   }
   return { rows, error: null };
 }
@@ -382,7 +459,18 @@ export function ResidentEditor({
           fetch(`/api/homes/${homeId}/residents/${id}/clinical/medications`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(med),
+            body: JSON.stringify({
+              medication: {
+                name: med.name,
+                strength: med.strength,
+                unit: med.unit,
+              },
+              quantityPerServing: med.quantityPerServing,
+              directions: med.directions,
+              servingsPerDay: med.servingsPerDay,
+              minimumInStock: med.minimumInStock,
+              prn: med.prn,
+            }),
           }),
         );
       }
@@ -392,7 +480,7 @@ export function ResidentEditor({
         if (failed) {
           setCreateSubmitting(false);
           setError(
-            "Resident was created, but one or more clinical items failed to save. Open the resident and add them on the Clinical tabs.",
+            "Resident was created, but one or more clinical items failed to save. Use Manage medications and the Clinical tabs to add them.",
           );
           router.push(`/dashboard/homes/${homeId}/residents/${id}`);
           router.refresh();
@@ -722,18 +810,15 @@ export function ResidentEditor({
             <>
               <label className={fieldLabelClass}>
                 <span className={fieldTextClass}>Ward (optional)</span>
-                <select
-                  className={selectClass}
+                <VillageSelect
+                  className="w-full"
                   value={wardId}
-                  onChange={(e) => setWardId(e.target.value)}
-                >
-                  <option value="">—</option>
-                  {wards.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setWardId}
+                  options={[
+                    { value: "", label: "—" },
+                    ...wards.map((w) => ({ value: w.id, label: w.label })),
+                  ]}
+                />
               </label>
               <label className={fieldLabelClass}>
                 <span className={fieldTextClass}>Room / bed (optional)</span>
@@ -750,20 +835,17 @@ export function ResidentEditor({
             <>
               <label className={fieldLabelClass}>
                 <span className={fieldTextClass}>Ward</span>
-                <select
-                  className={selectClass}
+                <VillageSelect
+                  className="w-full"
                   value={wardId}
-                  onChange={(e) => setWardId(e.target.value)}
-                  required={createStep === "home"}
+                  onChange={setWardId}
                   disabled={wards.length === 0}
-                >
-                  <option value="">Select ward…</option>
-                  {wards.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.label}
-                    </option>
-                  ))}
-                </select>
+                  ariaRequired={createStep === "home"}
+                  options={[
+                    { value: "", label: "Select ward…" },
+                    ...wards.map((w) => ({ value: w.id, label: w.label })),
+                  ]}
+                />
               </label>
               <label className={fieldLabelClass}>
                 <span className={fieldTextClass}>Room / bed (optional)</span>
@@ -924,18 +1006,18 @@ export function ResidentEditor({
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label className={fieldLabelClass}>
                 <span className={fieldTextClass}>Assigned nurse (optional)</span>
-                <select
-                  className={selectClass}
+                <VillageSelect
+                  className="w-full"
                   value={assignedNurseUserId}
-                  onChange={(e) => setAssignedNurseUserId(e.target.value)}
-                >
-                  <option value="">— None —</option>
-                  {careStaffOptions.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.email}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setAssignedNurseUserId}
+                  options={[
+                    { value: "", label: "— None —" },
+                    ...(careStaffOptions ?? []).map((u) => ({
+                      value: u.id,
+                      label: u.email,
+                    })),
+                  ]}
+                />
               </label>
               <label className={fieldLabelClass}>
                 <span className={fieldTextClass}>
@@ -981,12 +1063,19 @@ export function ResidentEditor({
                   className={`${inputClass} min-h-28`}
                   value={clinicalMedicationsText}
                   onChange={(e) => setClinicalMedicationsText(e.target.value)}
-                  placeholder={"Metformin | 500mg | BID"}
+                  placeholder={
+                    "Metformin | 500 mg | tablet | 1 | With breakfast | 2 | no |"
+                  }
                 />
               </label>
             </div>
             <p className="village-muted mt-2 text-xs">
-              Medication format: <code>name | dose | frequency</code>
+              Medication format:{" "}
+              <code>
+                name | strength | unit | qty/serving | directions [| servings/day
+                [| PRN [| min in stock]]]
+              </code>
+              . Omit optional tails or use blank or <code>-</code>.
             </p>
           </section>
         ) : null}
@@ -1289,18 +1378,18 @@ export function ResidentEditor({
               <div className="grid gap-4 md:grid-cols-2">
                 <label className={fieldLabelClass}>
                   <span className={fieldTextClass}>Care staff (optional)</span>
-                  <select
-                    className={selectClass}
+                  <VillageSelect
+                    className="w-full"
                     value={assignedNurseUserId}
-                    onChange={(e) => setAssignedNurseUserId(e.target.value)}
-                  >
-                    <option value="">— None —</option>
-                    {careStaffOptions.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.email}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setAssignedNurseUserId}
+                    options={[
+                      { value: "", label: "— None —" },
+                      ...(careStaffOptions ?? []).map((u) => ({
+                        value: u.id,
+                        label: u.email,
+                      })),
+                    ]}
+                  />
                 </label>
                 <label className={fieldLabelClass}>
                   <span className={fieldTextClass}>

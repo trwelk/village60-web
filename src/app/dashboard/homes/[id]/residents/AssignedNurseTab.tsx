@@ -1,13 +1,13 @@
 "use client";
 
 import { VillageSelect } from "@/components/VillageSelect";
-import { useState } from "react";
-import type { ResidentWithoutFee } from "@/lib/residents/service";
+import { useEffect, useRef, useState } from "react";
+import type { ResidentPublic } from "@/lib/residents/service";
 
 type Props = {
   homeId: string;
   residentId: string;
-  resident: ResidentWithoutFee;
+  resident: ResidentPublic;
   careStaffOptions: { id: string; email: string }[];
 };
 
@@ -19,23 +19,69 @@ export function AssignedNurseTab({ homeId, residentId, resident, careStaffOption
   );
   const [saving, setSaving] = useState(false);
 
+  /** Last values that match successful save or props; avoids stale parent `resident` after PATCH. */
+  const persistedRef = useRef({
+    nurseUserId: resident.assignedNurseUserId ?? "",
+    displayOverride: resident.assignedNurseDisplayOverride ?? "",
+  });
+
+  useEffect(() => {
+    const nu = resident.assignedNurseUserId ?? "";
+    const d = resident.assignedNurseDisplayOverride ?? "";
+    setNurseUserId(nu);
+    setDisplayOverride(d);
+    persistedRef.current = { nurseUserId: nu, displayOverride: d };
+  }, [
+    resident.id,
+    resident.assignedNurseUserId,
+    resident.assignedNurseDisplayOverride,
+  ]);
+
   async function handleSave() {
     setSaving(true);
-    await fetch(`/api/homes/${homeId}/residents/${residentId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        assignedNurseUserId: nurseUserId || null,
-        assignedNurseDisplayOverride: displayOverride || null,
-      }),
-    });
-    setSaving(false);
-    setEditing(false);
+    try {
+      const res = await fetch(`/api/homes/${homeId}/residents/${residentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignedNurseUserId: nurseUserId || null,
+          assignedNurseDisplayOverride: displayOverride || null,
+        }),
+      });
+      let data: unknown;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+      if (res.ok) {
+        let nextNu = nurseUserId;
+        let nextD = displayOverride;
+        if (
+          typeof data === "object" &&
+          data !== null &&
+          "resident" in data &&
+          typeof (data as { resident?: unknown }).resident === "object" &&
+          (data as { resident: ResidentPublic | null }).resident !== null
+        ) {
+          const next = (data as { resident: ResidentPublic }).resident;
+          nextNu = next.assignedNurseUserId ?? "";
+          nextD = next.assignedNurseDisplayOverride ?? "";
+        }
+        setNurseUserId(nextNu);
+        setDisplayOverride(nextD);
+        persistedRef.current = { nurseUserId: nextNu, displayOverride: nextD };
+        setEditing(false);
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleCancel() {
-    setNurseUserId(resident.assignedNurseUserId ?? "");
-    setDisplayOverride(resident.assignedNurseDisplayOverride ?? "");
+    const p = persistedRef.current;
+    setNurseUserId(p.nurseUserId);
+    setDisplayOverride(p.displayOverride);
     setEditing(false);
   }
 
@@ -89,8 +135,9 @@ export function AssignedNurseTab({ homeId, residentId, resident, careStaffOption
     );
   }
 
-  const nurse = careStaffOptions.find((u) => u.id === resident.assignedNurseUserId);
-  const displayText = nurse?.email ?? resident.assignedNurseDisplayOverride ?? null;
+  const nurse = careStaffOptions.find((u) => u.id === nurseUserId);
+  const displayText =
+    nurse?.email ?? (displayOverride.trim() ? displayOverride : null);
 
   return (
     <div className="flex flex-col gap-5">

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   BillingBatchError,
+  ConflictError,
   DuplicateResidentError,
   ForbiddenError,
   NotFoundError,
@@ -27,6 +28,9 @@ export function homesErrorResponse(error: unknown): NextResponse | null {
   }
   if (error instanceof NotFoundError) {
     return NextResponse.json({ error: error.message }, { status: 404 });
+  }
+  if (error instanceof ConflictError) {
+    return NextResponse.json({ error: error.message }, { status: 409 });
   }
   if (error instanceof DuplicateResidentError) {
     return NextResponse.json(

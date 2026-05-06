@@ -28,6 +28,8 @@ const BASE_RESIDENT: ResidentWithoutFee = {
   poaRelationship: "Daughter",
   assignedNurseUserId: null,
   assignedNurseDisplayOverride: null,
+  hasPortrait: false,
+  portraitUpdatedAtUtcMs: null,
   createdAtUtcMs: 0,
   updatedAtUtcMs: 0,
 };

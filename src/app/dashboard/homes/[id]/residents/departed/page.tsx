@@ -6,8 +6,7 @@ import { listHomes } from "@/lib/homes/service";
 import {
   listDepartedResidentsForHome,
   residentViewForActor,
-  type Resident,
-  type ResidentWithoutFee,
+  type ResidentPublic,
 } from "@/lib/residents/service";
 import { getSessionOptions, type SessionData } from "@/lib/session";
 import { getIronSession } from "iron-session";
@@ -32,7 +31,7 @@ function DepartedRow({
   r,
 }: {
   homeId: string;
-  r: Resident | ResidentWithoutFee;
+  r: ResidentPublic;
 }) {
   const reason = r.departureReason ?? "—";
   const truncated =
@@ -78,7 +77,7 @@ export default async function DepartedResidentsPage({ params }: PageParams) {
     notFound();
   }
 
-  let residents: (Resident | ResidentWithoutFee)[];
+  let residents: ResidentPublic[];
   try {
     residents = listDepartedResidentsForHome(getDb(), actor, homeId).map((row) =>
       residentViewForActor(actor, row),

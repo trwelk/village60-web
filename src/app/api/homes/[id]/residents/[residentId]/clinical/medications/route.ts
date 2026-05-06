@@ -25,23 +25,108 @@ export async function POST(req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
   const rec = body as Record<string, unknown>;
-  for (const key of ["name", "dose", "frequency"] as const) {
-    if (typeof rec[key] !== "string") {
+
+  const catalogId =
+    typeof rec.medicationId === "string" ? rec.medicationId.trim() : "";
+  const hasRef = catalogId.length > 0;
+
+  const medRaw = rec.medication;
+  const hasNestedObj =
+    medRaw !== undefined &&
+    medRaw !== null &&
+    typeof medRaw === "object" &&
+    !Array.isArray(medRaw);
+
+  const hasLegacyTriple =
+    typeof rec.name === "string" &&
+    typeof rec.strength === "string" &&
+    typeof rec.unit === "string";
+
+  if (hasRef && (hasNestedObj || hasLegacyTriple)) {
+    return NextResponse.json(
+      { error: "Provide medicationId or medication, not both." },
+      { status: 400 },
+    );
+  }
+
+  if (!hasRef && !hasNestedObj && !hasLegacyTriple) {
+    return NextResponse.json(
+      {
+        error:
+          "Provide medicationId, or medication: { name, strength, unit }, or legacy name, strength, and unit.",
+      },
+      { status: 400 },
+    );
+  }
+
+  let medication: { name: string; strength: string; unit: string } | undefined;
+  if (hasNestedObj) {
+    const mo = medRaw as Record<string, unknown>;
+    for (const key of ["name", "strength", "unit"] as const) {
+      if (typeof mo[key] !== "string") {
+        return NextResponse.json(
+          { error: `medication.${key} must be a string.` },
+          { status: 400 },
+        );
+      }
+    }
+    medication = {
+      name: mo.name as string,
+      strength: mo.strength as string,
+      unit: mo.unit as string,
+    };
+  } else if (!hasRef && hasLegacyTriple) {
+    medication = {
+      name: rec.name as string,
+      strength: rec.strength as string,
+      unit: rec.unit as string,
+    };
+  }
+
+  if (
+    typeof rec.quantityPerServing !== "number" ||
+    !Number.isFinite(rec.quantityPerServing)
+  ) {
+    return NextResponse.json(
+      { error: "quantityPerServing must be a finite number." },
+      { status: 400 },
+    );
+  }
+  if (typeof rec.directions !== "string") {
+    return NextResponse.json(
+      { error: "directions must be a string." },
+      { status: 400 },
+    );
+  }
+
+  let servingsPerDay: number | null | undefined;
+  if ("servingsPerDay" in rec) {
+    if (rec.servingsPerDay === null) {
+      servingsPerDay = null;
+    } else if (
+      typeof rec.servingsPerDay === "number" &&
+      Number.isInteger(rec.servingsPerDay)
+    ) {
+      servingsPerDay = rec.servingsPerDay;
+    } else {
       return NextResponse.json(
-        { error: `${key} must be a string.` },
+        { error: "servingsPerDay must be an integer or null." },
         { status: 400 },
       );
     }
   }
-  let timingNotes: string | null | undefined;
-  if ("timingNotes" in rec) {
-    if (rec.timingNotes === null) {
-      timingNotes = null;
-    } else if (typeof rec.timingNotes === "string") {
-      timingNotes = rec.timingNotes;
+  let minimumInStock: number | null | undefined;
+  if ("minimumInStock" in rec) {
+    if (rec.minimumInStock === null) {
+      minimumInStock = null;
+    } else if (
+      typeof rec.minimumInStock === "number" &&
+      Number.isInteger(rec.minimumInStock)
+    ) {
+      minimumInStock = rec.minimumInStock;
     } else {
       return NextResponse.json(
-        { error: "timingNotes must be a string or null." },
+        { error: "minimumInStock must be an integer or null." },
         { status: 400 },
       );
     }
@@ -56,20 +141,54 @@ export async function POST(req: Request, { params }: RouteParams) {
     }
     prn = rec.prn;
   }
+
+  let initialStock: number | undefined;
+  if ("initialStock" in rec) {
+    if (
+      typeof rec.initialStock !== "number" ||
+      !Number.isInteger(rec.initialStock) ||
+      rec.initialStock < 0
+    ) {
+      return NextResponse.json(
+        { error: "initialStock must be a non-negative integer." },
+        { status: 400 },
+      );
+    }
+    initialStock = rec.initialStock;
+  }
+
   try {
-    const row = createResidentMedication(
-      getDb(),
-      requireSessionActor(session),
-      homeId,
-      residentId,
-      {
-        name: rec.name as string,
-        dose: rec.dose as string,
-        frequency: rec.frequency as string,
-        timingNotes,
-        prn,
-      },
-    );
+    const row = hasRef
+      ? createResidentMedication(
+          getDb(),
+          requireSessionActor(session),
+          homeId,
+          residentId,
+          {
+            medicationId: catalogId,
+            quantityPerServing: rec.quantityPerServing,
+            directions: rec.directions as string,
+            servingsPerDay,
+            minimumInStock,
+            prn,
+            initialStock,
+          },
+        )
+      : createResidentMedication(
+          getDb(),
+          requireSessionActor(session),
+          homeId,
+          residentId,
+          {
+            medication: medication!,
+            quantityPerServing: rec.quantityPerServing,
+            directions: rec.directions as string,
+            servingsPerDay,
+            minimumInStock,
+            prn,
+            initialStock,
+          },
+        );
     return NextResponse.json({ medication: row });
   } catch (e) {
     const resp = homesErrorResponse(e);

@@ -1,253 +1,407 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MedicationsTab } from "./MedicationsTab";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
-const MED1 = {
-  id: "m1",
-  name: "Metformin",
-  dose: "500mg",
-  frequency: "Twice daily",
-  timingNotes: "With meals",
-  prn: false,
-};
-const MED2 = {
-  id: "m2",
-  name: "Salbutamol",
-  dose: "100mcg",
-  frequency: "As needed",
-  timingNotes: null,
-  prn: true,
-};
+function pathnameOf(urlLike: string): string {
+  return new URL(urlLike, "http://localhost").pathname;
+}
 
-const SNAPSHOT = {
-  conditions: [],
-  allergies: [],
-  medications: [MED1, MED2],
-};
-
-function mockFetchOnce(body: unknown, ok = true) {
-  return vi.fn().mockResolvedValue({
-    ok,
-    status: ok ? 200 : 400,
-    json: async () => body,
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
   });
 }
 
-describe("MedicationsTab", () => {
-  it("shows medications fetched from API on mount", async () => {
-    vi.stubGlobal("fetch", mockFetchOnce(SNAPSHOT));
-    render(<MedicationsTab homeId="h1" residentId="r1" />);
-    await waitFor(() => {
-      expect(screen.getByText("Metformin")).toBeInTheDocument();
-      expect(screen.getByText("500mg · Twice daily")).toBeInTheDocument();
-      expect(screen.getByText("Salbutamol")).toBeInTheDocument();
-      expect(screen.getByText("PRN")).toBeInTheDocument();
+describe("MedicationsTab formulary combobox (31c)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  it("POSTs medicationId when user picks an existing formulary row", async () => {
+    const fetchMock = vi.mocked(globalThis.fetch);
+
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      const path = pathnameOf(url);
+
+      if (path.endsWith("/clinical") && method === "GET") {
+        return Promise.resolve(
+          jsonResponse({
+            conditions: [],
+            allergies: [],
+            medications: [],
+          }),
+        );
+      }
+
+      if (
+        /^\/api\/homes\/[^/]+\/medications$/.test(path) &&
+        method === "GET"
+      ) {
+        return Promise.resolve(
+          jsonResponse({
+            medications: [
+              {
+                id: "cat-met",
+                name: "Metformin",
+                strength: "500",
+                unit: "tablet",
+                homeId: "h1",
+                createdAtUtcMs: 0,
+                updatedAtUtcMs: 0,
+              },
+            ],
+          }),
+        );
+      }
+
+      if (path.endsWith("/clinical/medications") && method === "POST") {
+        return Promise.resolve(jsonResponse({ medication: { id: "rm-new" } }));
+      }
+
+      return Promise.reject(new Error(`unhandled fetch: ${method} ${url}`));
     });
-    vi.unstubAllGlobals();
-  });
 
-  it("shows loading state before fetch resolves", () => {
-    vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise(() => {})));
-    render(<MedicationsTab homeId="h1" residentId="r1" />);
-    expect(screen.getByText(/loading/i)).toBeInTheDocument();
-    vi.unstubAllGlobals();
-  });
+    render(
+      <MedicationsTab homeId="h1" residentId="r1" hideSectionTitle unitPresets />,
+    );
 
-  it("Add button POSTs to /medications and refreshes the list", async () => {
-    const newMed = {
-      id: "m3",
-      name: "Lisinopril",
-      dose: "10mg",
-      frequency: "Once daily",
-      timingNotes: null,
-      prn: false,
-    };
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => SNAPSHOT })
-      .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({}) })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ ...SNAPSHOT, medications: [...SNAPSHOT.medications, newMed] }),
-      });
-    vi.stubGlobal("fetch", fetchMock);
+    await waitFor(() =>
+      expect(screen.queryByText("Loading…")).not.toBeInTheDocument(),
+    );
 
-    render(<MedicationsTab homeId="h1" residentId="r1" />);
-    await waitFor(() => screen.getByText("Metformin"));
+    const search = screen.getByPlaceholderText(/search formulary/i);
+    await userEvent.click(search);
+    await userEvent.clear(search);
+    await userEvent.type(search, "Met");
 
-    await userEvent.type(screen.getByPlaceholderText(/^name$/i), "Lisinopril");
-    await userEvent.type(screen.getByPlaceholderText(/^dose$/i), "10mg");
-    await userEvent.type(screen.getByPlaceholderText(/^frequency$/i), "Once daily");
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: "Metformin · 500 · tablet" }),
+      ).toBeInTheDocument();
+    });
+
+    await userEvent.click(
+      screen.getByRole("option", { name: "Metformin · 500 · tablet" }),
+    );
+
+    await userEvent.type(
+      screen.getByPlaceholderText(/^qty per serving$/i),
+      "1",
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText(/how and when it is taken/i),
+      "With meals",
+    );
+
     await userEvent.click(screen.getByRole("button", { name: /add medication/i }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/homes/h1/residents/r1/clinical/medications",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({
-            name: "Lisinopril",
-            dose: "10mg",
-            frequency: "Once daily",
-            timingNotes: null,
-            prn: false,
-          }),
-        }),
+      const post = fetchMock.mock.calls.find(
+        (c) =>
+          pathnameOf(String(c[0])).endsWith("/clinical/medications") &&
+          (c[1] as { method?: string } | undefined)?.method === "POST",
       );
-      expect(screen.getByText("Lisinopril")).toBeInTheDocument();
+      expect(post).toBeDefined();
+      const body = JSON.parse((post![1] as { body: string }).body);
+      expect(body.medicationId).toBe("cat-met");
+      expect(body).not.toHaveProperty("medication");
     });
-    vi.unstubAllGlobals();
   });
 
-  it("Edit button shows inline form pre-populated with medication fields", async () => {
-    vi.stubGlobal("fetch", mockFetchOnce(SNAPSHOT));
-    render(<MedicationsTab homeId="h1" residentId="r1" />);
-    await waitFor(() => screen.getByText("Metformin"));
+  it("shows field-level message when create-new hits duplicate formulary (catalog unique)", async () => {
+    const fetchMock = vi.mocked(globalThis.fetch);
 
-    const editButtons = screen.getAllByRole("button", { name: /edit/i });
-    await userEvent.click(editButtons[0]);
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      const path = pathnameOf(url);
 
-    expect(screen.getByDisplayValue("Metformin")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("500mg")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Twice daily")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("With meals")).toBeInTheDocument();
-    vi.unstubAllGlobals();
-  });
+      if (path.endsWith("/clinical") && method === "GET") {
+        return Promise.resolve(
+          jsonResponse({
+            conditions: [],
+            allergies: [],
+            medications: [],
+          }),
+        );
+      }
 
-  it("Save edit PATCHes the medication and returns to read-only", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => SNAPSHOT })
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          ...SNAPSHOT,
-          medications: [
-            { ...MED1, dose: "1000mg" },
-            MED2,
-          ],
-        }),
-      });
-    vi.stubGlobal("fetch", fetchMock);
+      if (
+        /^\/api\/homes\/[^/]+\/medications$/.test(path) &&
+        method === "GET"
+      ) {
+        return Promise.resolve(jsonResponse({ medications: [] }));
+      }
 
-    render(<MedicationsTab homeId="h1" residentId="r1" />);
-    await waitFor(() => screen.getByText("Metformin"));
+      if (path.endsWith("/clinical/medications") && method === "POST") {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              error:
+                "This home already has a medication with the same name, strength, and unit.",
+            },
+            400,
+          ),
+        );
+      }
 
-    const editButtons = screen.getAllByRole("button", { name: /edit/i });
-    await userEvent.click(editButtons[0]);
+      return Promise.reject(new Error(`unhandled fetch: ${method} ${url}`));
+    });
 
-    const doseInput = screen.getByDisplayValue("500mg");
-    await userEvent.clear(doseInput);
-    await userEvent.type(doseInput, "1000mg");
-    await userEvent.click(screen.getByRole("button", { name: /save/i }));
+    render(
+      <MedicationsTab homeId="h1" residentId="r1" hideSectionTitle unitPresets />,
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("Loading…")).not.toBeInTheDocument(),
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /create new formulary product/i }),
+    );
+
+    await userEvent.type(screen.getByPlaceholderText(/^name$/i), "Dup");
+    await userEvent.type(screen.getByPlaceholderText(/^strength$/i), "10 mg");
+    await userEvent.type(
+      screen.getByPlaceholderText(/^qty per serving$/i),
+      "1",
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText(/how and when it is taken/i),
+      "Daily",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /add medication/i }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/homes/h1/residents/r1/clinical/medications/m1",
-        expect.objectContaining({
-          method: "PATCH",
-          body: JSON.stringify({
-            name: "Metformin",
-            dose: "1000mg",
-            frequency: "Twice daily",
-            timingNotes: "With meals",
-            prn: false,
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).toMatch(/same name, strength, and unit/i);
+    });
+  });
+
+  it("shows banner when assigning the same catalog product twice (duplicate assignment)", async () => {
+    const fetchMock = vi.mocked(globalThis.fetch);
+
+    let postCount = 0;
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      const path = pathnameOf(url);
+
+      if (path.endsWith("/clinical") && method === "GET") {
+        return Promise.resolve(
+          jsonResponse({
+            conditions: [],
+            allergies: [],
+            medications: [],
           }),
-        }),
-      );
-      expect(screen.getByText("1000mg · Twice daily")).toBeInTheDocument();
+        );
+      }
+
+      if (
+        /^\/api\/homes\/[^/]+\/medications$/.test(path) &&
+        method === "GET"
+      ) {
+        return Promise.resolve(
+          jsonResponse({
+            medications: [
+              {
+                id: "cat-a",
+                name: "Aspirin",
+                strength: "100 mg",
+                unit: "tablet",
+                homeId: "h1",
+                createdAtUtcMs: 0,
+                updatedAtUtcMs: 0,
+              },
+            ],
+          }),
+        );
+      }
+
+      if (path.endsWith("/clinical/medications") && method === "POST") {
+        postCount += 1;
+        if (postCount === 1) {
+          return Promise.resolve(jsonResponse({ medication: { id: "m1" } }));
+        }
+        return Promise.resolve(
+          jsonResponse(
+            { error: "This resident is already assigned this medication." },
+            400,
+          ),
+        );
+      }
+
+      return Promise.reject(new Error(`unhandled fetch: ${method} ${url}`));
     });
-    vi.unstubAllGlobals();
-  });
 
-  it("Cancel edit returns to read-only without saving", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => SNAPSHOT,
-    });
-    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <MedicationsTab homeId="h1" residentId="r1" hideSectionTitle unitPresets />,
+    );
 
-    render(<MedicationsTab homeId="h1" residentId="r1" />);
-    await waitFor(() => screen.getByText("Metformin"));
+    await waitFor(() =>
+      expect(screen.queryByText("Loading…")).not.toBeInTheDocument(),
+    );
 
-    const callsBefore = fetchMock.mock.calls.length;
-    const editButtons = screen.getAllByRole("button", { name: /edit/i });
-    await userEvent.click(editButtons[0]);
-    await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
-
-    expect(screen.getByText("Metformin")).toBeInTheDocument();
-    expect(fetchMock.mock.calls.length).toBe(callsBefore);
-    vi.unstubAllGlobals();
-  });
-
-  it("Remove button shows inline confirm/cancel — does not delete immediately", async () => {
-    vi.stubGlobal("fetch", mockFetchOnce(SNAPSHOT));
-    render(<MedicationsTab homeId="h1" residentId="r1" />);
-    await waitFor(() => screen.getByText("Metformin"));
-
-    const removeButtons = screen.getAllByRole("button", { name: /remove/i });
-    await userEvent.click(removeButtons[0]);
-
-    expect(screen.getByRole("button", { name: /confirm/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
-    vi.unstubAllGlobals();
-  });
-
-  it("Confirm delete sends DELETE to /medications/:id", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => SNAPSHOT })
-      .mockResolvedValueOnce({ ok: true, status: 204, json: async () => ({}) })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ ...SNAPSHOT, medications: [MED2] }),
-      });
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<MedicationsTab homeId="h1" residentId="r1" />);
-    await waitFor(() => screen.getByText("Metformin"));
-
-    const removeButtons = screen.getAllByRole("button", { name: /remove/i });
-    await userEvent.click(removeButtons[0]);
-    await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
+    const search = screen.getByPlaceholderText(/search formulary/i);
+    await userEvent.click(search);
+    await userEvent.type(search, "Asp");
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/homes/h1/residents/r1/clinical/medications/m1",
-        expect.objectContaining({ method: "DELETE" }),
-      );
-      expect(screen.queryByText("Metformin")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Aspirin · 100 mg · tablet" }),
+      ).toBeInTheDocument();
     });
-    vi.unstubAllGlobals();
+    await userEvent.click(
+      screen.getByRole("option", { name: "Aspirin · 100 mg · tablet" }),
+    );
+
+    await userEvent.type(
+      screen.getByPlaceholderText(/^qty per serving$/i),
+      "1",
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText(/how and when it is taken/i),
+      "Daily",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /add medication/i }));
+    await waitFor(() => expect(postCount).toBe(1));
+
+    const searchAgain = screen.getByPlaceholderText(/search formulary/i);
+    await userEvent.click(searchAgain);
+    await userEvent.clear(searchAgain);
+    await userEvent.type(searchAgain, "Asp");
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: "Aspirin · 100 mg · tablet" }),
+      ).toBeInTheDocument();
+    });
+    await userEvent.click(
+      screen.getByRole("option", { name: "Aspirin · 100 mg · tablet" }),
+    );
+
+    await userEvent.type(
+      screen.getByPlaceholderText(/^qty per serving$/i),
+      "1",
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText(/how and when it is taken/i),
+      "again",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /add medication/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/This resident is already assigned this medication/i),
+      ).toBeInTheDocument();
+    });
+    expect(postCount).toBe(2);
   });
 
-  it("Cancel delete hides confirmation without deleting", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => SNAPSHOT,
+  it("POSTs nested medication for Create new formulary product path", async () => {
+    const fetchMock = vi.mocked(globalThis.fetch);
+
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      const path = pathnameOf(url);
+
+      if (path.endsWith("/clinical") && method === "GET") {
+        return Promise.resolve(
+          jsonResponse({
+            conditions: [],
+            allergies: [],
+            medications: [],
+          }),
+        );
+      }
+
+      if (
+        /^\/api\/homes\/[^/]+\/medications$/.test(path) &&
+        method === "GET"
+      ) {
+        return Promise.resolve(jsonResponse({ medications: [] }));
+      }
+
+      if (path.endsWith("/clinical/medications") && method === "POST") {
+        return Promise.resolve(jsonResponse({ medication: { id: "new-line" } }));
+      }
+
+      return Promise.reject(new Error(`unhandled fetch: ${method} ${url}`));
     });
-    vi.stubGlobal("fetch", fetchMock);
 
-    render(<MedicationsTab homeId="h1" residentId="r1" />);
-    await waitFor(() => screen.getByText("Metformin"));
+    render(
+      <MedicationsTab homeId="h1" residentId="r1" hideSectionTitle unitPresets />,
+    );
 
-    const callsBefore = fetchMock.mock.calls.length;
-    const removeButtons = screen.getAllByRole("button", { name: /remove/i });
-    await userEvent.click(removeButtons[0]);
-    await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
+    await waitFor(() =>
+      expect(screen.queryByText("Loading…")).not.toBeInTheDocument(),
+    );
 
-    expect(screen.getByText("Metformin")).toBeInTheDocument();
-    expect(fetchMock.mock.calls.length).toBe(callsBefore);
-    vi.unstubAllGlobals();
+    await userEvent.click(
+      screen.getByRole("button", { name: /create new formulary product/i }),
+    );
+
+    await userEvent.type(screen.getByPlaceholderText(/^name$/i), "NewMed");
+    await userEvent.type(screen.getByPlaceholderText(/^strength$/i), "5 mg");
+    await userEvent.type(
+      screen.getByPlaceholderText(/^qty per serving$/i),
+      "1",
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText(/how and when it is taken/i),
+      "Daily",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /add medication/i }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        (c) =>
+          pathnameOf(String(c[0])).endsWith("/clinical/medications") &&
+          (c[1] as { method?: string } | undefined)?.method === "POST",
+      );
+      expect(post).toBeDefined();
+      const body = JSON.parse((post![1] as { body: string }).body);
+      expect(body.medication).toEqual({
+        name: "NewMed",
+        strength: "5 mg",
+        unit: "tablet",
+      });
+      expect(body).not.toHaveProperty("medicationId");
+    });
   });
 });

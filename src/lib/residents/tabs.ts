@@ -6,7 +6,6 @@ export type TabId =
   | "assigned-nurse"
   | "conditions"
   | "allergies"
-  | "medications"
   | "other-charge"
   | "billing";
 
@@ -19,7 +18,6 @@ export const RESIDENT_CORE_TABS: Tab[] = [
   { id: "assigned-nurse", label: "Assigned Nurse" },
   { id: "conditions", label: "Conditions" },
   { id: "allergies", label: "Allergies" },
-  { id: "medications", label: "Medications" },
 ];
 
 const OTHER_CHARGE_TAB: Tab = { id: "other-charge", label: "Other charges" };

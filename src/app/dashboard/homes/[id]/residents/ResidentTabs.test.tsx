@@ -16,7 +16,6 @@ const ALL_TAB_LABELS = [
   "Assigned Nurse",
   "Conditions",
   "Allergies",
-  "Medications",
 ];
 
 describe("ResidentTabs", () => {
@@ -54,12 +53,12 @@ describe("ResidentTabs", () => {
     render(
       <ResidentTabs
         tabs={RESIDENT_CORE_TABS}
-        activeTab="medications"
+        activeTab="allergies"
         onTabChange={vi.fn()}
       />,
     );
     expect(
-      screen.getByRole("tab", { name: "Medications" }),
+      screen.getByRole("tab", { name: "Allergies" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
       screen.getByRole("tab", { name: "Next of Kin" }),

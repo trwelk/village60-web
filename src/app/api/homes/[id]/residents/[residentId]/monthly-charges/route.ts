@@ -1,7 +1,10 @@
 import { getDb } from "@/db/client";
 import { parseBillingMonth } from "@/lib/billing/billingMonth";
 import { listResidentOtherCharges } from "@/lib/billing/otherCharges";
-import { listResidentMonthlyCharges } from "@/lib/billing/residentCharges";
+import {
+  getResidentMonthlyChargesListMeta,
+  listResidentMonthlyCharges,
+} from "@/lib/billing/residentCharges";
 import { requireSessionActor } from "@/lib/authz/sessionActor";
 import { homesErrorResponse } from "@/lib/homes/http";
 import { getSessionOptions, type SessionData } from "@/lib/session";
@@ -45,7 +48,13 @@ export async function GET(req: Request, { params }: RouteParams) {
       homeId,
       residentId,
     );
-    return NextResponse.json({ charges, otherCharges });
+    const meta = getResidentMonthlyChargesListMeta(
+      db,
+      actor,
+      homeId,
+      residentId,
+    );
+    return NextResponse.json({ charges, otherCharges, ...meta });
   } catch (e) {
     const resp = homesErrorResponse(e);
     if (resp) {

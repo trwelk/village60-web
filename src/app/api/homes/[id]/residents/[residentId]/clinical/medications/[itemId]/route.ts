@@ -31,34 +31,72 @@ export async function PATCH(req: Request, { params }: RouteParams) {
   }
   const rec = body as Record<string, unknown>;
   const patch: {
-    name?: string;
-    dose?: string;
-    frequency?: string;
-    timingNotes?: string | null;
-    prn?: boolean;
+      quantityPerServing?: number;
+      directions?: string;
+      servingsPerDay?: number | null;
+      minimumInStock?: number | null;
+      prn?: boolean;
+      medicationId?: string;
   } = {};
-  for (const key of ["name", "dose", "frequency"] as const) {
-    if (key in rec) {
-      if (typeof rec[key] !== "string") {
-        return NextResponse.json(
-          { error: `${key} must be a string.` },
-          { status: 400 },
-        );
-      }
-      patch[key] = rec[key] as string;
-    }
-  }
-  if ("timingNotes" in rec) {
-    if (rec.timingNotes === null) {
-      patch.timingNotes = null;
-    } else if (typeof rec.timingNotes === "string") {
-      patch.timingNotes = rec.timingNotes;
-    } else {
+  if ("quantityPerServing" in rec) {
+    if (
+      typeof rec.quantityPerServing !== "number" ||
+      !Number.isFinite(rec.quantityPerServing)
+    ) {
       return NextResponse.json(
-        { error: "timingNotes must be a string or null." },
+        { error: "quantityPerServing must be a finite number." },
         { status: 400 },
       );
     }
+    patch.quantityPerServing = rec.quantityPerServing;
+  }
+  if ("directions" in rec) {
+    if (typeof rec.directions !== "string") {
+      return NextResponse.json(
+        { error: "directions must be a string." },
+        { status: 400 },
+      );
+    }
+    patch.directions = rec.directions;
+  }
+  if ("servingsPerDay" in rec) {
+    if (rec.servingsPerDay === null) {
+      patch.servingsPerDay = null;
+    } else if (
+      typeof rec.servingsPerDay === "number" &&
+      Number.isInteger(rec.servingsPerDay)
+    ) {
+      patch.servingsPerDay = rec.servingsPerDay;
+    } else {
+      return NextResponse.json(
+        { error: "servingsPerDay must be an integer or null." },
+        { status: 400 },
+      );
+    }
+  }
+  if ("minimumInStock" in rec) {
+    if (rec.minimumInStock === null) {
+      patch.minimumInStock = null;
+    } else if (
+      typeof rec.minimumInStock === "number" &&
+      Number.isInteger(rec.minimumInStock)
+    ) {
+      patch.minimumInStock = rec.minimumInStock;
+    } else {
+      return NextResponse.json(
+        { error: "minimumInStock must be an integer or null." },
+        { status: 400 },
+      );
+    }
+  }
+  if ("medicationId" in rec) {
+    if (typeof rec.medicationId !== "string") {
+      return NextResponse.json(
+        { error: "medicationId must be a string." },
+        { status: 400 },
+      );
+    }
+    patch.medicationId = rec.medicationId;
   }
   if ("prn" in rec) {
     if (typeof rec.prn !== "boolean") {
