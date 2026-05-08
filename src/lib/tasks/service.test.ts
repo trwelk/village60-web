@@ -3,11 +3,20 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
-import { residentMonthlyCharges, residentPayments, users } from "@/db/schema";
+import {
+  billingPayments,
+  billingTransactions,
+  homes,
+  invoices,
+  residentAccounts,
+  residents,
+  users,
+} from "@/db/schema";
 import { createHome } from "@/lib/homes/service";
 import { createResident, departResident } from "@/lib/residents/service";
 import { createUser } from "@/lib/users/service";
@@ -33,45 +42,121 @@ function runMigrations(file: string) {
   sqlite.close();
 }
 
+function getOrCreateAccountId(
+  db: ReturnType<typeof getDb>,
+  input: {
+    residentId: string;
+  },
+): string {
+  const existing = db
+    .select({ id: residentAccounts.id })
+    .from(residentAccounts)
+    .where(eq(residentAccounts.residentId, input.residentId))
+    .get();
+  if (existing) {
+    return existing.id;
+  }
+  const residentRow = db
+    .select({ homeId: residents.homeId })
+    .from(residents)
+    .where(eq(residents.id, input.residentId))
+    .get();
+  if (!residentRow) {
+    throw new Error("resident not found");
+  }
+  const homeRow = db
+    .select({ currencyCode: homes.defaultCurrencyCode })
+    .from(homes)
+    .where(eq(homes.id, residentRow.homeId))
+    .get();
+  if (!homeRow) {
+    throw new Error("home not found");
+  }
+  const accountId = randomUUID();
+  const now = Date.now();
+  db.insert(residentAccounts)
+    .values({
+      id: accountId,
+      residentId: input.residentId,
+      currencyCode: homeRow.currencyCode,
+      createdAtUtcMs: now,
+      updatedAtUtcMs: now,
+    })
+    .run();
+  return accountId;
+}
+
 function insertCharge(
   db: ReturnType<typeof getDb>,
   input: {
     residentId: string;
     billingMonth: string;
-    wardIdSnapshot: string;
-    amountMinorSnapshot: number;
+    amountMinor: number;
   },
 ) {
   const now = Date.now();
-  const id = randomUUID();
-  db.insert(residentMonthlyCharges)
+  const accountId = getOrCreateAccountId(db, { residentId: input.residentId });
+  const invoiceId = randomUUID();
+  db.insert(invoices)
     .values({
-      id,
-      residentId: input.residentId,
-      billingMonth: input.billingMonth,
-      wardIdSnapshot: input.wardIdSnapshot,
-      amountMinorSnapshot: input.amountMinorSnapshot,
+      id: invoiceId,
+      accountId,
+      status: "finalized",
+      billingPeriod: input.billingMonth,
+      issuedOn: `${input.billingMonth}-01`,
+      totalMinorSnapshot: input.amountMinor,
       createdAtUtcMs: now,
       updatedAtUtcMs: now,
     })
     .run();
-  return id;
+  const txnId = randomUUID();
+  db.insert(billingTransactions)
+    .values({
+      id: txnId,
+      accountId,
+      txnType: "charge",
+      amountMinor: input.amountMinor,
+      sourceKind: "invoice",
+      sourceId: invoiceId,
+      memo: null,
+      recordedByUserId: null,
+      postedAtUtcMs: now,
+    })
+    .run();
+  return { chargeTxnId: txnId, accountId };
 }
 
 function insertPayment(
   db: ReturnType<typeof getDb>,
-  input: { chargeId: string; userId: string; amountMinor: number },
+  input: { accountId: string; userId: string; amountMinor: number },
 ) {
   const now = Date.now();
+  const txnId = randomUUID();
+  db.insert(billingTransactions)
+    .values({
+      id: txnId,
+      accountId: input.accountId,
+      txnType: "payment",
+      amountMinor: -input.amountMinor,
+      sourceKind: "payment",
+      sourceId: null,
+      memo: null,
+      recordedByUserId: input.userId,
+      postedAtUtcMs: now,
+    })
+    .run();
   const id = randomUUID();
-  db.insert(residentPayments)
+  db.insert(billingPayments)
     .values({
       id,
-      residentMonthlyChargeId: input.chargeId,
+      accountId: input.accountId,
       amountMinor: input.amountMinor,
-      paidOn: "2026-04-10",
+      receivedOn: "2026-04-10",
+      method: "cash",
+      externalReference: null,
       notes: null,
       recordedByUserId: input.userId,
+      ledgerTransactionId: txnId,
       createdAtUtcMs: now,
       updatedAtUtcMs: now,
     })
@@ -124,8 +209,7 @@ describe("payment overdue task inbox (25b)", () => {
     insertCharge(db, {
       residentId: r.id,
       billingMonth: "2026-04",
-      wardIdSnapshot: ward.id,
-      amountMinorSnapshot: 500_00,
+      amountMinor: 500_00,
     });
     // Still April 2026: April bill is not overdue yet
     const duringApril = listOpenInbox(db, adminActor, {
@@ -173,16 +257,19 @@ describe("payment overdue task inbox (25b)", () => {
         primaryHomeId: null,
       })
       .run();
-    const chargeId = insertCharge(db, {
+    const charge = insertCharge(db, {
       residentId: r.id,
       billingMonth: "2026-03",
-      wardIdSnapshot: ward.id,
-      amountMinorSnapshot: 100_00,
+      amountMinor: 100_00,
     });
-    insertPayment(db, { chargeId, userId: "paying-user", amountMinor: 100_00 });
+    insertPayment(db, {
+      accountId: charge.accountId,
+      userId: "paying-user",
+      amountMinor: 100_00,
+    });
     const items = listOpenInbox(db, adminActor, { asOfDateUtc: "2026-05-15" });
     expect(
-      items.filter((x) => x.kind === "payment_overdue" && x.sourceId === chargeId),
+      items.filter((x) => x.kind === "payment_overdue" && x.sourceId === charge.chargeTxnId),
     ).toHaveLength(0);
   });
 
@@ -213,14 +300,12 @@ describe("payment overdue task inbox (25b)", () => {
     insertCharge(db, {
       residentId: rA.id,
       billingMonth: "2026-03",
-      wardIdSnapshot: wA.id,
-      amountMinorSnapshot: 10_00,
+      amountMinor: 10_00,
     });
     insertCharge(db, {
       residentId: rB.id,
       billingMonth: "2026-03",
-      wardIdSnapshot: wB.id,
-      amountMinorSnapshot: 20_00,
+      amountMinor: 20_00,
     });
     const care = await createUser(db, "admin", {
       email: "nurse-25b@example.com",
@@ -256,8 +341,7 @@ describe("payment overdue task inbox (25b)", () => {
     insertCharge(db, {
       residentId: r.id,
       billingMonth: "2026-01",
-      wardIdSnapshot: ward.id,
-      amountMinorSnapshot: 9_00,
+      amountMinor: 9_00,
     });
     const completed = listCompletedManualTasks(db, adminActor);
     expect(completed).toEqual([]);
@@ -475,8 +559,7 @@ describe("inbox filters and ranking (25d)", () => {
     insertCharge(db, {
       residentId: r.id,
       billingMonth: "2026-04",
-      wardIdSnapshot: ward.id,
-      amountMinorSnapshot: 500_00,
+      amountMinor: 500_00,
     });
     createTask(db, actor, {
       homeId: home.id,
@@ -599,8 +682,7 @@ describe("dashboard tasks summary (25e)", () => {
     insertCharge(db, {
       residentId: r.id,
       billingMonth: "2026-03",
-      wardIdSnapshot: ward.id,
-      amountMinorSnapshot: 5_00,
+      amountMinor: 5_00,
     });
     createTask(db, actor, {
       homeId: home.id,
@@ -644,14 +726,12 @@ describe("dashboard tasks summary (25e)", () => {
     insertCharge(db, {
       residentId: rA.id,
       billingMonth: "2026-03",
-      wardIdSnapshot: wA.id,
-      amountMinorSnapshot: 1_00,
+      amountMinor: 1_00,
     });
     insertCharge(db, {
       residentId: rB.id,
       billingMonth: "2026-03",
-      wardIdSnapshot: wB.id,
-      amountMinorSnapshot: 2_00,
+      amountMinor: 2_00,
     });
     const adminU = await createUser(db, "admin", {
       email: "tasks-25e-admin@example.com",

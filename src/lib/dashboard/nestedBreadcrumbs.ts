@@ -32,7 +32,7 @@ export function buildHomeAreaBreadcrumbTrail(
   }
   const homeName = input.homeLabel.trim() || "Home";
   const re = new RegExp(
-    `^/dashboard/homes/${escapeRe(input.homeId)}/(wards|medications(?:/.*)?|residents(?:/.*)?)$`,
+    `^/dashboard/homes/${escapeRe(input.homeId)}/(wards|ledger|residents(?:/.*)?)$`,
   );
   const m = re.exec(pathname);
   if (!m) {
@@ -50,6 +50,9 @@ export function buildHomeAreaBreadcrumbTrail(
   };
   if (rest === "wards") {
     return [hub, home, { label: "Wards", currentPage: true }];
+  }
+  if (rest === "ledger") {
+    return [hub, home, { label: "Ledger", currentPage: true }];
   }
   if (rest === "residents/new") {
     return [

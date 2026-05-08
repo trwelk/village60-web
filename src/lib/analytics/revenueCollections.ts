@@ -1,8 +1,10 @@
-import { and, asc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import {
+  billingPayments,
+  billingTransactions,
   homes,
-  residentMonthlyCharges,
-  residentPayments,
+  invoices,
+  residentAccounts,
   residents,
 } from "@/db/schema";
 import { utcBillingMonthFromMs } from "@/lib/billing/billingMonth";
@@ -54,10 +56,22 @@ export function sumBilledForBillingMonth(
 ): number {
   const row = db
     .select({
-      total: sql<number>`ifnull(sum(${residentMonthlyCharges.amountMinorSnapshot}), 0)`,
+      total: sql<number>`ifnull(sum(${billingTransactions.amountMinor}), 0)`,
     })
-    .from(residentMonthlyCharges)
-    .where(eq(residentMonthlyCharges.billingMonth, billingMonth))
+    .from(billingTransactions)
+    .innerJoin(
+      invoices,
+      and(
+        eq(billingTransactions.sourceKind, "invoice"),
+        eq(billingTransactions.sourceId, invoices.id),
+      ),
+    )
+    .where(
+      and(
+        eq(billingTransactions.txnType, "charge"),
+        eq(invoices.billingPeriod, billingMonth),
+      ),
+    )
     .get();
   return Number(row?.total ?? 0);
 }
@@ -68,17 +82,10 @@ export function sumCollectedForBillingMonth(
 ): number {
   const row = db
     .select({
-      total: sql<number>`ifnull(sum(${residentPayments.amountMinor}), 0)`,
+      total: sql<number>`ifnull(sum(${billingPayments.amountMinor}), 0)`,
     })
-    .from(residentMonthlyCharges)
-    .innerJoin(
-      residentPayments,
-      eq(
-        residentPayments.residentMonthlyChargeId,
-        residentMonthlyCharges.id,
-      ),
-    )
-    .where(eq(residentMonthlyCharges.billingMonth, billingMonth))
+    .from(billingPayments)
+    .where(sql`substr(${billingPayments.receivedOn}, 1, 7) = ${billingMonth}`)
     .get();
   return Number(row?.total ?? 0);
 }
@@ -86,19 +93,11 @@ export function sumCollectedForBillingMonth(
 export function sumOutstandingUnpaidMinor(db: AppDb): number {
   const row = db
     .select({
-      total: sql<number>`ifnull(sum(${residentMonthlyCharges.amountMinorSnapshot}), 0)`,
+      total: sql<number>`ifnull(sum(${billingTransactions.amountMinor}), 0)`,
     })
-    .from(residentMonthlyCharges)
-    .leftJoin(
-      residentPayments,
-      eq(
-        residentPayments.residentMonthlyChargeId,
-        residentMonthlyCharges.id,
-      ),
-    )
-    .where(isNull(residentPayments.id))
+    .from(billingTransactions)
     .get();
-  return Number(row?.total ?? 0);
+  return Math.max(0, Number(row?.total ?? 0));
 }
 
 export type RevenueKpis = {
@@ -166,25 +165,42 @@ export function listTwelveMonthBilledVsCollected(
 
   const agg = db
     .select({
-      monthKey: residentMonthlyCharges.billingMonth,
-      billedMinor: sql<number>`ifnull(sum(${residentMonthlyCharges.amountMinorSnapshot}), 0)`,
-      collectedMinor: sql<number>`ifnull(sum(${residentPayments.amountMinor}), 0)`,
+      monthKey: invoices.billingPeriod,
+      billedMinor: sql<number>`ifnull(sum(${billingTransactions.amountMinor}), 0)`,
+      collectedMinor: sql<number>`0`,
     })
-    .from(residentMonthlyCharges)
+    .from(invoices)
     .leftJoin(
-      residentPayments,
-      eq(
-        residentPayments.residentMonthlyChargeId,
-        residentMonthlyCharges.id,
+      billingTransactions,
+      and(
+        eq(billingTransactions.sourceKind, "invoice"),
+        eq(billingTransactions.sourceId, invoices.id),
+        eq(billingTransactions.txnType, "charge"),
       ),
     )
     .where(
       and(
-        gte(residentMonthlyCharges.billingMonth, startMonth),
-        lte(residentMonthlyCharges.billingMonth, endMonth),
+        isNotNull(invoices.billingPeriod),
+        gte(invoices.billingPeriod, startMonth),
+        lte(invoices.billingPeriod, endMonth),
       ),
     )
-    .groupBy(residentMonthlyCharges.billingMonth)
+    .groupBy(invoices.billingPeriod)
+    .all();
+
+  const collectedAgg = db
+    .select({
+      monthKey: sql<string>`substr(${billingPayments.receivedOn}, 1, 7)`,
+      collectedMinor: sql<number>`ifnull(sum(${billingPayments.amountMinor}), 0)`,
+    })
+    .from(billingPayments)
+    .where(
+      and(
+        gte(sql`substr(${billingPayments.receivedOn}, 1, 7)`, startMonth),
+        lte(sql`substr(${billingPayments.receivedOn}, 1, 7)`, endMonth),
+      ),
+    )
+    .groupBy(sql`substr(${billingPayments.receivedOn}, 1, 7)`)
     .all();
 
   const byMonth = new Map(
@@ -196,6 +212,11 @@ export function listTwelveMonthBilledVsCollected(
       },
     ]),
   );
+  for (const row of collectedAgg) {
+    const existing = byMonth.get(row.monthKey) ?? { billedMinor: 0, collectedMinor: 0 };
+    existing.collectedMinor = Number(row.collectedMinor);
+    byMonth.set(row.monthKey, existing);
+  }
 
   const out: BilledVsCollectedMonthDatum[] = [];
   let cursor = startMonth;
@@ -231,32 +252,70 @@ export function listPaymentLagByHome(db: AppDb): PaymentLagByHomeDatum[] {
     .orderBy(asc(homes.name))
     .all();
 
-  const lags = db
+  const chargeRows = db
+    .select({
+      accountId: billingTransactions.accountId,
+      postedAtUtcMs: billingTransactions.postedAtUtcMs,
+      billingMonth: invoices.billingPeriod,
+    })
+    .from(billingTransactions)
+    .innerJoin(
+      invoices,
+      and(
+        eq(billingTransactions.sourceKind, "invoice"),
+        eq(billingTransactions.sourceId, invoices.id),
+        eq(billingTransactions.txnType, "charge"),
+      ),
+    )
+    .all();
+
+  const paymentRows = db
     .select({
       homeId: residents.homeId,
-      billingMonth: residentMonthlyCharges.billingMonth,
-      paidOn: residentPayments.paidOn,
+      receivedOn: billingPayments.receivedOn,
+      accountId: billingPayments.accountId,
+      payPostedMs: billingTransactions.postedAtUtcMs,
     })
-    .from(residentPayments)
+    .from(billingPayments)
     .innerJoin(
-      residentMonthlyCharges,
-      eq(residentPayments.residentMonthlyChargeId, residentMonthlyCharges.id),
+      billingTransactions,
+      eq(billingPayments.ledgerTransactionId, billingTransactions.id),
     )
-    .innerJoin(residents, eq(residents.id, residentMonthlyCharges.residentId))
+    .innerJoin(residentAccounts, eq(residentAccounts.id, billingPayments.accountId))
+    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
     .innerJoin(homes, eq(homes.id, residents.homeId))
     .where(isNull(homes.archivedAtUtcMs))
     .all();
 
-  const byHome = new Map<string, number[]>();
-  for (const row of lags) {
-    const lag = paymentLagDaysFromMonthEnd(row.billingMonth, row.paidOn);
-    const list = byHome.get(row.homeId) ?? [];
-    list.push(lag);
-    byHome.set(row.homeId, list);
+  const chargesByAccount = new Map<string, { postedAtUtcMs: number; billingMonth: string }[]>();
+  for (const c of chargeRows) {
+    if (c.billingMonth == null || c.billingMonth === "") continue;
+    const list = chargesByAccount.get(c.accountId) ?? [];
+    list.push({ postedAtUtcMs: c.postedAtUtcMs, billingMonth: c.billingMonth });
+    chargesByAccount.set(c.accountId, list);
+  }
+
+  const lagValuesByHome = new Map<string, number[]>();
+  for (const p of paymentRows) {
+    const list = chargesByAccount.get(p.accountId) ?? [];
+    const prior = list.filter(
+      (c) => c.postedAtUtcMs <= p.payPostedMs && c.billingMonth != null,
+    );
+    if (prior.length === 0) continue;
+    let best = prior[0]!;
+    for (const row of prior) {
+      if (row.postedAtUtcMs > best.postedAtUtcMs) {
+        best = row;
+      }
+    }
+    const lag = paymentLagDaysFromMonthEnd(best.billingMonth, p.receivedOn);
+    const acc = lagValuesByHome.get(p.homeId) ?? [];
+    acc.push(lag);
+    lagValuesByHome.set(p.homeId, acc);
   }
 
   const mapped = homeRows.map((h) => {
-    const list = byHome.get(h.id);
+    const list = lagValuesByHome.get(h.id);
     if (!list?.length) {
       return {
         homeId: h.id,

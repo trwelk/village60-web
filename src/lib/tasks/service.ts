@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { assertActorMayAccessHome, getCareUserAssignedHomeIds } from "@/lib/authz/homeScope";
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import {
+  billingTransactions,
   homes,
-  residentMonthlyCharges,
-  residentPayments,
+  invoiceLineItems,
+  invoices,
+  residentAccounts,
   residents,
   tasks,
 } from "@/db/schema";
@@ -23,7 +25,7 @@ export type TaskListItem = Task & { homeName: string };
 export type ManualInboxItem = TaskListItem & { kind: "manual" };
 export type PaymentOverdueInboxItem = {
   kind: "payment_overdue";
-  /** Stable id: monthly charge id. */
+  /** Stable id: charge ledger transaction id. */
   sourceId: string;
   homeId: string;
   homeName: string;
@@ -242,40 +244,87 @@ function listPaymentOverdueReminders(
   actor: SessionActor,
   asOfDateUtc: string,
 ): PaymentOverdueInboxItem[] {
-  const overdue = sql`date(${residentMonthlyCharges.billingMonth} || '-01', '+1 month') <= date(${asOfDateUtc})`;
-  const noPayment = isNull(residentPayments.id);
+  const overdue = sql`date(${invoices.billingPeriod} || '-01', '+1 month') <= date(${asOfDateUtc})`;
+  const noLaterPayment = sql`not exists (
+    select 1
+    from billing_transactions p
+    where p.account_id = ${billingTransactions.accountId}
+      and p.txn_type = 'payment'
+      and p.posted_at_utc_ms >= ${billingTransactions.postedAtUtcMs}
+  )`;
   if (actor.role === "admin") {
     const rows = db
       .select({
-        sourceId: residentMonthlyCharges.id,
+        sourceId: billingTransactions.id,
         homeId: residents.homeId,
         homeName: homes.name,
         currencyCode: homes.defaultCurrencyCode,
         residentId: residents.id,
         residentName: residents.fullName,
-        billingMonth: residentMonthlyCharges.billingMonth,
-        amountMinor: residentMonthlyCharges.amountMinorSnapshot,
+        billingMonth: invoices.billingPeriod,
+        amountMinor: billingTransactions.amountMinor,
       })
-      .from(residentMonthlyCharges)
-      .innerJoin(residents, eq(residents.id, residentMonthlyCharges.residentId))
+      .from(billingTransactions)
+      .innerJoin(residentAccounts, eq(residentAccounts.id, billingTransactions.accountId))
+      .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
       .innerJoin(homes, eq(homes.id, residents.homeId))
       .leftJoin(
-        residentPayments,
-        eq(residentPayments.residentMonthlyChargeId, residentMonthlyCharges.id),
+        invoiceLineItems,
+        or(
+          and(
+            eq(billingTransactions.sourceKind, "invoice_line_item"),
+            eq(billingTransactions.sourceId, invoiceLineItems.id),
+          ),
+          and(
+            eq(billingTransactions.sourceKind, "invoice_monthly_fee"),
+            eq(invoiceLineItems.category, "monthly_fee"),
+            sql`(${billingTransactions.accountId} || ':' || ${invoiceLineItems.serviceMonth}) = ${billingTransactions.sourceId}`,
+          ),
+        ),
       )
-      .where(and(noPayment, overdue))
+      .innerJoin(
+        invoices,
+        or(
+          and(
+            eq(billingTransactions.sourceKind, "invoice"),
+            eq(billingTransactions.sourceId, invoices.id),
+          ),
+          and(
+            eq(billingTransactions.sourceKind, "invoice_line_item"),
+            eq(invoiceLineItems.invoiceId, invoices.id),
+          ),
+          and(
+            eq(billingTransactions.sourceKind, "invoice_monthly_fee"),
+            eq(invoiceLineItems.invoiceId, invoices.id),
+          ),
+        ),
+      )
+      .where(
+        and(
+          eq(billingTransactions.txnType, "charge"),
+          isNotNull(invoices.billingPeriod),
+          overdue,
+          noLaterPayment,
+        ),
+      )
       .all();
-    return rows.map((row) => ({
-      kind: "payment_overdue" as const,
-      sourceId: row.sourceId,
-      homeId: row.homeId,
-      homeName: row.homeName,
-      currencyCode: row.currencyCode,
-      residentId: row.residentId,
-      residentName: row.residentName,
-      billingMonth: row.billingMonth,
-      amountMinor: row.amountMinor,
-    }));
+    return rows.flatMap((row) =>
+      row.billingMonth === null
+        ? []
+        : [
+            {
+              kind: "payment_overdue" as const,
+              sourceId: row.sourceId,
+              homeId: row.homeId,
+              homeName: row.homeName,
+              currencyCode: row.currencyCode,
+              residentId: row.residentId,
+              residentName: row.residentName,
+              billingMonth: row.billingMonth,
+              amountMinor: row.amountMinor,
+            },
+          ],
+    );
   }
   const allowed = getCareUserAssignedHomeIds(db, actor.userId);
   if (allowed.size === 0) {
@@ -283,37 +332,77 @@ function listPaymentOverdueReminders(
   }
   const rows = db
     .select({
-      sourceId: residentMonthlyCharges.id,
+      sourceId: billingTransactions.id,
       homeId: residents.homeId,
       homeName: homes.name,
       currencyCode: homes.defaultCurrencyCode,
       residentId: residents.id,
       residentName: residents.fullName,
-      billingMonth: residentMonthlyCharges.billingMonth,
-      amountMinor: residentMonthlyCharges.amountMinorSnapshot,
+      billingMonth: invoices.billingPeriod,
+      amountMinor: billingTransactions.amountMinor,
     })
-    .from(residentMonthlyCharges)
-    .innerJoin(residents, eq(residents.id, residentMonthlyCharges.residentId))
+    .from(billingTransactions)
+    .innerJoin(residentAccounts, eq(residentAccounts.id, billingTransactions.accountId))
+    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
     .innerJoin(homes, eq(homes.id, residents.homeId))
     .leftJoin(
-      residentPayments,
-      eq(residentPayments.residentMonthlyChargeId, residentMonthlyCharges.id),
+      invoiceLineItems,
+      or(
+        and(
+          eq(billingTransactions.sourceKind, "invoice_line_item"),
+          eq(billingTransactions.sourceId, invoiceLineItems.id),
+        ),
+        and(
+          eq(billingTransactions.sourceKind, "invoice_monthly_fee"),
+          eq(invoiceLineItems.category, "monthly_fee"),
+          sql`(${billingTransactions.accountId} || ':' || ${invoiceLineItems.serviceMonth}) = ${billingTransactions.sourceId}`,
+        ),
+      ),
+    )
+    .innerJoin(
+      invoices,
+      or(
+        and(
+          eq(billingTransactions.sourceKind, "invoice"),
+          eq(billingTransactions.sourceId, invoices.id),
+        ),
+        and(
+          eq(billingTransactions.sourceKind, "invoice_line_item"),
+          eq(invoiceLineItems.invoiceId, invoices.id),
+        ),
+        and(
+          eq(billingTransactions.sourceKind, "invoice_monthly_fee"),
+          eq(invoiceLineItems.invoiceId, invoices.id),
+        ),
+      ),
     )
     .where(
-      and(noPayment, overdue, inArray(residents.homeId, [...allowed])),
+      and(
+        eq(billingTransactions.txnType, "charge"),
+        isNotNull(invoices.billingPeriod),
+        overdue,
+        noLaterPayment,
+        inArray(residents.homeId, [...allowed]),
+      ),
     )
     .all();
-  return rows.map((row) => ({
-    kind: "payment_overdue" as const,
-    sourceId: row.sourceId,
-    homeId: row.homeId,
-    homeName: row.homeName,
-    currencyCode: row.currencyCode,
-    residentId: row.residentId,
-    residentName: row.residentName,
-    billingMonth: row.billingMonth,
-    amountMinor: row.amountMinor,
-  }));
+  return rows.flatMap((row) =>
+    row.billingMonth === null
+      ? []
+      : [
+          {
+            kind: "payment_overdue" as const,
+            sourceId: row.sourceId,
+            homeId: row.homeId,
+            homeName: row.homeName,
+            currencyCode: row.currencyCode,
+            residentId: row.residentId,
+            residentName: row.residentName,
+            billingMonth: row.billingMonth,
+            amountMinor: row.amountMinor,
+          },
+        ],
+  );
 }
 
 function isoDateFromUtcParts(year: number, month: number, day: number): string {

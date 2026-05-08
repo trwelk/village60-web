@@ -18,6 +18,9 @@ describe("getDashboardContextTitle", () => {
       "Charges",
     );
     expect(getDashboardContextTitle("/dashboard/tasks", "care")).toBe("Tasks");
+    expect(
+      getDashboardContextTitle("/dashboard/inventory-orders", "admin"),
+    ).toBe("Inventory orders");
   });
 
   it("returns Leads for /dashboard/leads", () => {

@@ -1,0 +1,44 @@
+import { getDb } from "@/db/client";
+import { requireSessionActor } from "@/lib/authz/sessionActor";
+import { homesErrorResponse } from "@/lib/homes/http";
+import { deletePurchaseOrder, getPurchaseOrderWithLines } from "@/lib/inventory/purchaseOrders";
+import { getSessionOptions, type SessionData } from "@/lib/session";
+import { getIronSession } from "iron-session";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+
+type RouteParams = { params: Promise<{ poId: string }> };
+
+export async function GET(_: Request, { params }: RouteParams) {
+  const { poId } = await params;
+  const session = await getIronSession<SessionData>(
+    await cookies(),
+    getSessionOptions(),
+  );
+  try {
+    const actor = requireSessionActor(session);
+    const result = getPurchaseOrderWithLines(getDb(), actor, poId);
+    return NextResponse.json(result);
+  } catch (e) {
+    const resp = homesErrorResponse(e);
+    if (resp) return resp;
+    throw e;
+  }
+}
+
+export async function DELETE(_: Request, { params }: RouteParams) {
+  const { poId } = await params;
+  const session = await getIronSession<SessionData>(
+    await cookies(),
+    getSessionOptions(),
+  );
+  try {
+    const actor = requireSessionActor(session);
+    deletePurchaseOrder(getDb(), actor, poId);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const resp = homesErrorResponse(e);
+    if (resp) return resp;
+    throw e;
+  }
+}

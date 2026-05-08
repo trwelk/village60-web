@@ -3,6 +3,7 @@
 import { VillageSelect } from "@/components/VillageSelect";
 import { calculateAge } from "@/lib/residents/age";
 import type { ResidentPublic } from "@/lib/residents/service";
+import type { SessionUserRole } from "@/lib/session";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -14,6 +15,7 @@ type Props = {
   homeId: string;
   resident: ResidentPublic;
   wards: WardOption[];
+  userRole: SessionUserRole;
 };
 
 function StatusBadge({ status }: { status: "active" | "departed" }) {
@@ -71,7 +73,7 @@ async function parseError(res: Response): Promise<string> {
   return "Request failed.";
 }
 
-export function ResidentHeader({ homeId, resident, wards }: Props) {
+export function ResidentHeader({ homeId, resident, wards, userRole }: Props) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [departOpen, setDepartOpen] = useState(false);
@@ -254,6 +256,30 @@ export function ResidentHeader({ homeId, resident, wards }: Props) {
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2 self-start">
+            {!isDeparted ? (
+              <Link
+                href={`/dashboard/homes/${homeId}/residents/${resident.id}/medications`}
+                className="village-btn-primary"
+              >
+                Medications
+              </Link>
+            ) : null}
+            {userRole === "admin" ? (
+              <>
+                <Link
+                  href={`/dashboard/homes/${homeId}/invoices?residentId=${encodeURIComponent(resident.id)}`}
+                  className="village-btn-secondary"
+                >
+                  Invoices
+                </Link>
+                <Link
+                  href={`/dashboard/homes/${homeId}/ledger?residentId=${encodeURIComponent(resident.id)}`}
+                  className="village-btn-secondary"
+                >
+                  Ledger
+                </Link>
+              </>
+            ) : null}
             <button
               type="button"
               onClick={() => {
@@ -264,14 +290,6 @@ export function ResidentHeader({ homeId, resident, wards }: Props) {
             >
               Edit
             </button>
-            {!isDeparted ? (
-              <Link
-                href={`/dashboard/resident-medications?homeId=${encodeURIComponent(homeId)}&residentId=${encodeURIComponent(resident.id)}`}
-                className="village-btn-secondary inline-flex items-center justify-center no-underline"
-              >
-                Manage medications
-              </Link>
-            ) : null}
             {!isDeparted ? (
               <button
                 type="button"

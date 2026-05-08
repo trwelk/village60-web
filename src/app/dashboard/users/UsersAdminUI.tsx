@@ -163,16 +163,6 @@ export function UsersAdminUI({
 
   return (
     <main className="flex flex-col gap-8 text-ink">
-      <header>
-        <h1 className="font-display text-3xl font-normal tracking-tight text-pine-2">
-          Staff users
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-ink/70">
-          Create accounts, assign Admin or Care roles, and manage Care home
-          access. Password resets do not send email.
-        </p>
-      </header>
-
       {error ? <p className="village-alert-error">{error}</p> : null}
 
       <section className="village-card p-6 sm:p-8">

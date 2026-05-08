@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { residentDetailTabsForRole, resolveActiveTab } from "./tabs";
 
 describe("residentDetailTabsForRole", () => {
-  it("includes other-charge and monthly billing only for admin", () => {
+  it("includes other-charge only for admin", () => {
     const adminIds = residentDetailTabsForRole("admin").map((t) => t.id);
     expect(adminIds).toContain("other-charge");
-    expect(adminIds).toContain("billing");
+    expect(adminIds).not.toContain("billing");
     const careIds = residentDetailTabsForRole("care").map((t) => t.id);
     expect(careIds).not.toContain("other-charge");
     expect(careIds).not.toContain("billing");
@@ -43,8 +43,8 @@ describe("resolveActiveTab", () => {
     expect(resolveActiveTab("nok", "care")).toBe("nok");
   });
 
-  it("allows billing tab only for admin", () => {
-    expect(resolveActiveTab("billing", "admin")).toBe("billing");
+  it("defaults billing tab param to nok (billing moved to home-level pages)", () => {
+    expect(resolveActiveTab("billing", "admin")).toBe("nok");
     expect(resolveActiveTab("billing", "care")).toBe("nok");
   });
 

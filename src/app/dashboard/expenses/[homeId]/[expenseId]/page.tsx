@@ -127,21 +127,6 @@ export default async function HomeExpenseDetailPage({
 
   return (
     <main className="flex flex-col gap-8 text-[var(--text-primary)]">
-      <header className="village-reveal relative isolate overflow-hidden rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_52%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_88%,transparent)] px-5 py-6 shadow-[0_24px_64px_-38px_color-mix(in_srgb,var(--accent)_36%,transparent)] sm:px-7 sm:py-7">
-        <div className="pointer-events-none absolute -left-16 top-1/2 h-52 w-52 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--highlight)_18%,transparent),transparent_70%)]" />
-        <p className="relative font-mono text-[0.66rem] uppercase tracking-[0.26em] text-[var(--accent-strong)]">
-          Expense detail
-        </p>
-        <h1 className="relative mt-2 village-page-title text-3xl sm:text-4xl">
-          Ledger entry
-        </h1>
-        <p className="relative mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-          Full operating-cost record for this home. Use the ledger to compare
-          across dates; this page keeps context while you review receipts and
-          notes.
-        </p>
-      </header>
-
       <HomeExpenseDetailClient
         expense={expense}
         homeId={homeId}

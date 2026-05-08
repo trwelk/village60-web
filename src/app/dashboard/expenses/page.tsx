@@ -142,20 +142,6 @@ export default async function HomeExpensesPage({ searchParams }: PageProps) {
 
   return (
     <main className="flex flex-col gap-7 text-[var(--text-primary)]">
-      <div className="village-reveal relative isolate rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] px-5 py-6 shadow-[0_22px_60px_-36px_color-mix(in_srgb,var(--accent)_42%,transparent)] sm:px-7 sm:py-7">
-        <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-1/2 rounded-r-3xl bg-[radial-gradient(circle_at_top_right,color-mix(in_srgb,var(--accent)_24%,transparent),transparent_46%),radial-gradient(circle_at_bottom_right,color-mix(in_srgb,var(--highlight)_20%,transparent),transparent_42%)]" />
-        <div className="flex max-w-3xl flex-col gap-3">
-          <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-[var(--accent-strong)]">
-            Admin ledger
-          </p>
-          <h1 className="village-page-title text-4xl">Home expenses</h1>
-          <p className="max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-            Operating costs paid by the village (utilities, catering, supplies)
-            in each home&apos;s currency. Amounts exclude resident charges.
-          </p>
-        </div>
-      </div>
-
       {(rangeHadError || badPay) && (
         <p className="rounded-xl border border-terracotta/25 bg-cream px-4 py-3 text-sm text-ink">
           Invalid filter in the URL was reset:&nbsp;

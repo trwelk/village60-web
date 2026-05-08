@@ -74,7 +74,7 @@ describe("TasksSection", () => {
       screen.getByRole("link", { name: "Open billing" }),
     ).toHaveAttribute(
       "href",
-      "/dashboard/homes/h1/residents/r1?tab=billing",
+      "/dashboard/homes/h1/ledger?residentId=r1",
     );
     expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
   });

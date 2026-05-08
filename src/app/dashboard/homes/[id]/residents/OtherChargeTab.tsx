@@ -51,22 +51,44 @@ export function OtherChargeTab({
   const load = useCallback(async () => {
     setLoadError(null);
     setLoading(true);
-    const res = await fetch(
-      `/api/homes/${homeId}/residents/${residentId}/monthly-charges`,
-    );
+    const u = new URL(`/api/homes/${homeId}/other-charges`, window.location.origin);
+    u.searchParams.set("residentId", residentId);
+    u.searchParams.set("status", "all");
+    u.searchParams.set("page", "1");
+    u.searchParams.set("pageSize", "100");
+    const res = await fetch(u.toString());
     if (!res.ok) {
       setLoadError("Could not load other charges.");
       setLoading(false);
       return;
     }
     const data: unknown = await res.json();
-    const oc =
-      typeof data === "object" &&
-      data !== null &&
-      "otherCharges" in data &&
-      Array.isArray((data as { otherCharges: unknown }).otherCharges)
-        ? (data as { otherCharges: ResidentOtherChargeListItem[] }).otherCharges
-        : [];
+    const rec =
+      typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {};
+    const rows = Array.isArray(rec.rows) ? rec.rows : [];
+    const oc: ResidentOtherChargeListItem[] = [];
+    for (const row of rows) {
+      if (typeof row !== "object" || row === null) continue;
+      const o = row as Record<string, unknown>;
+      if (
+        typeof o.id !== "string" ||
+        typeof o.residentId !== "string" ||
+        (o.type !== "registration" && o.type !== "deposit") ||
+        typeof o.amountMinor !== "number" ||
+        typeof o.received !== "boolean" ||
+        !(o.paidOn === null || typeof o.paidOn === "string")
+      ) {
+        continue;
+      }
+      oc.push({
+        id: o.id,
+        residentId: o.residentId,
+        type: o.type,
+        amountMinor: o.amountMinor,
+        received: o.received,
+        paidOn: o.paidOn,
+      });
+    }
     setOtherCharges(oc);
     setLoading(false);
   }, [homeId, residentId]);
@@ -178,10 +200,10 @@ export function OtherChargeTab({
     <div className="flex flex-col gap-4">
       <p className="text-sm text-ink/70">
         <Link
-          href={`/dashboard/homes/${homeId}/residents/${residentId}?tab=billing`}
+          href={`/dashboard/homes/${homeId}/ledger?residentId=${encodeURIComponent(residentId)}`}
           className="village-link-subtle font-semibold text-pine underline"
         >
-          Monthly billing
+          Billing
         </Link>
         <span className="text-ink/50"> · </span>
         recurring ward charges and payments

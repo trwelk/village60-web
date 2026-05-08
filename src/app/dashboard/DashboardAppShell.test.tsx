@@ -114,6 +114,9 @@ describe("DashboardAppShell", () => {
     );
     const rail = screen.getByRole("complementary", { name: "Primary" });
     expect(
+      within(rail).getByRole("link", { name: "Invoices" }),
+    ).toHaveAttribute("href", "/dashboard/invoices");
+    expect(
       within(rail).getByRole("link", { name: "Revenue" }),
     ).toHaveAttribute("href", "/dashboard/analytics/revenue-collections");
     expect(
@@ -155,6 +158,21 @@ describe("DashboardAppShell", () => {
     expect(
       within(rail).queryByRole("link", { name: "Revenue" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("Invoices hub title applies on invoice detail path", () => {
+    pathRef.current = "/dashboard/invoices/uuid-example";
+    renderShell(
+      <DashboardAppShell email="a@b.c" role="admin">
+        <p>content</p>
+      </DashboardAppShell>,
+    );
+    expect(
+      within(screen.getByRole("banner")).getByRole("heading", {
+        level: 1,
+        name: "Invoices",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("Revenue nav is active on nested analytics revenue route", () => {

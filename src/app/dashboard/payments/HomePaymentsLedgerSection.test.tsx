@@ -20,6 +20,7 @@ beforeEach(() => {
 
 const sampleRow = {
   paymentId: "p1",
+  chargeId: "chg-1",
   paidOn: "2026-04-20",
   amountMinor: 12_00,
   notes: "Bank",
@@ -28,6 +29,7 @@ const sampleRow = {
   residentId: "r1",
   residentFullName: "A Resident",
   residentStatus: "active",
+  recordedByUserId: "u-rec",
   recordedByEmail: "a@b.com",
 } as const;
 

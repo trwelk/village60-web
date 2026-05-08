@@ -58,12 +58,6 @@ export default async function ResidentDetailPage({
     throw e;
   }
 
-  if (tab === "medications") {
-    redirect(
-      `/dashboard/resident-medications?homeId=${encodeURIComponent(homeId)}&residentId=${encodeURIComponent(residentId)}`,
-    );
-  }
-
   return (
     <ResidentDetailShell
       homeId={homeId}

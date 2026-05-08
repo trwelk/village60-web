@@ -211,18 +211,7 @@ export function WardsAdminUI({ home, initialWards }: WardsAdminUIProps) {
 
   return (
     <main className="flex flex-col gap-8 text-ink">
-      <header className="flex flex-wrap items-start justify-between gap-6">
-        <div>
-          <h1 className="font-display text-3xl font-normal tracking-tight text-pine-2">
-            Wards & units — {home.name}
-          </h1>
-          <p className="mt-2 text-sm text-ink/70">
-            Labels for placement (optional sort order; archived rows stay out of
-            default picks later). Monthly rate is per resident in that ward in{" "}
-            {home.defaultCurrencyCode} minor units (e.g. cents); multiple beds on
-            the ward do not multiply the rate per person.
-          </p>
-        </div>
+      <header className="flex flex-wrap justify-end">
         <Link href="/dashboard/homes" className={navLinkClass}>
           Back to homes
         </Link>

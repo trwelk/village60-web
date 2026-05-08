@@ -191,16 +191,8 @@ export function ResidentsDirectoryUI({
   return (
     <>
     <main className="flex flex-col gap-8 text-ink">
-      <header className="flex flex-wrap items-start justify-between gap-6">
-        <div>
-          <h1 className="font-display text-3xl font-normal tracking-tight text-pine-2">
-            Residents
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm text-ink/70">
-            Search and filter the directory. Default shows active residents only.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
+      {fixedHomeId || (role === "admin" && urlState.homeId) ? (
+        <header className="flex flex-wrap items-center justify-end gap-3">
           {fixedHomeId ? (
             <>
               <Link
@@ -224,8 +216,8 @@ export function ResidentsDirectoryUI({
               Add resident
             </Link>
           ) : null}
-        </div>
-      </header>
+        </header>
+      ) : null}
 
       <section className="village-card p-6 sm:p-8">
         <h2 className="village-section-title">Filters</h2>

@@ -6,8 +6,7 @@ export type TabId =
   | "assigned-nurse"
   | "conditions"
   | "allergies"
-  | "other-charge"
-  | "billing";
+  | "other-charge";
 
 export type Tab = { id: TabId; label: string };
 
@@ -21,11 +20,10 @@ export const RESIDENT_CORE_TABS: Tab[] = [
 ];
 
 const OTHER_CHARGE_TAB: Tab = { id: "other-charge", label: "Other charges" };
-const BILLING_TAB: Tab = { id: "billing", label: "Monthly billing" };
 
 export function residentDetailTabsForRole(role: SessionUserRole): Tab[] {
   if (role === "admin") {
-    return [...RESIDENT_CORE_TABS, OTHER_CHARGE_TAB, BILLING_TAB];
+    return [...RESIDENT_CORE_TABS, OTHER_CHARGE_TAB];
   }
   return RESIDENT_CORE_TABS;
 }
@@ -35,17 +33,14 @@ const CORE_TAB_IDS = new Set<string>(RESIDENT_CORE_TABS.map((t) => t.id));
 /**
  * Resolves the canonical active tab from a URL search param value.
  * Falls back to the first tab when the param is absent, invalid, or unknown
- * (including legacy `payment`). Care users cannot open the billing tab.
+ * (including legacy `payment` and `billing`). Care users cannot open admin-only tabs.
  */
 export function resolveActiveTab(
   param: string | null | undefined,
   role: SessionUserRole,
 ): TabId {
   if (param === "billing") {
-    if (role !== "admin") {
-      return "nok";
-    }
-    return "billing";
+    return "nok";
   }
   if (param === "other-charge") {
     if (role !== "admin") {

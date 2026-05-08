@@ -8,7 +8,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
-import { otherCharges, residents } from "@/db/schema";
+import { residentAccounts, residents } from "@/db/schema";
 import { createHome } from "@/lib/homes/service";
 import { createResident } from "./service";
 import { createWard } from "@/lib/wards/service";
@@ -22,14 +22,7 @@ function runMigrations(file: string) {
   sqlite.close();
 }
 
-/**
- * Invariant: `createResident` with intake uses a single `db.transaction`. If a later
- * write in that transaction fails, the resident row must not remain committed.
- * SQLite defers to the same semantics this product relies on; this test uses a
- * deliberate unique violation on the second `other_charges` insert to prove
- * the resident is rolled back with the failed statement.
- */
-describe("createResident + other_charges transaction (17c)", () => {
+describe("createResident + resident_accounts transaction", () => {
   let dbPath: string;
 
   beforeEach(() => {
@@ -51,7 +44,7 @@ describe("createResident + other_charges transaction (17c)", () => {
     }
   });
 
-  it("creates exactly two other_charges rows with the resident in one go", () => {
+  it("creates resident and exactly one resident_account row in one go", () => {
     const db = getDb();
     const home = createHome(db, "admin", {
       name: "H",
@@ -85,15 +78,14 @@ describe("createResident + other_charges transaction (17c)", () => {
     });
     const rows = db
       .select()
-      .from(otherCharges)
-      .where(eq(otherCharges.residentId, r.id))
+      .from(residentAccounts)
+      .where(eq(residentAccounts.residentId, r.id))
       .all();
-    expect(rows).toHaveLength(2);
-    const types = new Set(rows.map((x) => x.type));
-    expect(types).toEqual(new Set(["registration", "deposit"]));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.currencyCode).toBe("NZD");
   });
 
-  it("rolls back the whole unit when a second other_charges insert would violate (resident, type) unique", () => {
+  it("rolls back the whole unit when a duplicate resident_account insert violates unique resident_id", () => {
     const db = getDb();
     const home = createHome(db, "admin", {
       name: "H2",
@@ -128,20 +120,17 @@ describe("createResident + other_charges transaction (17c)", () => {
             updatedAtUtcMs: now,
           })
           .run();
-        const chargeBase = {
+        const accountBase = {
           residentId,
-          type: "registration" as const,
-          amountMinor: 0,
-          received: false,
-          paidOn: null,
+          currencyCode: "NZD",
           createdAtUtcMs: now,
           updatedAtUtcMs: now,
         };
-        tx.insert(otherCharges)
-          .values({ id: randomUUID(), ...chargeBase })
+        tx.insert(residentAccounts)
+          .values({ id: randomUUID(), ...accountBase })
           .run();
-        tx.insert(otherCharges)
-          .values({ id: randomUUID(), ...chargeBase })
+        tx.insert(residentAccounts)
+          .values({ id: randomUUID(), ...accountBase })
           .run();
       });
     }).toThrow();

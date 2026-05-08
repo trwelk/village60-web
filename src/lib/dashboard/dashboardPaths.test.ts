@@ -6,6 +6,7 @@ import {
   isDashboardAnalyticsRevenueCollectionsPath,
   isDashboardAccountPath,
   isDashboardHomesPath,
+  isDashboardInventoryOrdersPath,
   isDashboardResidentsPath,
 } from "./dashboardPaths";
 
@@ -94,5 +95,12 @@ describe("existing path predicates are unaffected", () => {
   it("isDashboardResidentsPath still works", () => {
     expect(isDashboardResidentsPath("/dashboard/residents")).toBe(true);
     expect(isDashboardResidentsPath("/dashboard/analytics")).toBe(false);
+  });
+
+  it("isDashboardInventoryOrdersPath works", () => {
+    expect(isDashboardInventoryOrdersPath("/dashboard/inventory-orders")).toBe(
+      true,
+    );
+    expect(isDashboardInventoryOrdersPath("/dashboard/tasks")).toBe(false);
   });
 });

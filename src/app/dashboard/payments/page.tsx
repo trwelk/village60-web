@@ -101,19 +101,6 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
 
   return (
     <main className="flex flex-col gap-7 text-ink">
-      <div className="village-reveal relative isolate overflow-hidden rounded-3xl border border-pine/12 bg-cream/85 px-5 py-6 shadow-[0_22px_60px_-36px_rgba(12,24,20,0.45)] sm:px-7">
-        <div className="absolute inset-y-0 right-0 -z-10 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(184,71,50,0.15),transparent_46%),radial-gradient(circle_at_bottom_right,rgba(26,77,58,0.16),transparent_42%)]" />
-        <div className="flex max-w-3xl flex-col gap-3">
-          <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-terracotta">
-            Admin ledger
-          </p>
-          <h1 className="village-page-title text-4xl">Payment history</h1>
-          <p className="max-w-2xl text-sm leading-6 text-ink/70">
-            Review recorded monthly bill payments by home. Add or adjust
-            payments from each resident&rsquo;s Billing tab.
-          </p>
-        </div>
-      </div>
       <HomePaymentsLedgerSection
         homes={homeOptions}
         selectedHomeId={selectedHomeId}

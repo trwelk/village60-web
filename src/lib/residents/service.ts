@@ -7,7 +7,7 @@ import {
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import {
   homes,
-  otherCharges,
+  residentAccounts,
   residentDepartureDetails,
   residents,
   users,
@@ -316,36 +316,13 @@ export function createResident(
     updatedAtUtcMs: now,
   };
 
-  if (!input.otherChargesIntake) {
-    db.insert(residents).values(row).run();
-    return mergeResident(row, undefined);
-  }
-
-  const oc = input.otherChargesIntake;
-  const regId = randomUUID();
-  const depId = randomUUID();
   db.transaction((tx) => {
     tx.insert(residents).values(row).run();
-    tx.insert(otherCharges)
+    tx.insert(residentAccounts)
       .values({
-        id: regId,
+        id: randomUUID(),
         residentId: id,
-        type: "registration",
-        amountMinor: oc.registration.amountMinor,
-        received: oc.registration.received,
-        paidOn: oc.registration.paidOn,
-        createdAtUtcMs: now,
-        updatedAtUtcMs: now,
-      })
-      .run();
-    tx.insert(otherCharges)
-      .values({
-        id: depId,
-        residentId: id,
-        type: "deposit",
-        amountMinor: oc.deposit.amountMinor,
-        received: oc.deposit.received,
-        paidOn: oc.deposit.paidOn,
+        currencyCode: home.defaultCurrencyCode,
         createdAtUtcMs: now,
         updatedAtUtcMs: now,
       })

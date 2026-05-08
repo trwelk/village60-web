@@ -59,6 +59,38 @@ describe("buildHomeAreaBreadcrumbTrail", () => {
     expect(trail![2]).toEqual({ label: "Residents", currentPage: true });
   });
 
+  it("produces a trail for the invoices sub-route", () => {
+    const trail = buildHomeAreaBreadcrumbTrail(
+      "/dashboard/homes/h1/invoices",
+      { ...base, role: "admin" },
+    );
+    expect(trail).toEqual([
+      { label: "Retirement homes", href: "/dashboard/homes" },
+      {
+        label: "Sunrise Villa",
+        href: "/dashboard/homes/h1/residents",
+        currentPage: false,
+      },
+      { label: "Invoices", currentPage: true },
+    ]);
+  });
+
+  it("produces a trail for the ledger sub-route", () => {
+    const trail = buildHomeAreaBreadcrumbTrail(
+      "/dashboard/homes/h1/ledger",
+      { ...base, role: "admin" },
+    );
+    expect(trail).toEqual([
+      { label: "Retirement homes", href: "/dashboard/homes" },
+      {
+        label: "Sunrise Villa",
+        href: "/dashboard/homes/h1/residents",
+        currentPage: false,
+      },
+      { label: "Ledger", currentPage: true },
+    ]);
+  });
+
   it("labels new and departed under residents", () => {
     expect(
       buildHomeAreaBreadcrumbTrail("/dashboard/homes/h1/residents/new", {

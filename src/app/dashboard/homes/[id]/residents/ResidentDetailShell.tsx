@@ -16,7 +16,6 @@ import { PoaTab } from "./PoaTab";
 import { AssignedNurseTab } from "./AssignedNurseTab";
 import { ConditionsTab } from "./ConditionsTab";
 import { AllergiesTab } from "./AllergiesTab";
-import { BillingTab } from "./BillingTab";
 import { OtherChargeTab } from "./OtherChargeTab";
 
 type WardOption = { id: string; label: string };
@@ -71,7 +70,12 @@ export function ResidentDetailShell({
       </div>
 
       <div className="village-reveal village-reveal-delay-1">
-        <ResidentHeader homeId={homeId} resident={resident} wards={wards} />
+        <ResidentHeader
+          homeId={homeId}
+          resident={resident}
+          wards={wards}
+          userRole={userRole}
+        />
       </div>
 
       <div className="village-reveal village-reveal-delay-2">
@@ -112,13 +116,6 @@ export function ResidentDetailShell({
             residentId={resident.id}
             defaultCurrencyCode={homeDefaultCurrencyCode}
             admissionDate={resident.admissionDate}
-          />
-        )}
-        {activeTab === "billing" && userRole === "admin" && (
-          <BillingTab
-            homeId={homeId}
-            residentId={resident.id}
-            defaultCurrencyCode={homeDefaultCurrencyCode}
           />
         )}
       </div>

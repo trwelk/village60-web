@@ -251,7 +251,7 @@ export function HomePaymentsLedgerSection({
                       </td>
                       <td className="px-5 py-4">
                         <Link
-                          href={`/dashboard/homes/${selectedHomeId}/residents/${row.residentId}?tab=billing`}
+                          href={`/dashboard/homes/${selectedHomeId}/ledger?residentId=${encodeURIComponent(row.residentId)}`}
                           className="font-semibold text-[var(--accent-strong)] underline decoration-[color:color-mix(in_srgb,var(--accent)_36%,transparent)] underline-offset-4 transition hover:text-[var(--accent)]"
                         >
                           {row.residentFullName}

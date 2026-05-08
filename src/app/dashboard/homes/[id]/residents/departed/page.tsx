@@ -91,25 +91,11 @@ export default async function DepartedResidentsPage({ params }: PageParams) {
 
   return (
     <main className="flex flex-col gap-8 text-ink">
-      <header className="flex flex-wrap items-start justify-between gap-6">
-        <div>
-          <p className="text-sm text-ink/70">
-            <Link
-              href={`/dashboard/homes/${homeId}/residents`}
-              className="village-link"
-            >
-              ← Active residents
-            </Link>
-          </p>
-          <h1 className="mt-2 font-display text-3xl font-normal tracking-tight text-pine-2">
-            Departed residents
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm text-ink/70">
-            {home.name} — newest departures first. Reason and time come from
-            departure records.
-          </p>
-        </div>
-      </header>
+      <p className="text-sm text-ink/70">
+        <Link href={`/dashboard/homes/${homeId}/residents`} className="village-link">
+          ← Active residents
+        </Link>
+      </p>
 
       <section>
         <h2 className="village-section-title">Directory</h2>

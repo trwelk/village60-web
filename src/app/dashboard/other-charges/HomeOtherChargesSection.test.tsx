@@ -51,6 +51,7 @@ describe("HomeOtherChargesSection (21c)", () => {
           rows: [
             {
               id: "oc1",
+              chargeId: "chg-oc1",
               type: "registration",
               amountMinor: 100_00,
               received: false,

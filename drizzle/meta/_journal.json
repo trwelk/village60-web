@@ -239,6 +239,97 @@
       "when": 1778010000000,
       "tag": "0033_inventory_foundation_36a",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1778015000000,
+      "tag": "0034_home_po_lifecycle_36b",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1778020000000,
+      "tag": "0035_po_receive_events_36c",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1778025000000,
+      "tag": "0036_inventory_transfer_link_36e",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1778030000000,
+      "tag": "0037_home_suppliers_and_po_supplier_fk_36f",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1778140000000,
+      "tag": "0038_supplier_contact_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1778160000000,
+      "tag": "0039_global_inventory_suppliers",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1778160900000,
+      "tag": "0040_inventory_item_categories_36f",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1778163600000,
+      "tag": "0041_resident_medications_item_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1778165400000,
+      "tag": "0042_billing_ledger_cutover_core_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1778169000000,
+      "tag": "0043_billing_transactions_source_uq",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1778172000000,
+      "tag": "0044_billing_transaction_reversal",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1778175600000,
+      "tag": "0045_po_currency_and_price_in_cents",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1778200000000,
+      "tag": "0046_home_accounts_polymorphic_billing",
+      "breakpoints": true
     }
   ]
 }

@@ -162,19 +162,6 @@ export function LeadsAdminUI({
 
   return (
     <main className="flex flex-col gap-8 text-ink">
-      <header>
-        <h1 className="font-display text-3xl font-normal tracking-tight text-pine-2">
-          Interest leads
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-ink/70">
-          Triage enquiries from the public site or add phone and walk-in
-          contacts. Use the pipeline to move stages; metrics compare open
-          enquiries to configured capacity by site. Only status can be changed
-          on existing rows; contact details and home snapshots stay as
-          recorded.
-        </p>
-      </header>
-
       {error && !createModalOpen ? (
         <p className="village-alert-error">{error}</p>
       ) : null}

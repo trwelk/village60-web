@@ -5,11 +5,16 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
 import {
-  residentMonthlyCharges,
-  residentPayments,
+  billingPayments,
+  billingTransactions,
+  homes,
+  invoices,
+  residentAccounts,
+  residents,
   users,
 } from "@/db/schema";
 import { createHome } from "@/lib/homes/service";
@@ -50,6 +55,94 @@ function seedUser(db: ReturnType<typeof getDb>, id: string) {
     .run();
 }
 
+function getOrCreateAccountId(
+  db: ReturnType<typeof getDb>,
+  input: { residentId: string },
+): string {
+  const existing = db
+    .select({ id: residentAccounts.id })
+    .from(residentAccounts)
+    .where(eq(residentAccounts.residentId, input.residentId))
+    .get();
+  if (existing) {
+    return existing.id;
+  }
+  const residentRow = db
+    .select({ homeId: residents.homeId })
+    .from(residents)
+    .where(eq(residents.id, input.residentId))
+    .get();
+  if (!residentRow) {
+    throw new Error("resident not found");
+  }
+  const homeRow = db
+    .select({ currencyCode: homes.defaultCurrencyCode })
+    .from(homes)
+    .where(eq(homes.id, residentRow.homeId))
+    .get();
+  if (!homeRow) {
+    throw new Error("home not found");
+  }
+  const accountId = randomUUID();
+  const now = Date.now();
+  db.insert(residentAccounts)
+    .values({
+      id: accountId,
+      residentId: input.residentId,
+      currencyCode: homeRow.currencyCode,
+      createdAtUtcMs: now,
+      updatedAtUtcMs: now,
+    })
+    .run();
+  return accountId;
+}
+
+function insertPaymentAgainstAccount(
+  db: ReturnType<typeof getDb>,
+  input: {
+    accountId: string;
+    amountMinor: number;
+    receivedOn: string;
+    recordedByUserId: string;
+    postedAfterMs: number;
+  },
+) {
+  const paymentPostedAt = input.postedAfterMs + 1;
+  const now = paymentPostedAt;
+  const ledgerTransactionId = randomUUID();
+  const paymentId = randomUUID();
+  db.insert(billingTransactions)
+    .values({
+      id: ledgerTransactionId,
+      accountId: input.accountId,
+      txnType: "payment",
+      amountMinor: -input.amountMinor,
+      sourceKind: "payment",
+      sourceId: paymentId,
+      memo: null,
+      recordedByUserId: input.recordedByUserId,
+      postedAtUtcMs: paymentPostedAt,
+    })
+    .run();
+  db.insert(billingPayments)
+    .values({
+      id: paymentId,
+      accountId: input.accountId,
+      amountMinor: input.amountMinor,
+      receivedOn: input.receivedOn,
+      method: "cash",
+      externalReference: null,
+      notes: null,
+      recordedByUserId: input.recordedByUserId,
+      ledgerTransactionId,
+      createdAtUtcMs: now,
+      updatedAtUtcMs: now,
+    })
+    .run();
+}
+
+let chargePostedSeq = 0;
+
 function insertCharge(
   db: ReturnType<typeof getDb>,
   input: {
@@ -64,32 +157,43 @@ function insertCharge(
     };
   },
 ) {
-  const id = randomUUID();
-  const now = Date.now();
-  db.insert(residentMonthlyCharges)
+  void input.wardId;
+  const postedAtUtcMs = Date.now() + chargePostedSeq++;
+  const accountId = getOrCreateAccountId(db, { residentId: input.residentId });
+  const invoiceId = randomUUID();
+  db.insert(invoices)
     .values({
-      id,
-      residentId: input.residentId,
-      billingMonth: input.billingMonth,
-      wardIdSnapshot: input.wardId,
-      amountMinorSnapshot: input.amountMinor,
-      createdAtUtcMs: now,
-      updatedAtUtcMs: now,
+      id: invoiceId,
+      accountId,
+      status: "finalized",
+      billingPeriod: input.billingMonth,
+      issuedOn: `${input.billingMonth}-01`,
+      totalMinorSnapshot: input.amountMinor,
+      createdAtUtcMs: postedAtUtcMs,
+      updatedAtUtcMs: postedAtUtcMs,
+    })
+    .run();
+  db.insert(billingTransactions)
+    .values({
+      id: randomUUID(),
+      accountId,
+      txnType: "charge",
+      amountMinor: input.amountMinor,
+      sourceKind: "invoice",
+      sourceId: invoiceId,
+      memo: null,
+      recordedByUserId: null,
+      postedAtUtcMs,
     })
     .run();
   if (input.payment) {
-    db.insert(residentPayments)
-      .values({
-        id: randomUUID(),
-        residentMonthlyChargeId: id,
-        amountMinor: input.payment.amountMinor,
-        paidOn: input.payment.paidOn,
-        notes: null,
-        recordedByUserId: input.payment.recordedByUserId,
-        createdAtUtcMs: now,
-        updatedAtUtcMs: now,
-      })
-      .run();
+    insertPaymentAgainstAccount(db, {
+      accountId,
+      amountMinor: input.payment.amountMinor,
+      receivedOn: input.payment.paidOn,
+      recordedByUserId: input.payment.recordedByUserId,
+      postedAfterMs: postedAtUtcMs,
+    });
   }
 }
 
@@ -97,6 +201,7 @@ describe("revenueCollections analytics", () => {
   let dbPath: string;
 
   beforeEach(() => {
+    chargePostedSeq = 0;
     dbPath = path.join(os.tmpdir(), `v60-rev-${randomUUID()}.sqlite`);
     process.env.DATABASE_PATH = dbPath;
     closeDbConnection();
@@ -188,7 +293,7 @@ describe("revenueCollections analytics", () => {
       wardId: ward.id,
       billingMonth: "2026-04",
       amountMinor: 5_000,
-      payment: { amountMinor: 5_000, paidOn: "2026-05-01", recordedByUserId: uid },
+      payment: { amountMinor: 5_000, paidOn: "2026-04-30", recordedByUserId: uid },
     });
     insertCharge(db, {
       residentId: r1.id,
@@ -280,7 +385,7 @@ describe("revenueCollections analytics", () => {
     expect(kpis.momDeltaMinor).toBe(50_00);
     expect(kpis.momDeltaPercent).toBe(100);
     expect(kpis.collectionRatePercent).toBe(82);
-    expect(kpis.outstandingUnpaidMinor).toBe(50_00);
+    expect(kpis.outstandingUnpaidMinor).toBe(68_00);
   });
 
   it("fills twelve-month billed vs collected with zeros for months without charges", () => {

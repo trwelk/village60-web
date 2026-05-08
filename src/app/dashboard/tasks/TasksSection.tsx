@@ -413,7 +413,7 @@ export function TasksSection({
                     <div className="flex shrink-0 flex-wrap gap-2">
                       <Link
                         className="village-btn-primary inline-flex min-h-10 items-center no-underline"
-                        href={`/dashboard/homes/${task.homeId}/residents/${task.residentId}?tab=billing`}
+                        href={`/dashboard/homes/${task.homeId}/ledger?residentId=${encodeURIComponent(task.residentId)}`}
                       >
                         Open billing
                       </Link>

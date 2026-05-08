@@ -2,12 +2,11 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, max } from "drizzle-orm";
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import {
-  medications,
+  inventoryItems,
   residentAllergies,
   residentConditions,
   residentMedications,
 } from "@/db/schema";
-import { createHomeMedicationCatalogRow } from "@/lib/homeMedications/catalog";
 import type { AppDb } from "@/lib/homes/service";
 import {
   NotFoundError,
@@ -23,9 +22,8 @@ export type ResidentMedicationAssignmentRow = typeof residentMedications.$inferS
 export type ResidentMedicationClinicalItem = {
   id: string;
   residentId: string;
-  medicationId: string;
+  itemId: string;
   name: string;
-  strength: string;
   unit: string;
   quantityPerServing: number;
   servingsPerDay: number | null;
@@ -45,15 +43,14 @@ export type ResidentClinicalSnapshot = {
 
 function mapJoinToClinical(
   rm: ResidentMedicationAssignmentRow,
-  cat: { name: string; strength: string; unit: string },
+  item: { name: string; baseUnit: string },
 ): ResidentMedicationClinicalItem {
   return {
     id: rm.id,
     residentId: rm.residentId,
-    medicationId: rm.medicationId,
-    name: cat.name,
-    strength: cat.strength,
-    unit: cat.unit,
+    itemId: rm.itemId,
+    name: item.name,
+    unit: item.baseUnit,
     quantityPerServing: rm.quantityPerServing,
     servingsPerDay: rm.servingsPerDay,
     directions: rm.directions,
@@ -71,9 +68,9 @@ function getClinicalMedicationByRowId(
   residentMedicationRowId: string,
 ): ResidentMedicationClinicalItem {
   const row = db
-    .select({ rm: residentMedications, m: medications })
+    .select({ rm: residentMedications, i: inventoryItems })
     .from(residentMedications)
-    .innerJoin(medications, eq(residentMedications.medicationId, medications.id))
+    .innerJoin(inventoryItems, eq(residentMedications.itemId, inventoryItems.id))
     .where(
       and(
         eq(residentMedications.residentId, residentId),
@@ -84,21 +81,21 @@ function getClinicalMedicationByRowId(
   if (!row) {
     throw new NotFoundError();
   }
-  return mapJoinToClinical(row.rm, row.m);
+  return mapJoinToClinical(row.rm, row.i);
 }
 
-function assertCatalogMedicationInResidentHome(
+function assertItemInResidentHome(
   db: AppDb,
-  catalogMedicationId: string,
+  itemId: string,
   residentHomeId: string,
 ): void {
-  const m = db
+  const item = db
     .select()
-    .from(medications)
-    .where(eq(medications.id, catalogMedicationId))
+    .from(inventoryItems)
+    .where(eq(inventoryItems.id, itemId))
     .get();
-  if (!m || m.homeId !== residentHomeId) {
-    throw new ValidationError("Medication is not in this home.");
+  if (!item || item.homeId !== residentHomeId) {
+    throw new ValidationError("Item is not in this home.");
   }
 }
 
@@ -118,10 +115,10 @@ function rethrowResidentMedicationConstraint(e: unknown): void {
   const msg = e instanceof Error ? e.message : String(e);
   if (
     msg.includes("resident_medications.resident_id") &&
-    msg.includes("resident_medications.medication_id")
+    msg.includes("resident_medications.item_id")
   ) {
     throw new ValidationError(
-      "This resident is already assigned this medication.",
+      "This resident is already assigned this item.",
     );
   }
   throw e;
@@ -198,14 +195,14 @@ export function listResidentClinical(
     .orderBy(asc(residentAllergies.sortOrder), asc(residentAllergies.id))
     .all();
   const medicationRows = db
-    .select({ rm: residentMedications, m: medications })
+    .select({ rm: residentMedications, i: inventoryItems })
     .from(residentMedications)
-    .innerJoin(medications, eq(residentMedications.medicationId, medications.id))
+    .innerJoin(inventoryItems, eq(residentMedications.itemId, inventoryItems.id))
     .where(eq(residentMedications.residentId, residentId))
     .orderBy(asc(residentMedications.sortOrder), asc(residentMedications.id))
     .all();
-  const medicationsOut = medicationRows.map(({ rm, m }) =>
-    mapJoinToClinical(rm, m),
+  const medicationsOut = medicationRows.map(({ rm, i }) =>
+    mapJoinToClinical(rm, i),
   );
   return { conditions, allergies, medications: medicationsOut };
 }
@@ -416,13 +413,8 @@ export type CreateResidentMedicationInput = {
   directions: string;
   servingsPerDay?: number | null;
   prn?: boolean;
-} & (
-  | { medicationId: string; medication?: never }
-  | {
-      medication: { name: string; strength: string; unit: string };
-      medicationId?: never;
-    }
-);
+  itemId: string;
+};
 
 function requiredReal(input: unknown, field: string): number {
   if (typeof input !== "number" || Number.isNaN(input)) {
@@ -438,25 +430,6 @@ export function createResidentMedication(
   residentId: string,
   input: CreateResidentMedicationInput,
 ): ResidentMedicationClinicalItem {
-  const idPart =
-    "medicationId" in input && input.medicationId !== undefined
-      ? input.medicationId
-      : undefined;
-  const medPart =
-    "medication" in input && input.medication !== undefined
-      ? input.medication
-      : undefined;
-  const hasId = typeof idPart === "string" && idPart.trim() !== "";
-  const hasMed = medPart !== undefined;
-  if (hasId && hasMed) {
-    throw new ValidationError("Provide medicationId or medication, not both.");
-  }
-  if (!hasId && !hasMed) {
-    throw new ValidationError(
-      "Provide medicationId or medication (name, strength, unit), not neither.",
-    );
-  }
-
   const resident = getResident(db, actor, homeId, residentId);
   const quantityPerServing = requiredReal(
     input.quantityPerServing,
@@ -466,70 +439,32 @@ export function createResidentMedication(
   const servingsPerDay = optionalPositiveInt(input.servingsPerDay, "servingsPerDay");
   const prn = input.prn === true;
 
-  if (hasId) {
-    const catalogId = idPart!.trim();
-    assertCatalogMedicationInResidentHome(db, catalogId, resident.homeId);
-    const now = Date.now();
-    const id = randomUUID();
-    const sortOrder = nextSortOrder(db, residentMedications, residentId);
-    const row: ResidentMedicationAssignmentRow = {
-      id,
-      residentId,
-      medicationId: catalogId,
-      quantityPerServing,
-      servingsPerDay,
-      directions,
-      prn,
-      status: "active",
-      sortOrder,
-      createdAtUtcMs: now,
-      updatedAtUtcMs: now,
-    };
-
-    try {
-      db.insert(residentMedications).values(row).run();
-    } catch (e) {
-      rethrowResidentMedicationConstraint(e);
-    }
-    return getClinicalMedicationByRowId(db, residentId, id);
+  const itemId = input.itemId.trim();
+  if (!itemId) {
+    throw new ValidationError("itemId is required.");
   }
-
+  assertItemInResidentHome(db, itemId, resident.homeId);
   const now = Date.now();
   const id = randomUUID();
-
-  return db.transaction((tx) => {
-    const sortOrder = nextSortOrder(tx, residentMedications, residentId);
-    const cat = createHomeMedicationCatalogRow(
-      tx,
-      actor,
-      resident.homeId,
-      {
-        name: medPart!.name,
-        strength: medPart!.strength,
-        unit: medPart!.unit,
-      },
-      now,
-    );
-    const row: ResidentMedicationAssignmentRow = {
-      id,
-      residentId,
-      medicationId: cat.id,
-      quantityPerServing,
-      servingsPerDay,
-      directions,
-      prn,
-      status: "active",
-      sortOrder,
-      createdAtUtcMs: now,
-      updatedAtUtcMs: now,
-    };
-    try {
-      tx.insert(residentMedications).values(row).run();
-    } catch (e) {
-      rethrowResidentMedicationConstraint(e);
-    }
-    return getClinicalMedicationByRowId(tx, residentId, id);
-  });
+  const row: ResidentMedicationAssignmentRow = {
+    id,
+    residentId,
+    itemId,
+    quantityPerServing,
+    servingsPerDay,
+    directions,
+    prn,
+    status: "active",
+    sortOrder: nextSortOrder(db, residentMedications, residentId),
+    createdAtUtcMs: now,
+    updatedAtUtcMs: now,
+  };
+  try {
+    db.insert(residentMedications).values(row).run();
+  } catch (e) {
+    rethrowResidentMedicationConstraint(e);
+  }
+  return getClinicalMedicationByRowId(db, residentId, id);
 }
 
 export function updateResidentMedication(
@@ -543,8 +478,8 @@ export function updateResidentMedication(
     directions?: string;
     servingsPerDay?: number | null;
     prn?: boolean;
-    /** Catalog row id (reassign product); must belong to the resident's home. */
-    medicationId?: string;
+    /** Item catalog row id; must belong to the resident's home. */
+    itemId?: string;
   },
 ): ResidentMedicationClinicalItem {
   const resident = getResident(db, actor, homeId, residentId);
@@ -560,15 +495,15 @@ export function updateResidentMedication(
   let directions = existing.directions;
   let servingsPerDay = existing.servingsPerDay;
   let prn = existing.prn;
-  let medicationId = existing.medicationId;
+  let itemId = existing.itemId;
 
-  if (input.medicationId !== undefined) {
-    const t = input.medicationId.trim();
+  if (input.itemId !== undefined) {
+    const t = input.itemId.trim();
     if (!t) {
-      throw new ValidationError("medicationId must be a non-empty string.");
+      throw new ValidationError("itemId must be a non-empty string.");
     }
-    assertCatalogMedicationInResidentHome(db, t, resident.homeId);
-    medicationId = t;
+    assertItemInResidentHome(db, t, resident.homeId);
+    itemId = t;
   }
 
   if (input.quantityPerServing !== undefined) {
@@ -590,7 +525,7 @@ export function updateResidentMedication(
   try {
     db.update(residentMedications)
       .set({
-        medicationId,
+        itemId,
         quantityPerServing,
         servingsPerDay,
         directions,

@@ -68,6 +68,7 @@ describe("ResidentHeader", () => {
           portraitUpdatedAtUtcMs: 1_700_000_000_000,
         }}
         wards={WARDS}
+        userRole="care"
       />,
     );
     const img = screen.getByRole("img", { name: /^portrait of jane doe$/i });
@@ -78,7 +79,12 @@ describe("ResidentHeader", () => {
 
   it("shows portrait placeholder in read mode when hasPortrait is false", () => {
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
     expect(screen.getByLabelText(/no portrait/i)).toBeInTheDocument();
     expect(
@@ -88,14 +94,24 @@ describe("ResidentHeader", () => {
 
   it("does not show portrait file input in read-only mode", () => {
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
     expect(screen.queryByTestId("resident-portrait-file")).not.toBeInTheDocument();
   });
 
   it("shows portrait file input in edit mode for an active resident", async () => {
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
     expect(screen.getByTestId("resident-portrait-file")).toBeInTheDocument();
@@ -103,7 +119,12 @@ describe("ResidentHeader", () => {
 
   it("disables Remove portrait when there is no portrait", async () => {
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
     expect(screen.getByRole("button", { name: /remove portrait/i })).toBeDisabled();
@@ -115,6 +136,7 @@ describe("ResidentHeader", () => {
         homeId="h1"
         resident={{ ...BASE_RESIDENT, status: "departed" }}
         wards={WARDS}
+        userRole="care"
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
@@ -139,7 +161,12 @@ describe("ResidentHeader", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
     const file = new File([new Uint8Array([1, 2, 3])], "p.jpg", {
@@ -179,6 +206,7 @@ describe("ResidentHeader", () => {
           portraitUpdatedAtUtcMs: 1,
         }}
         wards={WARDS}
+        userRole="care"
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
@@ -210,6 +238,7 @@ describe("ResidentHeader", () => {
           portraitUpdatedAtUtcMs: 1,
         }}
         wards={WARDS}
+        userRole="care"
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
@@ -240,7 +269,12 @@ describe("ResidentHeader", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
     const file = new File([new Uint8Array([1])], "p.jpg", {
@@ -255,46 +289,99 @@ describe("ResidentHeader", () => {
 
   it("shows full name in read-only mode", () => {
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
     expect(screen.getByText("Jane Doe")).toBeInTheDocument();
   });
 
   it("shows Active status badge in read-only mode", () => {
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
     expect(screen.getByTestId("status-badge")).toHaveTextContent("Active");
   });
 
   it("shows a Depart button for an active resident", () => {
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
     expect(screen.getByRole("button", { name: /^depart$/i })).toBeInTheDocument();
   });
 
-  it("links Manage medications to resident medications with home and resident selected", () => {
+  it("links Medications to the resident medications page", () => {
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
-    const link = screen.getByRole("link", { name: /manage medications/i });
+    const link = screen.getByRole("link", { name: /^medications$/i });
     expect(link).toHaveAttribute(
       "href",
-      "/dashboard/resident-medications?homeId=h1&residentId=r1",
+      "/dashboard/homes/h1/residents/r1/medications",
     );
   });
 
-  it("does not show Manage medications for a departed resident", () => {
+  it("shows Invoices and Ledger links for admin", () => {
+    render(
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="admin"
+      />,
+    );
+    expect(screen.getByRole("link", { name: /^invoices$/i })).toHaveAttribute(
+      "href",
+      "/dashboard/homes/h1/invoices?residentId=r1",
+    );
+    expect(screen.getByRole("link", { name: /^ledger$/i })).toHaveAttribute(
+      "href",
+      "/dashboard/homes/h1/ledger?residentId=r1",
+    );
+  });
+
+  it("does not show Invoices or Ledger links for care staff", () => {
+    render(
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
+    );
+    expect(screen.queryByRole("link", { name: /^invoices$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^ledger$/i })).not.toBeInTheDocument();
+  });
+
+  it("does not show Medications for a departed resident", () => {
     render(
       <ResidentHeader
         homeId="h1"
         resident={{ ...BASE_RESIDENT, status: "departed" }}
         wards={WARDS}
+        userRole="care"
       />,
     );
     expect(
-      screen.queryByRole("link", { name: /manage medications/i }),
+      screen.queryByRole("link", { name: /^medications$/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -304,6 +391,7 @@ describe("ResidentHeader", () => {
         homeId="h1"
         resident={{ ...BASE_RESIDENT, status: "departed" }}
         wards={WARDS}
+        userRole="care"
       />,
     );
     expect(screen.queryByRole("button", { name: /^depart$/i })).not.toBeInTheDocument();
@@ -315,6 +403,7 @@ describe("ResidentHeader", () => {
         homeId="h1"
         resident={{ ...BASE_RESIDENT, status: "departed" }}
         wards={WARDS}
+        userRole="care"
       />,
     );
     expect(screen.getByTestId("status-badge")).toHaveTextContent("Departed");
@@ -322,7 +411,12 @@ describe("ResidentHeader", () => {
 
   it("Edit button toggles to edit mode showing a name input", async () => {
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
     expect(screen.getByRole("textbox", { name: /full name/i })).toBeInTheDocument();
@@ -330,7 +424,12 @@ describe("ResidentHeader", () => {
 
   it("shows status badge in edit mode", async () => {
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));
     expect(screen.getByTestId("status-badge")).toHaveTextContent("Active");
@@ -344,7 +443,12 @@ describe("ResidentHeader", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     render(
-      <ResidentHeader homeId="h1" resident={BASE_RESIDENT} wards={WARDS} />,
+      <ResidentHeader
+        homeId="h1"
+        resident={BASE_RESIDENT}
+        wards={WARDS}
+        userRole="care"
+      />,
     );
 
     await userEvent.click(screen.getByRole("button", { name: /edit/i }));

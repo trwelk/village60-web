@@ -38,14 +38,11 @@ describe("ResidentTabs", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("includes Other charges and Monthly billing tabs for admin tab list", () => {
+  it("includes Other charges tab for admin tab list", () => {
     const tabs = residentDetailTabsForRole("admin");
-    render(<ResidentTabs tabs={tabs} activeTab="billing" onTabChange={vi.fn()} />);
+    render(<ResidentTabs tabs={tabs} activeTab="other-charge" onTabChange={vi.fn()} />);
     expect(
       screen.getByRole("tab", { name: "Other charges" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("tab", { name: "Monthly billing" }),
     ).toBeInTheDocument();
   });
 

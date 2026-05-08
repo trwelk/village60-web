@@ -35,7 +35,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       directions?: string;
       servingsPerDay?: number | null;
       prn?: boolean;
-      medicationId?: string;
+      itemId?: string;
   } = {};
   if ("quantityPerServing" in rec) {
     if (
@@ -73,14 +73,14 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       );
     }
   }
-  if ("medicationId" in rec) {
-    if (typeof rec.medicationId !== "string") {
+  if ("itemId" in rec) {
+    if (typeof rec.itemId !== "string") {
       return NextResponse.json(
-        { error: "medicationId must be a string." },
+        { error: "itemId must be a string." },
         { status: 400 },
       );
     }
-    patch.medicationId = rec.medicationId;
+    patch.itemId = rec.itemId;
   }
   if ("prn" in rec) {
     if (typeof rec.prn !== "boolean") {

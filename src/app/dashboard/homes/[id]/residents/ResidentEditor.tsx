@@ -71,88 +71,6 @@ function splitLines(raw: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-function parseMedicationRows(raw: string): {
-  rows: {
-    name: string;
-    strength: string;
-    unit: string;
-    quantityPerServing: number;
-    directions: string;
-    servingsPerDay: number | null;
-    prn: boolean;
-  }[];
-  error: string | null;
-} {
-  const rows: {
-    name: string;
-    strength: string;
-    unit: string;
-    quantityPerServing: number;
-    directions: string;
-    servingsPerDay: number | null;
-    prn: boolean;
-  }[] = [];
-  const lines = splitLines(raw);
-  for (const line of lines) {
-    const parts = line.split("|").map((p) => p.trim());
-    const name = parts[0] ?? "";
-    const strength = parts[1] ?? "";
-    const unit = parts[2] ?? "";
-    const quantityPerServingStr = parts[3] ?? "";
-    const directions = parts[4] ?? "";
-    if (
-      parts.length < 5 ||
-      !name ||
-      !strength ||
-      !unit ||
-      !quantityPerServingStr ||
-      !directions
-    ) {
-      return {
-        rows: [],
-        error:
-          "Each medication line must start with: name | strength | unit | quantity per serving | directions (optional trailing columns: servings/day | PRN yes/no).",
-      };
-    }
-    const quantityPerServing = Number.parseFloat(quantityPerServingStr);
-    if (Number.isNaN(quantityPerServing) || quantityPerServing <= 0) {
-      return {
-        rows: [],
-        error: "Quantity per serving must be a positive number.",
-      };
-    }
-    const servingsToken = parts[5] ?? "";
-    const prnToken = (parts[6] ?? "").toLowerCase();
-    let servingsPerDay: number | null = null;
-    const st = servingsToken.trim();
-    if (st !== "" && st !== "-") {
-      const n = Number.parseInt(st, 10);
-      if (!Number.isInteger(n) || n < 1) {
-        return {
-          rows: [],
-          error: "Servings per day must be blank, '-', or a positive integer.",
-        };
-      }
-      servingsPerDay = n;
-    }
-    let prn = false;
-    const pt = prnToken.trim();
-    if (pt !== "" && pt !== "-") {
-      prn =
-        pt === "yes" || pt === "y" || pt === "true" || pt === "1" || pt === "prn";
-    }
-    rows.push({
-      name,
-      strength,
-      unit,
-      quantityPerServing,
-      directions,
-      servingsPerDay,
-      prn,
-    });
-  }
-  return { rows, error: null };
-}
 
 export function ResidentEditor({
   homeId,
@@ -199,7 +117,6 @@ export function ResidentEditor({
     useState(initial?.assignedNurseDisplayOverride ?? "");
   const [clinicalAllergiesText, setClinicalAllergiesText] = useState("");
   const [clinicalConditionsText, setClinicalConditionsText] = useState("");
-  const [clinicalMedicationsText, setClinicalMedicationsText] = useState("");
   const [createStep, setCreateStep] = useState<CreateWizardStep>("home");
   const [createSubmitting, setCreateSubmitting] = useState(false);
 
@@ -265,12 +182,6 @@ export function ResidentEditor({
       if (!fullName.trim()) return "Full name is required.";
       if (!dob) return "Date of birth is required.";
       if (!admissionDate) return "Admission date is required.";
-    }
-    if (step === "clinical" && clinicalMedicationsText.trim()) {
-      const parsed = parseMedicationRows(clinicalMedicationsText);
-      if (parsed.error) {
-        return parsed.error;
-      }
     }
     return null;
   }
@@ -412,12 +323,6 @@ export function ResidentEditor({
       }
       const allergies = splitLines(clinicalAllergiesText);
       const conditions = splitLines(clinicalConditionsText);
-      const medicationsParsed = parseMedicationRows(clinicalMedicationsText);
-      if (medicationsParsed.error) {
-        setCreateSubmitting(false);
-        setError(medicationsParsed.error);
-        return;
-      }
       const followUps: Promise<Response>[] = [];
       for (const allergen of allergies) {
         followUps.push(
@@ -434,25 +339,6 @@ export function ResidentEditor({
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ label }),
-          }),
-        );
-      }
-      for (const med of medicationsParsed.rows) {
-        followUps.push(
-          fetch(`/api/homes/${homeId}/residents/${id}/clinical/medications`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              medication: {
-                name: med.name,
-                strength: med.strength,
-                unit: med.unit,
-              },
-              quantityPerServing: med.quantityPerServing,
-              directions: med.directions,
-              servingsPerDay: med.servingsPerDay,
-              prn: med.prn,
-            }),
           }),
         );
       }
@@ -899,7 +785,7 @@ export function ResidentEditor({
             <p className="village-muted mt-1 text-sm">
               Next of kin details are required to complete admission.
             </p>
-            <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label className={fieldLabelClass}>
                 <span className={fieldTextClass}>NOK name</span>
                 <input
@@ -1037,28 +923,7 @@ export function ResidentEditor({
                   placeholder={"Type 2 diabetes\nHypertension"}
                 />
               </label>
-              <label className={fieldLabelClass}>
-                <span className={fieldTextClass}>
-                  Medications (optional, one per line)
-                </span>
-                <textarea
-                  className={`${inputClass} min-h-28`}
-                  value={clinicalMedicationsText}
-                  onChange={(e) => setClinicalMedicationsText(e.target.value)}
-                  placeholder={
-                    "Metformin | 500 mg | tablet | 1 | With breakfast | 2 | no |"
-                  }
-                />
-              </label>
             </div>
-            <p className="village-muted mt-2 text-xs">
-              Medication format:{" "}
-              <code>
-                name | strength | unit | qty/serving | directions [| servings/day
-                [| PRN]]
-              </code>
-              . Omit optional tails or use blank or <code>-</code>.
-            </p>
           </section>
         ) : null}
 

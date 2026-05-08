@@ -14,6 +14,8 @@ import {
 
   isDashboardHomesPath,
 
+  isDashboardInvoicesPath,
+
   isDashboardLeadsPath,
 
   isDashboardOtherChargesPath,
@@ -23,10 +25,10 @@ import {
   isDashboardResidentsPath,
 
   isDashboardTasksPath,
+  isDashboardInventoryCatalogPath,
+  isDashboardInventoryOrdersPath,
+  isDashboardInventorySuppliersPath,
 
-  isDashboardMedicationsPath,
-
-  isDashboardResidentMedicationsPath,
 
   isDashboardUsersPath,
 
@@ -67,10 +69,11 @@ export function getDashboardContextTitle(
   if (isDashboardResidentsPath(pathname)) return "Residents";
 
   if (isDashboardTasksPath(pathname)) return "Tasks";
+  if (isDashboardInventoryCatalogPath(pathname)) return "Inventory catalog";
+  if (isDashboardInventorySuppliersPath(pathname)) return "Inventory suppliers";
+  if (isDashboardInventoryOrdersPath(pathname)) return "Inventory orders";
 
-  if (isDashboardMedicationsPath(pathname)) return "Medications";
-
-  if (isDashboardResidentMedicationsPath(pathname)) return "Resident medications";
+  if (isDashboardInvoicesPath(pathname)) return "Invoices";
 
   if (isDashboardHomesPath(pathname)) {
 

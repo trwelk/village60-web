@@ -168,17 +168,6 @@ export function HomesAdminUI({
 
   return (
     <main className="flex flex-col gap-8 text-ink">
-      <header>
-        <h1 className="font-display text-3xl font-normal tracking-tight text-pine-2">
-          Retirement homes
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-ink/70">
-          {variant === "admin"
-            ? "Configure each site's name, optional physical address (shown on public enquiry flows), and default currency (ISO 4217)."
-            : "Homes you are assigned to. Open a site to manage wards."}
-        </p>
-      </header>
-
       {error && !(variant === "admin" && createModalOpen) ? (
         <p className="village-alert-error">{error}</p>
       ) : null}

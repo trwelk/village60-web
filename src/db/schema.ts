@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import {
   index,
   integer,
@@ -185,74 +186,147 @@ export const residents = sqliteTable(
   ],
 );
 
-/** Generated monthly fee row per resident (16b); amounts are snapshots in minor units. */
-export const residentMonthlyCharges = sqliteTable(
-  "resident_monthly_charges",
+/** One billing account per resident; balance derives from billing ledger sum. */
+export const residentAccounts = sqliteTable(
+  "resident_accounts",
   {
     id: text("id").primaryKey(),
     residentId: text("resident_id")
       .notNull()
       .references(() => residents.id, { onDelete: "cascade" }),
-    /** UTC calendar month `YYYY-MM` (product: no TZ conversion). */
-    billingMonth: text("billing_month").notNull(),
-    wardIdSnapshot: text("ward_id_snapshot")
-      .notNull()
-      .references(() => wards.id, { onDelete: "restrict" }),
-    amountMinorSnapshot: integer("amount_minor_snapshot").notNull(),
+    currencyCode: text("currency_code").notNull(),
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
   },
-  (t) => [
-    uniqueIndex("resident_monthly_charges_resident_billing_uq").on(
-      t.residentId,
-      t.billingMonth,
-    ),
-  ],
+  (t) => [uniqueIndex("resident_accounts_resident_uq").on(t.residentId)],
 );
 
 /**
- * One-off line items (registration fee, deposit); separate from monthly billing.
- * At most one row per `(resident_id, type)` over the resident's lifetime.
+ * One operating-expense billing account per home. Mirrors `residentAccounts`
+ * but scoped to the home itself rather than an individual resident.
+ * `accountType = 'home'` in `billingTransactions` points here.
  */
-export const otherCharges = sqliteTable(
-  "other_charges",
+export const homeAccounts = sqliteTable(
+  "home_accounts",
   {
     id: text("id").primaryKey(),
-    residentId: text("resident_id")
+    homeId: text("home_id")
       .notNull()
-      .references(() => residents.id, { onDelete: "cascade" }),
-    /** `registration` | `deposit` — stable string values (app-enforced in v1). */
-    type: text("type").notNull(),
+      .references(() => homes.id, { onDelete: "restrict" }),
+    currencyCode: text("currency_code").notNull(),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [uniqueIndex("home_accounts_home_uq").on(t.homeId)],
+);
+
+/**
+ * Append-only billing ledger with signed deltas.
+ *
+ * `accountId` is polymorphic: use `accountType` to resolve which account table
+ * it references — `'resident'` → `residentAccounts`, `'home'` → `homeAccounts`.
+ * FK enforcement is app-level so both owner types can coexist in one table.
+ * All rows created before 0046 are implicitly `accountType = 'resident'`.
+ */
+export const billingTransactions = sqliteTable(
+  "billing_transactions",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    /** Discriminator: `'resident'` (default) or `'home'`. */
+    accountType: text("account_type")
+      .notNull()
+      .default("resident")
+      .$type<"resident" | "home">(),
+    txnType: text("txn_type").notNull(),
     amountMinor: integer("amount_minor").notNull(),
-    received: integer("received", { mode: "boolean" }).notNull().default(false),
-    /** ISO date-only `YYYY-MM-DD` when received; nullable when not paid. */
-    paidOn: text("paid_on"),
+    sourceKind: text("source_kind").notNull(),
+    sourceId: text("source_id"),
+    memo: text("memo"),
+    recordedByUserId: text("recorded_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    postedAtUtcMs: integer("posted_at_utc_ms").notNull(),
+    /** Set on `txn_type = reversal` rows only; points at the posted row being undone. */
+    reversesTransactionId: text("reverses_transaction_id").references(
+      (): AnySQLiteColumn => billingTransactions.id,
+      { onDelete: "restrict" },
+    ),
+  },
+  (t) => [
+    index("billing_transactions_account_posted_idx").on(t.accountId, t.postedAtUtcMs),
+    uniqueIndex("billing_transactions_source_uq").on(t.sourceKind, t.sourceId),
+    uniqueIndex("billing_transactions_reverses_target_uq").on(t.reversesTransactionId),
+  ],
+);
+
+/** Payment receipt metadata; each row maps to one posted ledger transaction. */
+export const billingPayments = sqliteTable(
+  "billing_payments",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => residentAccounts.id, { onDelete: "cascade" }),
+    amountMinor: integer("amount_minor").notNull(),
+    receivedOn: text("received_on").notNull(),
+    method: text("method").notNull(),
+    externalReference: text("external_reference"),
+    notes: text("notes"),
+    recordedByUserId: text("recorded_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    ledgerTransactionId: text("ledger_transaction_id")
+      .notNull()
+      .references(() => billingTransactions.id, { onDelete: "restrict" }),
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
   },
   (t) => [
-    uniqueIndex("other_charges_resident_type_uq").on(t.residentId, t.type),
-    index("other_charges_resident_idx").on(t.residentId),
+    uniqueIndex("billing_payments_ledger_transaction_uq").on(t.ledgerTransactionId),
+    index("billing_payments_account_received_idx").on(t.accountId, t.receivedOn),
   ],
 );
 
-/** At most one payment row per monthly charge (16c). */
-export const residentPayments = sqliteTable("resident_payments", {
-  id: text("id").primaryKey(),
-  residentMonthlyChargeId: text("resident_monthly_charge_id")
-    .notNull()
-    .references(() => residentMonthlyCharges.id, { onDelete: "cascade" })
-    .unique(),
-  amountMinor: integer("amount_minor").notNull(),
-  /** ISO date-only `YYYY-MM-DD`. */
-  paidOn: text("paid_on").notNull(),
-  notes: text("notes"),
-  recordedByUserId: text("recorded_by_user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "restrict" }),
-  createdAtUtcMs: integer("created_at_utc_ms").notNull(),
-  updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
-});
+/** Resident billing docs for period statements and charge grouping. */
+export const invoices = sqliteTable(
+  "invoices",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => residentAccounts.id, { onDelete: "cascade" }),
+    status: text("status").notNull(),
+    billingPeriod: text("billing_period"),
+    issuedOn: text("issued_on"),
+    totalMinorSnapshot: integer("total_minor_snapshot"),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [index("invoices_account_status_issued_idx").on(t.accountId, t.status, t.issuedOn)],
+);
+
+/** Lines that make up an invoice, with category for billing semantics. */
+export const invoiceLineItems = sqliteTable(
+  "invoice_line_items",
+  {
+    id: text("id").primaryKey(),
+    invoiceId: text("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    category: text("category").notNull(),
+    description: text("description").notNull(),
+    amountMinor: integer("amount_minor").notNull(),
+    serviceMonth: text("service_month"),
+    wardIdSnapshot: text("ward_id_snapshot").references(() => wards.id, {
+      onDelete: "restrict",
+    }),
+    quantity: integer("quantity").notNull().default(1),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [index("invoice_line_items_invoice_idx").on(t.invoiceId)],
+);
 
 /**
  * Departure reason and instant for departed residents (1:1 with `residents`).
@@ -299,35 +373,6 @@ export const residentAllergies = sqliteTable(
 );
 
 /**
- * Per-home medication product catalog (**31a**). Regimen lines on residents may
- * reference rows here (`resident_medications.medication_id`, **31b**).
- * Uniqueness: `lower(trim(name))`, `lower(trim(strength))`, `trim(unit)` per home.
- */
-export const medications = sqliteTable(
-  "medications",
-  {
-    id: text("id").primaryKey(),
-    homeId: text("home_id")
-      .notNull()
-      .references(() => homes.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    strength: text("strength").notNull(),
-    unit: text("unit").notNull(),
-    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
-    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
-  },
-  (t) => [
-    index("medications_home_idx").on(t.homeId),
-    uniqueIndex("medications_home_name_strength_unit_uq").on(
-      t.homeId,
-      sql`lower(trim(${t.name}))`,
-      sql`lower(trim(${t.strength}))`,
-      sql`trim(${t.unit})`,
-    ),
-  ],
-);
-
-/**
  * Inventory item catalog for stockable products. `unitClass` drives backend
  * quantity precision validation:
  * - `countable`: integer-only base units
@@ -340,6 +385,9 @@ export const inventoryItems = sqliteTable(
     homeId: text("home_id")
       .notNull()
       .references(() => homes.id, { onDelete: "cascade" }),
+    categoryId: text("category_id")
+      .notNull()
+      .references(() => inventoryItemCategories.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     baseUnit: text("base_unit").notNull(),
     unitClass: text("unit_class").notNull(),
@@ -348,11 +396,50 @@ export const inventoryItems = sqliteTable(
   },
   (t) => [
     index("inventory_items_home_idx").on(t.homeId),
+    index("inventory_items_category_idx").on(t.categoryId),
     uniqueIndex("inventory_items_home_name_base_unit_uq").on(
       t.homeId,
       sql`lower(trim(${t.name}))`,
       sql`trim(${t.baseUnit})`,
     ),
+  ],
+);
+
+/** Home-scoped inventory item categories for catalog grouping/filtering. */
+export const inventoryItemCategories = sqliteTable(
+  "inventory_item_categories",
+  {
+    id: text("id").primaryKey(),
+    homeId: text("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    index("inventory_item_categories_home_idx").on(t.homeId),
+    uniqueIndex("inventory_item_categories_home_name_uq").on(
+      t.homeId,
+      sql`lower(trim(${t.name}))`,
+    ),
+  ],
+);
+
+/** Global purchasing suppliers for inventory POs (36f). */
+export const inventorySuppliers = sqliteTable(
+  "inventory_suppliers",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    address: text("address"),
+    phone: text("phone"),
+    email: text("email"),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    uniqueIndex("inventory_suppliers_name_uq").on(sql`lower(trim(${t.name}))`),
   ],
 );
 
@@ -391,6 +478,7 @@ export const inventoryTransactions = sqliteTable(
       .notNull()
       .references(() => inventoryItems.id, { onDelete: "restrict" }),
     transactionType: text("transaction_type").notNull(),
+    transferId: text("transfer_id"),
     quantityDeltaBaseUnits: real("quantity_delta_base_units").notNull(),
     sourceType: text("source_type").notNull(),
     sourceId: text("source_id").notNull(),
@@ -408,6 +496,7 @@ export const inventoryTransactions = sqliteTable(
       t.createdAtUtcMs,
     ),
     index("inventory_transactions_source_idx").on(t.sourceType, t.sourceId),
+    index("inventory_transactions_transfer_idx").on(t.transferId),
   ],
 );
 
@@ -418,9 +507,9 @@ export const residentMedications = sqliteTable(
     residentId: text("resident_id")
       .notNull()
       .references(() => residents.id, { onDelete: "cascade" }),
-    medicationId: text("medication_id")
+    itemId: text("item_id")
       .notNull()
-      .references(() => medications.id, {
+      .references(() => inventoryItems.id, {
         onDelete: "restrict",
       }),
     quantityPerServing: real("quantity_per_serving").notNull(),
@@ -434,9 +523,9 @@ export const residentMedications = sqliteTable(
   },
   (t) => [
     index("resident_medications_resident_idx").on(t.residentId),
-    uniqueIndex("resident_medications_resident_medication_uq").on(
+    uniqueIndex("resident_medications_resident_item_uq").on(
       t.residentId,
-      t.medicationId,
+      t.itemId,
     ),
   ],
 );
@@ -530,3 +619,95 @@ export const appSettings = sqliteTable("app_settings", {
   valueInt: integer("value_int").notNull(),
   updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
 });
+
+/** Home-scoped purchase order header lifecycle (36b). */
+export const homePurchaseOrders = sqliteTable(
+  "home_purchase_orders",
+  {
+    id: text("id").primaryKey(),
+    homeId: text("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "restrict" }),
+    poNumber: text("po_number").notNull(),
+    supplierId: text("supplier_id")
+      .notNull()
+      .references(() => inventorySuppliers.id, { onDelete: "restrict" }),
+    status: text("status").notNull(),
+    currencyCode: text("currency_code"),
+    approvedAtUtcMs: integer("approved_at_utc_ms"),
+    approvedByUserId: text("approved_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    sentAtUtcMs: integer("sent_at_utc_ms"),
+    sentByUserId: text("sent_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    uniqueIndex("home_purchase_orders_home_po_number_uq").on(t.homeId, t.poNumber),
+    index("home_purchase_orders_home_status_idx").on(t.homeId, t.status),
+  ],
+);
+
+/** Purchase order lines with explicit ownership and line status (36b). */
+export const homePurchaseOrderLines = sqliteTable(
+  "home_purchase_order_lines",
+  {
+    id: text("id").primaryKey(),
+    purchaseOrderId: text("purchase_order_id")
+      .notNull()
+      .references(() => homePurchaseOrders.id, { onDelete: "cascade" }),
+    itemId: text("item_id")
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: "restrict" }),
+    ownerType: text("owner_type").notNull(),
+    ownerId: text("owner_id").notNull(),
+    quantityOrderedBaseUnits: real("quantity_ordered_base_units").notNull(),
+    quantityReceivedBaseUnits: real("quantity_received_base_units")
+      .notNull()
+      .default(0),
+    status: text("status").notNull().default("OPEN"),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    index("home_purchase_order_lines_order_idx").on(t.purchaseOrderId),
+    index("home_purchase_order_lines_owner_idx").on(t.ownerType, t.ownerId),
+  ],
+);
+
+/** Immutable receive events for purchase-order line receipts (36c). */
+export const homePurchaseOrderReceiveEvents = sqliteTable(
+  "home_purchase_order_receive_events",
+  {
+    id: text("id").primaryKey(),
+    purchaseOrderId: text("purchase_order_id")
+      .notNull()
+      .references(() => homePurchaseOrders.id, { onDelete: "cascade" }),
+    purchaseOrderLineId: text("purchase_order_line_id")
+      .notNull()
+      .references(() => homePurchaseOrderLines.id, { onDelete: "cascade" }),
+    qtyReceivedEvent: real("qty_received_event").notNull(),
+    baseUnitsReceivedEvent: real("base_units_received_event").notNull(),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    currencyCode: text("currency_code").notNull(),
+    receivedAtUtcMs: integer("received_at_utc_ms").notNull(),
+    note: text("note"),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+  },
+  (t) => [
+    index("home_po_receive_events_po_line_idx").on(
+      t.purchaseOrderLineId,
+      t.receivedAtUtcMs,
+    ),
+    index("home_po_receive_events_po_currency_idx").on(t.purchaseOrderId, t.currencyCode),
+  ],
+);

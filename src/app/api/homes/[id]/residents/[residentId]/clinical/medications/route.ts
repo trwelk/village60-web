@@ -26,61 +26,12 @@ export async function POST(req: Request, { params }: RouteParams) {
   }
   const rec = body as Record<string, unknown>;
 
-  const catalogId =
-    typeof rec.medicationId === "string" ? rec.medicationId.trim() : "";
-  const hasRef = catalogId.length > 0;
-
-  const medRaw = rec.medication;
-  const hasNestedObj =
-    medRaw !== undefined &&
-    medRaw !== null &&
-    typeof medRaw === "object" &&
-    !Array.isArray(medRaw);
-
-  const hasLegacyTriple =
-    typeof rec.name === "string" &&
-    typeof rec.strength === "string" &&
-    typeof rec.unit === "string";
-
-  if (hasRef && (hasNestedObj || hasLegacyTriple)) {
+  const itemId = typeof rec.itemId === "string" ? rec.itemId.trim() : "";
+  if (!itemId) {
     return NextResponse.json(
-      { error: "Provide medicationId or medication, not both." },
+      { error: "itemId is required." },
       { status: 400 },
     );
-  }
-
-  if (!hasRef && !hasNestedObj && !hasLegacyTriple) {
-    return NextResponse.json(
-      {
-        error:
-          "Provide medicationId, or medication: { name, strength, unit }, or legacy name, strength, and unit.",
-      },
-      { status: 400 },
-    );
-  }
-
-  let medication: { name: string; strength: string; unit: string } | undefined;
-  if (hasNestedObj) {
-    const mo = medRaw as Record<string, unknown>;
-    for (const key of ["name", "strength", "unit"] as const) {
-      if (typeof mo[key] !== "string") {
-        return NextResponse.json(
-          { error: `medication.${key} must be a string.` },
-          { status: 400 },
-        );
-      }
-    }
-    medication = {
-      name: mo.name as string,
-      strength: mo.strength as string,
-      unit: mo.unit as string,
-    };
-  } else if (!hasRef && hasLegacyTriple) {
-    medication = {
-      name: rec.name as string,
-      strength: rec.strength as string,
-      unit: rec.unit as string,
-    };
   }
 
   if (
@@ -127,33 +78,19 @@ export async function POST(req: Request, { params }: RouteParams) {
   }
 
   try {
-    const row = hasRef
-      ? createResidentMedication(
-          getDb(),
-          requireSessionActor(session),
-          homeId,
-          residentId,
-          {
-            medicationId: catalogId,
-            quantityPerServing: rec.quantityPerServing,
-            directions: rec.directions as string,
-            servingsPerDay,
-            prn,
-          },
-        )
-      : createResidentMedication(
-          getDb(),
-          requireSessionActor(session),
-          homeId,
-          residentId,
-          {
-            medication: medication!,
-            quantityPerServing: rec.quantityPerServing,
-            directions: rec.directions as string,
-            servingsPerDay,
-            prn,
-          },
-        );
+    const row = createResidentMedication(
+      getDb(),
+      requireSessionActor(session),
+      homeId,
+      residentId,
+      {
+        itemId,
+        quantityPerServing: rec.quantityPerServing,
+        directions: rec.directions as string,
+        servingsPerDay,
+        prn,
+      },
+    );
     return NextResponse.json({ medication: row });
   } catch (e) {
     const resp = homesErrorResponse(e);

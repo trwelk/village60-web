@@ -4,6 +4,7 @@ import {
   parseBillingMonth,
   utcBillingMonthFromMs,
 } from "@/lib/billing/billingMonth";
+import { finalizeDraftInvoicesForBillingMonth } from "@/lib/billing/invoiceLifecycle";
 import { generateMonthlyCharges } from "@/lib/billing/generateMonthlyCharges";
 import { homesErrorResponse } from "@/lib/homes/http";
 import { NextResponse } from "next/server";
@@ -28,7 +29,7 @@ function cronBearerAuthorized(req: Request, secret: string): boolean {
 }
 
 /**
- * Internal cron: idempotent monthly charge rows (16b).
+ * Internal cron: draft monthly invoices + finalize postings (PR4).
  * Production: schedule `POST` with `Authorization: Bearer $CRON_SECRET` at **00:05 UTC on the 1st**
  * of each month (targets the current UTC month unless `billingMonth` is supplied in JSON).
  */
@@ -65,8 +66,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = generateMonthlyCharges(getDb(), { billingMonth });
-    return NextResponse.json(result);
+    const db = getDb();
+    const generate = generateMonthlyCharges(db, { billingMonth });
+    const finalizedAtUtcMs = Date.now();
+    const finalize = finalizeDraftInvoicesForBillingMonth(db, {
+      billingMonth,
+      finalizedAtUtcMs,
+    });
+    return NextResponse.json({ generate, finalize });
   } catch (e) {
     const resp = homesErrorResponse(e);
     if (resp) {

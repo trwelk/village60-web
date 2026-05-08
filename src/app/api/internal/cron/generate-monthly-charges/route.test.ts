@@ -5,9 +5,10 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { count } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
-import { residentMonthlyCharges } from "@/db/schema";
+import { billingTransactions, invoices } from "@/db/schema";
 import { createHome } from "@/lib/homes/service";
 import { createResident } from "@/lib/residents/service";
 import { createWard } from "@/lib/wards/service";
@@ -22,8 +23,14 @@ function runMigrations(file: string) {
   sqlite.close();
 }
 
-function countCharges() {
-  return getDb().select().from(residentMonthlyCharges).all().length;
+function countInvoices(): number {
+  const row = getDb().select({ c: count() }).from(invoices).get();
+  return Number(row?.c ?? 0);
+}
+
+function countBillingTxns(): number {
+  const row = getDb().select({ c: count() }).from(billingTransactions).get();
+  return Number(row?.c ?? 0);
 }
 
 describe("POST /api/internal/cron/generate-monthly-charges", () => {
@@ -81,9 +88,7 @@ describe("POST /api/internal/cron/generate-monthly-charges", () => {
     expect(res.status).toBe(401);
     closeDbConnection();
     const sqlite = new Database(dbPath);
-    const n = sqlite
-      .prepare("SELECT count(*) AS c FROM resident_monthly_charges")
-      .get() as { c: number };
+    const n = sqlite.prepare("SELECT count(*) AS c FROM invoices").get() as { c: number };
     sqlite.close();
     expect(n.c).toBe(0);
   });
@@ -104,7 +109,7 @@ describe("POST /api/internal/cron/generate-monthly-charges", () => {
     expect(res.status).toBe(401);
   });
 
-  it("runs generation when bearer token matches CRON_SECRET", async () => {
+  it("runs generation and finalization when bearer token matches CRON_SECRET", async () => {
     process.env.DATABASE_PATH = dbPath;
     const res = await POST(
       new Request("http://localhost/api/internal/cron/generate-monthly-charges", {
@@ -119,10 +124,21 @@ describe("POST /api/internal/cron/generate-monthly-charges", () => {
     expect(res.status).toBe(200);
     const json: unknown = await res.json();
     expect(json).toMatchObject({
-      billingMonth: "2026-11",
-      created: 1,
-      skipped: [],
+      generate: {
+        billingMonth: "2026-11",
+        created: 1,
+        skipped: [],
+      },
+      finalize: {
+        billingMonth: "2026-11",
+      },
     });
-    expect(countCharges()).toBe(1);
+    const body = json as {
+      finalize: { finalizedInvoiceIds: string[]; conflictInvoiceIds: string[] };
+    };
+    expect(body.finalize.finalizedInvoiceIds).toHaveLength(1);
+    expect(body.finalize.conflictInvoiceIds).toEqual([]);
+    expect(countInvoices()).toBe(1);
+    expect(countBillingTxns()).toBe(1);
   });
 });

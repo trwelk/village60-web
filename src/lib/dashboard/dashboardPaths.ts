@@ -30,6 +30,13 @@ export function isDashboardPaymentsPath(pathname: string): boolean {
   return pathname === "/dashboard/payments";
 }
 
+export function isDashboardInvoicesPath(pathname: string): boolean {
+  return (
+    pathname === "/dashboard/invoices" ||
+    /^\/dashboard\/invoices\/[^/]+$/.test(pathname)
+  );
+}
+
 export function isDashboardExpenseTypesPath(pathname: string): boolean {
   return pathname === "/dashboard/expenses/types";
 }
@@ -42,12 +49,19 @@ export function isDashboardTasksPath(pathname: string): boolean {
   return pathname === "/dashboard/tasks";
 }
 
-export function isDashboardMedicationsPath(pathname: string): boolean {
-  return pathname === "/dashboard/medications";
+export function isDashboardInventoryOrdersPath(pathname: string): boolean {
+  return (
+    pathname === "/dashboard/inventory-orders" ||
+    /^\/dashboard\/inventory-orders\/[^/]+$/.test(pathname)
+  );
 }
 
-export function isDashboardResidentMedicationsPath(pathname: string): boolean {
-  return pathname === "/dashboard/resident-medications";
+export function isDashboardInventoryCatalogPath(pathname: string): boolean {
+  return pathname === "/dashboard/inventory-orders/catalog";
+}
+
+export function isDashboardInventorySuppliersPath(pathname: string): boolean {
+  return pathname === "/dashboard/inventory-orders/suppliers";
 }
 
 export function isDashboardAccountPath(pathname: string): boolean {

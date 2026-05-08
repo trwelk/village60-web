@@ -5,26 +5,36 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import type { getDb } from "@/db/client";
 import {
+  expenseTypes,
   authEvents,
+  billingPayments,
+  billingTransactions,
+  homeExpenseAttachments,
+  homeExpenses,
   homeInterestLeadSubmitBuckets,
   homeInterestLeads,
+  homePurchaseOrderLines,
+  homePurchaseOrderReceiveEvents,
+  homePurchaseOrders,
   homes,
-  medications,
-  otherCharges,
+  inventoryBalances,
+  inventoryItemCategories,
+  inventoryItems,
+  inventorySuppliers,
+  inventoryTransactions,
+  invoiceLineItems,
+  invoices,
   residentAllergies,
   residentConditions,
   residentDepartureDetails,
   residentMedications,
-  residentMonthlyCharges,
-  residentPayments,
+  residentAccounts,
   residents,
   tasks,
   userAdditionalHomes,
   users,
   wards,
 } from "@/db/schema";
-import { shiftBillingMonth } from "@/lib/analytics/revenueCollections";
-import { generateMonthlyCharges } from "@/lib/billing/generateMonthlyCharges";
 import { utcBillingMonthFromMs } from "@/lib/billing/billingMonth";
 import { getAppTimezone, zonedDateAtUtcMs } from "@/lib/config/appTimezone";
 import { DEFAULT_CURRENCY_CODE } from "@/lib/homes/defaultCurrencyCode";
@@ -69,6 +79,16 @@ function isoDatePlusDaysUtc(utcMs: number, days: number): string {
 function utcDateOnlyFromMs(ms: number): string {
   const d = new Date(ms);
   return iso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+}
+
+function shiftBillingMonth(ym: string, deltaMonths: number): string {
+  const [yStr, mStr] = ym.split("-");
+  const y = Number(yStr);
+  const m = Number(mStr);
+  const idx = y * 12 + (m - 1) + deltaMonths;
+  const ny = Math.floor(idx / 12);
+  const nm = idx - ny * 12 + 1;
+  return `${String(ny).padStart(4, "0")}-${String(nm).padStart(2, "0")}`;
 }
 
 function addUtcDaysIso(dateOnly: string, deltaDays: number): string {
@@ -670,14 +690,28 @@ type HomeBuilt = {
 };
 
 function wipeApplicationData(tx: Parameters<Parameters<AppDb["transaction"]>[0]>[0]) {
+  tx.delete(invoiceLineItems).run();
+  tx.delete(invoices).run();
+  tx.delete(billingPayments).run();
+  tx.delete(billingTransactions).where(isNotNull(billingTransactions.reversesTransactionId)).run();
+  tx.delete(billingTransactions).run();
+  tx.delete(residentAccounts).run();
+  tx.delete(homePurchaseOrderReceiveEvents).run();
+  tx.delete(homePurchaseOrderLines).run();
+  tx.delete(homePurchaseOrders).run();
+  tx.delete(inventoryTransactions).run();
+  tx.delete(inventoryBalances).run();
   tx.delete(tasks).run();
-  tx.delete(residentPayments).run();
-  tx.delete(residentMonthlyCharges).run();
-  tx.delete(otherCharges).run();
+  tx.delete(homeExpenseAttachments).run();
+  tx.delete(homeExpenses).run();
   tx.delete(residentDepartureDetails).run();
   tx.delete(residentConditions).run();
   tx.delete(residentAllergies).run();
   tx.delete(residentMedications).run();
+  tx.delete(inventoryItems).run();
+  tx.delete(inventoryItemCategories).run();
+  tx.delete(expenseTypes).run();
+  tx.delete(inventorySuppliers).run();
   tx.delete(residents).run();
   tx.delete(wards).run();
   tx.delete(userAdditionalHomes).run();
@@ -729,10 +763,7 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
     },
   ];
 
-  /** UTC calendar months — aligned with analytics revenue/admissions queries. */
   const bm0 = utcBillingMonthFromMs(nowUtcMs);
-  const bmMinus1 = shiftBillingMonth(bm0, -1);
-  const bmMinus2 = shiftBillingMonth(bm0, -2);
 
   const homeRows: HomeBuilt[] = [];
   /** Active residents with a ward — billing/clinical priorities use earlier rows first. */
@@ -1030,6 +1061,7 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
     }
 
     const medicationCatalogCache = new Map<string, string>();
+    const medicationCategoryByHome = new Map<string, string>();
 
     for (let ci = 0; ci < activeResidentIdsAll.length; ci += 1) {
       const residentId = activeResidentIdsAll[ci]!;
@@ -1074,28 +1106,45 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
         const name = m.name.trim().replace(/\s+/g, " ");
         const strength = m.strength.trim().replace(/\s+/g, " ");
         const unit = m.unit.trim();
-        const cacheKey = `${resRow.homeId}\0${name}\0${strength}\0${unit}`;
-        let medicationCatalogId = medicationCatalogCache.get(cacheKey);
-        if (!medicationCatalogId) {
-          medicationCatalogId = randomUUID();
-          tx.insert(medications)
+        let categoryId = medicationCategoryByHome.get(resRow.homeId);
+        if (!categoryId) {
+          categoryId = randomUUID();
+          tx.insert(inventoryItemCategories)
             .values({
-              id: medicationCatalogId,
+              id: categoryId,
               homeId: resRow.homeId,
-              name,
-              strength,
-              unit,
+              name: "Medication",
               createdAtUtcMs: t,
               updatedAtUtcMs: t,
             })
             .run();
-          medicationCatalogCache.set(cacheKey, medicationCatalogId);
+          medicationCategoryByHome.set(resRow.homeId, categoryId);
+        }
+
+        const inventoryName = `${name} (${strength})`;
+        const cacheKey = `${resRow.homeId}\0${inventoryName}\0${unit}`;
+        let inventoryItemId = medicationCatalogCache.get(cacheKey);
+        if (!inventoryItemId) {
+          inventoryItemId = randomUUID();
+          tx.insert(inventoryItems)
+            .values({
+              id: inventoryItemId,
+              homeId: resRow.homeId,
+              categoryId,
+              name: inventoryName,
+              baseUnit: unit,
+              unitClass: "countable",
+              createdAtUtcMs: t,
+              updatedAtUtcMs: t,
+            })
+            .run();
+          medicationCatalogCache.set(cacheKey, inventoryItemId);
         }
         tx.insert(residentMedications)
           .values({
             id: randomUUID(),
             residentId,
-            medicationId: medicationCatalogId,
+            itemId: inventoryItemId,
             quantityPerServing: m.quantityPerServing,
             servingsPerDay: m.servingsPerDay,
             directions: m.directions,
@@ -1178,79 +1227,25 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
       .run();
   });
 
-  let cursorGen = shiftBillingMonth(bm0, -11);
-  while (cursorGen <= bm0) {
-    generateMonthlyCharges(db, { billingMonth: cursorGen });
-    cursorGen = shiftBillingMonth(cursorGen, 1);
-  }
-
-  const tsPay = Date.now();
-  const allCharges = db.select().from(residentMonthlyCharges).all();
-  for (const ch of allCharges) {
-    const h = seedHash(`${ch.residentId}:${ch.billingMonth}`);
-    const isPastMonth = ch.billingMonth.localeCompare(bm0) < 0;
-    /** Past months: ~84% collected; current UTC month: partial (~40%). */
-    const payCutoff = isPastMonth ? 840 : 400;
-    if (h % 1000 >= payCutoff) {
-      continue;
-    }
-    const lagDays = isPastMonth ? (h % 23) : (h % 11);
-    const paidOn = paidOnAfterBillingMonthEnd(ch.billingMonth, lagDays);
-    const notes =
-      h % 19 === 0
-        ? isPastMonth
-          ? "Demo: automatic payment feed"
-          : "Demo: early partial payment"
-        : null;
-    db.insert(residentPayments)
+  const residentRows = db
+    .select({
+      residentId: residents.id,
+      currencyCode: homes.defaultCurrencyCode,
+    })
+    .from(residents)
+    .innerJoin(homes, eq(homes.id, residents.homeId))
+    .all();
+  const tsAccounts = Date.now();
+  for (const row of residentRows) {
+    db.insert(residentAccounts)
       .values({
         id: randomUUID(),
-        residentMonthlyChargeId: ch.id,
-        amountMinor: ch.amountMinorSnapshot,
-        paidOn,
-        notes,
-        recordedByUserId: adminId,
-        createdAtUtcMs: tsPay,
-        updatedAtUtcMs: tsPay,
+        residentId: row.residentId,
+        currencyCode: row.currencyCode,
+        createdAtUtcMs: tsAccounts,
+        updatedAtUtcMs: tsAccounts,
       })
       .run();
-  }
-
-  const tsOther = Date.now();
-  const safeDay = (i: number, span: number) =>
-    String(Math.min(28, (i % span) + 1)).padStart(2, "0");
-
-  for (let i = 0; i < activeWithWard.length; i += 1) {
-    const r = activeWithWard[i]!;
-    const regReceived = i % 4 !== 3;
-    db.insert(otherCharges)
-      .values({
-        id: randomUUID(),
-        residentId: r.id,
-        type: "registration",
-        amountMinor: 450_00,
-        received: regReceived,
-        paidOn: regReceived ? `${bmMinus2}-${safeDay(i, 27)}` : null,
-        createdAtUtcMs: tsOther,
-        updatedAtUtcMs: tsOther,
-      })
-      .run();
-
-    if (i % 3 !== 2) {
-      const depReceived = i % 5 !== 4;
-      db.insert(otherCharges)
-        .values({
-          id: randomUUID(),
-          residentId: r.id,
-          type: "deposit",
-          amountMinor: 2_500_00,
-          received: depReceived,
-          paidOn: depReceived ? `${bmMinus1}-${safeDay(i + 3, 26)}` : null,
-          createdAtUtcMs: tsOther,
-          updatedAtUtcMs: tsOther,
-        })
-        .run();
-    }
   }
 
   const sanity = db

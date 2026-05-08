@@ -96,27 +96,33 @@ describe("HomeChargesSection (18c month range)", () => {
 
 const paymentNull = {
   id: "c-un",
+  chargeId: "chg-un",
   residentId: "r1",
   residentFullName: "Unpaid U.",
   residentStatus: "active" as const,
   billingMonth: "2026-01",
   wardIdSnapshot: "w1",
   wardLabel: "North",
+  wardLabelSnapshot: "North",
   amountMinorSnapshot: 800_00,
   paid: false,
+  paidOn: null,
   payment: null,
 };
 
 const paymentWithRecord = {
   id: "c-pd",
+  chargeId: "chg-pd",
   residentId: "r2",
   residentFullName: "Paid P.",
   residentStatus: "active" as const,
   billingMonth: "2026-02",
   wardIdSnapshot: "w1",
   wardLabel: "North",
+  wardLabelSnapshot: "North",
   amountMinorSnapshot: 900_00,
   paid: true,
+  paidOn: "2026-02-01",
   payment: {
     id: "p1",
     amountMinor: 900_00,
