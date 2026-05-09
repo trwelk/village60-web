@@ -1,22 +1,12 @@
 "use client";
 
+import type { InvoiceListItem } from "@/lib/billing/invoiceLifecycle";
 import { formatCents } from "@/lib/money";
 import type { ResidentBillingAccountSummary } from "@/lib/billing/paymentsLifecycle";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CreateDraftInvoiceModal } from "./InvoiceModals";
-
-export type InvoiceListItem = {
-  id: string;
-  accountId: string;
-  status: string;
-  billingPeriod: string | null;
-  issuedOn: string | null;
-  totalMinorSnapshot: number | null;
-  createdAtUtcMs: number;
-  updatedAtUtcMs: number;
-};
 
 async function parseError(res: Response): Promise<string> {
   try {
@@ -35,17 +25,48 @@ function invoiceDetailHref(homeId: string, invoiceId: string): string {
   return `/dashboard/invoices/${invoiceId}?homeId=${encodeURIComponent(homeId)}`;
 }
 
+function invoiceDateLabel(issuedOn: string | null): string {
+  if (issuedOn && /^\d{4}-\d{2}-\d{2}$/.test(issuedOn)) {
+    return issuedOn;
+  }
+  return "—";
+}
+
+function invoiceStatusBadgeClass(status: string): string {
+  const key = status.trim().toLowerCase();
+  const base =
+    "rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide";
+  switch (key) {
+    case "paid":
+      return `${base} border-[color:color-mix(in_srgb,var(--success)_44%,var(--line-strong)_56%)] bg-[color:color-mix(in_srgb,var(--partner-green)_20%,var(--bg-elevated)_80%)] text-[var(--success)]`;
+    case "finalized":
+      return `${base} border-[color:color-mix(in_srgb,#2563eb_40%,var(--line-strong)_60%)] bg-[color:color-mix(in_srgb,#2563eb_11%,var(--bg-elevated)_89%)] text-[color:color-mix(in_srgb,#1d4ed8_90%,var(--text-primary)_10%)]`;
+    case "draft":
+      return `${base} border-[color:color-mix(in_srgb,var(--warning)_48%,var(--line-strong)_52%)] bg-[color:color-mix(in_srgb,var(--warning)_16%,var(--bg-elevated)_84%)] text-[color:color-mix(in_srgb,var(--warning)_95%,var(--text-primary)_5%)]`;
+    default:
+      return `${base} border-[var(--line)] bg-[color:color-mix(in_srgb,var(--bg-muted)_50%,transparent)] text-[var(--text-secondary)]`;
+  }
+}
+
+type HomePickerOption = { homeId: string; homeName: string };
+
 type Props = {
   homeId: string;
   homeName: string;
+  homes: HomePickerOption[];
   defaultCurrencyCode: string;
+  accountTypeFilter: "resident" | "home";
+  selectedResidentId: string;
   accounts: ResidentBillingAccountSummary[];
 };
 
 export function InvoicesListClient({
   homeId,
   homeName,
+  homes,
   defaultCurrencyCode,
+  accountTypeFilter,
+  selectedResidentId,
   accounts,
 }: Props) {
   const router = useRouter();
@@ -61,6 +82,26 @@ export function InvoicesListClient({
     }
     return map;
   }, [accounts]);
+  const residentToAccountIds = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const account of accounts) {
+      const existing = map.get(account.residentId) ?? new Set<string>();
+      existing.add(account.accountId);
+      map.set(account.residentId, existing);
+    }
+    return map;
+  }, [accounts]);
+  const filteredInvoices = useMemo(() => {
+    const byOwner = invoices.filter((inv) => inv.accountType === accountTypeFilter);
+    if (accountTypeFilter !== "resident" || !selectedResidentId) {
+      return byOwner;
+    }
+    const accountIds = residentToAccountIds.get(selectedResidentId);
+    if (!accountIds || accountIds.size === 0) {
+      return [];
+    }
+    return byOwner.filter((invoice) => accountIds.has(invoice.accountId));
+  }, [invoices, residentToAccountIds, selectedResidentId, accountTypeFilter]);
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -91,7 +132,7 @@ export function InvoicesListClient({
           <div>
             <h2 className="text-lg font-semibold">Invoices · {homeName}</h2>
             <p className="text-sm text-[var(--text-secondary)]">
-              {invoices.length} invoice{invoices.length === 1 ? "" : "s"}
+              {filteredInvoices.length} invoice{filteredInvoices.length === 1 ? "" : "s"}
             </p>
           </div>
           <button
@@ -106,33 +147,58 @@ export function InvoicesListClient({
           </button>
         </div>
 
-        {!loading && invoices.length === 0 ? (
+        {!loading && filteredInvoices.length === 0 ? (
           <div className="px-5 py-10 text-center sm:px-6">
-            <p className="text-base font-medium text-[var(--text-primary)]">No invoices yet.</p>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Use{" "}
-              <span className="font-semibold text-[var(--text-primary)]">New invoice</span> to start a
-              resident draft.
-            </p>
+            {accountTypeFilter === "resident" && selectedResidentId ? (
+              <>
+                <p className="text-base font-medium text-[var(--text-primary)]">
+                  No invoices for this resident.
+                </p>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  Switch resident filter to view invoices for others in this home.
+                </p>
+              </>
+            ) : accountTypeFilter === "home" ? (
+              <>
+                <p className="text-base font-medium text-[var(--text-primary)]">
+                  No home operating invoices yet.
+                </p>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  Finalize a draft tied to this facility&apos;s home account to see it here.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-base font-medium text-[var(--text-primary)]">No invoices yet.</p>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  Use{" "}
+                  <span className="font-semibold text-[var(--text-primary)]">New invoice</span> to
+                  start a resident draft.
+                </p>
+              </>
+            )}
           </div>
         ) : null}
 
-        {invoices.length > 0 ? (
+        {filteredInvoices.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">
-                  <th className="px-5 py-3 font-medium sm:px-6">Resident</th>
-                  <th className="px-5 py-3 font-medium">Billing period</th>
+                  <th className="px-5 py-3 font-medium sm:px-6">Invoice no.</th>
+                  <th className="px-5 py-3 font-medium">Account</th>
+                  <th className="px-5 py-3 font-medium">Invoice date</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium text-right">Total</th>
-                  <th className="px-5 py-3 font-medium text-right sm:px-6">Issued</th>
                   <th className="px-5 py-3 font-medium text-right sm:px-6">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((invoice) => {
-                  const residentName = accountToResidentName.get(invoice.accountId) ?? "Resident";
+                {filteredInvoices.map((invoice) => {
+                  const accountName =
+                    invoice.accountType === "home"
+                      ? homeName
+                      : (accountToResidentName.get(invoice.accountId) ?? "Unknown resident");
                   const totalCell =
                     invoice.totalMinorSnapshot != null ? (
                       formatCents(invoice.totalMinorSnapshot, defaultCurrencyCode)
@@ -141,32 +207,26 @@ export function InvoicesListClient({
                     );
 
                   return (
-                    <tr key={invoice.id} className="border-b border-[var(--line)]/85 align-top">
-                      <td className="px-5 py-3 font-medium text-[var(--text-primary)] sm:px-6">
-                        {residentName}
+                    <tr key={invoice.id} className="border-b border-[var(--line)]/85 align-middle">
+                      <td className="px-5 py-3 font-mono text-sm tabular-nums text-[var(--text-primary)] sm:px-6">
+                        {invoice.invNo?.trim() ? invoice.invNo : "—"}
                       </td>
-                      <td className="px-5 py-3 text-[var(--text-secondary)]">
-                        {invoice.billingPeriod ?? "—"}
+                      <td className="px-5 py-3 font-medium text-[var(--text-primary)]">
+                        {accountName}
+                      </td>
+                      <td className="px-5 py-3 tabular-nums text-[var(--text-secondary)]">
+                        {invoiceDateLabel(invoice.issuedOn)}
                       </td>
                       <td className="px-5 py-3">
-                        <span className="rounded-full border border-[var(--line)] px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-[var(--text-secondary)]">
-                          {invoice.status}
-                        </span>
+                        <span className={invoiceStatusBadgeClass(invoice.status)}>{invoice.status}</span>
                       </td>
                       <td className="px-5 py-3 text-right tabular-nums text-[var(--text-secondary)]">
                         {totalCell}
                       </td>
-                      <td className="px-5 py-3 text-right text-[var(--text-secondary)] sm:px-6">
-                        {invoice.issuedOn ? (
-                          <span className="tabular-nums">{invoice.issuedOn}</span>
-                        ) : (
-                          <span className="text-[var(--text-muted)]">—</span>
-                        )}
-                      </td>
                       <td className="px-5 py-3 text-right sm:px-6">
                         <Link
                           href={invoiceDetailHref(homeId, invoice.id)}
-                          className="village-button inline-flex"
+                          className="village-button village-button--compact"
                         >
                           Open invoice
                         </Link>
@@ -183,11 +243,13 @@ export function InvoicesListClient({
       <CreateDraftInvoiceModal
         open={createOpen}
         homeId={homeId}
+        homes={homes}
+        accountTypeFilter={accountTypeFilter}
         accounts={accounts}
         onClose={() => setCreateOpen(false)}
-        onCreated={(invoiceId) => {
+        onCreated={(invoiceId, invoiceHomeId) => {
           void loadInvoices();
-          router.push(invoiceDetailHref(homeId, invoiceId));
+          router.push(invoiceDetailHref(invoiceHomeId, invoiceId));
         }}
       />
     </div>

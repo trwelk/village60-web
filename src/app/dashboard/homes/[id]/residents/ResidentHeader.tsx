@@ -273,7 +273,7 @@ export function ResidentHeader({ homeId, resident, wards, userRole }: Props) {
                   Invoices
                 </Link>
                 <Link
-                  href={`/dashboard/homes/${homeId}/ledger?residentId=${encodeURIComponent(resident.id)}`}
+                  href={`/dashboard/ledger?resident=${encodeURIComponent(resident.id)}`}
                   className="village-btn-secondary"
                 >
                   Ledger

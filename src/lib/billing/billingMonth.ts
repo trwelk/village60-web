@@ -1,5 +1,14 @@
 import { ValidationError } from "@/lib/homes/errors";
 
+/** `YYYY-MM-DD` in UTC for the calendar day containing `atUtcMs`. */
+export function utcDateOnlyFromMs(atUtcMs: number): string {
+  const d = new Date(atUtcMs);
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 /** `YYYY-MM` for the UTC calendar month containing `atUtcMs`. */
 export function utcBillingMonthFromMs(atUtcMs: number): string {
   const d = new Date(atUtcMs);

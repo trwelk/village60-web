@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { VillageSelect } from "@/components/VillageSelect";
+import { inventoryStatusPillClass } from "@/lib/inventory/inventoryStatusPillClass";
 import { formatCents } from "@/lib/money";
+
+const TABLE_OUTLINE_BTN_CLASS =
+  "inline-flex items-center justify-center rounded border border-[color:color-mix(in_srgb,var(--line-strong)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)] disabled:cursor-not-allowed disabled:opacity-40";
 
 const MODAL_PRIMARY_BTN_CLASS =
   "inline-flex items-center justify-center rounded-full border border-[color-mix(in_srgb,#c2410c_78%,transparent)] bg-gradient-to-br from-[#fdba74] to-[#ea580c] px-5 py-2.5 text-sm font-bold text-[var(--bg-elevated)] shadow-[inset_0_1px_0_color-mix(in_srgb,#fef3c7_45%,transparent),0_12px_24px_-16px_color-mix(in_srgb,#c2410c_78%,transparent)] transition-all duration-150 ease-out hover:-translate-y-px hover:saturate-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:saturate-100 min-h-10";
@@ -21,10 +25,18 @@ type PurchaseOrder = {
   status: string;
   currencyCode: string | null;
   totalReceivedCents: number;
-  createdAtUtcMs?: number;
+  createdAtUtcMs: number;
 };
 
-type Props = { homes: HomeOption[]; selectedHomeId: string };
+type Props = { appTimezone: string; homes: HomeOption[]; selectedHomeId: string };
+
+function formatPurchaseOrderCreatedAt(utcMs: number, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-NZ", {
+    timeZone,
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(utcMs));
+}
 
 async function parseError(res: Response): Promise<string> {
   try {
@@ -39,7 +51,11 @@ async function parseError(res: Response): Promise<string> {
   return "Request failed.";
 }
 
-export function InventoryOrdersClient({ homes, selectedHomeId }: Props) {
+export function InventoryOrdersClient({
+  appTimezone,
+  homes,
+  selectedHomeId,
+}: Props) {
   const router = useRouter();
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
@@ -77,8 +93,10 @@ export function InventoryOrdersClient({ homes, selectedHomeId }: Props) {
   }, []);
 
   useEffect(() => {
-    void loadOrders();
-    void loadSuppliers();
+    queueMicrotask(() => {
+      void loadOrders();
+      void loadSuppliers();
+    });
   }, [loadOrders, loadSuppliers]);
 
   useEffect(() => {
@@ -123,119 +141,191 @@ export function InventoryOrdersClient({ homes, selectedHomeId }: Props) {
   }
 
   if (homes.length === 0) {
-    return <div className="village-card p-8">You do not have access to any homes.</div>;
+    return (
+      <div className="rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-8 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)]">
+        You do not have access to any homes.
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-7">
       {error && !createOpen ? <p className="village-alert-error">{error}</p> : null}
 
-      <section className="village-card relative overflow-hidden p-5 sm:p-6">
-        <div className="grid gap-5 md:grid-cols-[minmax(15rem,22rem),1fr]">
-          <label className="flex flex-col gap-2 text-sm">
-            <span className="village-field-label">Home</span>
+      <section
+        className="village-card village-reveal village-reveal-delay-1 relative z-20 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-5 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6"
+      >
+        <div className="grid gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(16rem,1fr)] lg:items-end">
+          <div className="flex flex-col gap-2">
+            <label htmlFor="inventory-orders-home" className="village-label">
+              Home
+            </label>
             <VillageSelect
+              id="inventory-orders-home"
               value={selectedHomeId}
               onChange={(nextId) =>
                 router.push(`/dashboard/inventory-orders?homeId=${encodeURIComponent(nextId)}`)
               }
               options={homes.map((h) => ({ value: h.homeId, label: h.homeName }))}
             />
-          </label>
-          <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_52%,transparent)] bg-[linear-gradient(130deg,color-mix(in_srgb,var(--bg-muted)_86%,var(--bg-elevated)_14%),color-mix(in_srgb,var(--highlight)_12%,var(--bg-muted)_88%))] p-4">
-            <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
+          </div>
+          <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
+            <p className="font-mono text-[0.58rem] font-medium uppercase tracking-[0.16em] text-[color:color-mix(in_srgb,var(--text-muted)_88%,transparent)]">
               Selected home
             </p>
-            <p className="mt-1 text-xl font-semibold text-[var(--text-primary)]">
+            <p className="mt-2 text-xl font-semibold text-[var(--text-primary)]">
               {activeHome?.homeName ?? "Unknown home"}
             </p>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
               Review purchase orders, create a new order, then open it to manage lines.
             </p>
           </div>
         </div>
       </section>
 
-      <section className="village-card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4 sm:px-6">
-          <div>
-            <h2 className="text-lg font-semibold">Inventory orders</h2>
-            <p className="text-sm text-[var(--text-secondary)]">
-              {orders.length} order{orders.length === 1 ? "" : "s"}
-            </p>
+      <div className="village-reveal village-reveal-delay-2 flex flex-col gap-4">
+        <div className="rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] shadow-[0_20px_58px_-34px_color-mix(in_srgb,var(--accent)_34%,transparent)]">
+          <div className="flex flex-col gap-3 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--bg-elevated)_94%,transparent),color-mix(in_srgb,var(--bg-muted)_88%,transparent))] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
+                Orders table
+              </p>
+              <h2 className="text-base font-semibold text-[var(--text-primary)]">Inventory orders</h2>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {loading ? "Loading…" : `${orders.length} order${orders.length === 1 ? "" : "s"}`}
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Link
+                href={`/dashboard/inventory-orders/catalog?homeId=${encodeURIComponent(selectedHomeId)}`}
+                className={TABLE_OUTLINE_BTN_CLASS}
+              >
+                Open item catalog
+              </Link>
+              <button
+                type="button"
+                className="h-10 shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--accent-strong)_72%,transparent)] bg-[var(--accent-strong)] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:border-[color:color-mix(in_srgb,var(--line-strong)_65%,transparent)] disabled:bg-[color:color-mix(in_srgb,var(--bg-muted)_84%,transparent)] disabled:text-[var(--text-muted)]"
+                onClick={() => {
+                  setError(null);
+                  setCreateOpen(true);
+                }}
+              >
+                Create inventory order
+              </button>
+            </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Link
-              href={`/dashboard/inventory-orders/catalog?homeId=${encodeURIComponent(selectedHomeId)}`}
-              className="village-button inline-flex text-sm"
+
+          <div className="overflow-x-auto rounded-b-3xl">
+            <table
+              aria-label="Inventory purchase orders"
+              className="min-w-full border-collapse text-left text-sm"
             >
-              Open item catalog
-            </Link>
-            <button
-              type="button"
-              className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
-              onClick={() => {
-                setError(null);
-                setCreateOpen(true);
-              }}
-            >
-              Create inventory order
-            </button>
-          </div>
-        </div>
-        {!loading && orders.length === 0 ? (
-          <div className="px-5 py-10 text-center sm:px-6">
-            <p className="text-base font-medium text-[var(--text-primary)]">No purchase orders yet.</p>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Use <span className="font-semibold text-[var(--text-primary)]">Create inventory order</span>{" "}
-              to open your first PO.
-            </p>
-          </div>
-        ) : null}
-        {orders.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">
-                  <th className="px-5 py-3 font-medium sm:px-6">PO number</th>
-                  <th className="px-5 py-3 font-medium">Supplier</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium text-right">Received cost</th>
-                  <th className="px-5 py-3 font-medium text-right sm:px-6">Action</th>
+                <tr className="border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)]">
+                  <th
+                    scope="col"
+                    className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)] sm:px-6"
+                  >
+                    PO number
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]"
+                  >
+                    Supplier
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]"
+                  >
+                    Create date
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]"
+                  >
+                    Status
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]"
+                  >
+                    Received cost
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)] sm:px-6"
+                  >
+                    Action
+                  </th>
                 </tr>
               </thead>
-              <tbody>
-                {orders.map((order) => (
-                  <tr key={order.id} className="border-b border-[var(--line)]/85 align-top">
-                    <td className="px-5 py-3 font-medium text-[var(--text-primary)] sm:px-6">
-                      {order.poNumber}
-                    </td>
-                    <td className="px-5 py-3 text-[var(--text-secondary)]">{order.supplierName}</td>
-                    <td className="px-5 py-3">
-                      <span className="rounded-full border border-[var(--line)] px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-[var(--text-secondary)]">
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-[var(--text-secondary)]">
-                      {order.currencyCode && order.totalReceivedCents > 0
-                        ? formatCents(order.totalReceivedCents, order.currencyCode)
-                        : <span className="text-[var(--text-muted)]">—</span>}
-                    </td>
-                    <td className="px-5 py-3 text-right sm:px-6">
-                      <Link
-                        href={`/dashboard/inventory-orders/${encodeURIComponent(order.id)}`}
-                        className="village-button inline-flex"
-                      >
-                        Open order
-                      </Link>
+              <tbody className="divide-y divide-[color:color-mix(in_srgb,var(--line-subtle)_66%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_84%,transparent)]">
+                {loading && orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-12 text-center text-[var(--text-secondary)]">
+                      Loading orders…
                     </td>
                   </tr>
-                ))}
+                ) : orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-12 text-center">
+                      <div className="mx-auto max-w-md rounded-2xl border border-dashed border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_74%,transparent)] px-6 py-7">
+                        <p className="font-semibold text-[var(--text-primary)]">
+                          No purchase orders yet.
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                          Use <span className="font-semibold text-[var(--text-primary)]">
+                            Create inventory order
+                          </span>{" "}
+                          to open your first PO.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  orders.map((order) => (
+                    <tr
+                      key={order.id}
+                      className="transition-colors hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)]"
+                    >
+                      <td className="px-5 py-4 font-semibold text-[var(--text-primary)] sm:px-6">
+                        {order.poNumber}
+                      </td>
+                      <td className="px-5 py-4 text-[var(--text-secondary)]">{order.supplierName}</td>
+                      <td className="whitespace-nowrap px-5 py-4 font-mono text-xs tabular-nums text-[var(--text-secondary)]">
+                        {formatPurchaseOrderCreatedAt(order.createdAtUtcMs, appTimezone)}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] ${inventoryStatusPillClass(order.status)}`}
+                        >
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right font-semibold tabular-nums text-[var(--text-primary)]">
+                        {order.currencyCode && order.totalReceivedCents > 0 ? (
+                          formatCents(order.totalReceivedCents, order.currencyCode)
+                        ) : (
+                          <span className="font-normal text-[var(--text-muted)]">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-right sm:px-6">
+                        <Link
+                          href={`/dashboard/inventory-orders/${encodeURIComponent(order.id)}`}
+                          className={TABLE_OUTLINE_BTN_CLASS}
+                        >
+                          Open order
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-        ) : null}
-      </section>
+        </div>
+      </div>
 
       {createOpen
         ? createPortal(

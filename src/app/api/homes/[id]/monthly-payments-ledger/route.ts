@@ -48,18 +48,23 @@ export async function GET(req: Request, { params }: RouteParams) {
       ),
     ),
   );
+  const residentIdRaw = url.searchParams.get("residentId");
+  const residentId =
+    residentIdRaw && residentIdRaw.trim() !== "" ? residentIdRaw.trim() : null;
   try {
     const actor = requireSessionActor(session);
     const db = getDb();
     const out = listHomeMonthlyPaymentsLedger(db, actor, homeId, {
       page,
       pageSize,
+      residentId,
     });
     return NextResponse.json({
       rows: out.rows,
       totalCount: out.totalCount,
       page: out.page,
       pageSize: out.pageSize,
+      residentId,
     });
   } catch (e) {
     const resp = homesErrorResponse(e);

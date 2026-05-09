@@ -1,5 +1,7 @@
 "use client";
 
+import { buildDashboardLedgerPath } from "@/lib/billing/dashboardLedgerPath";
+import { utcYearToDatePostedDateRange } from "@/lib/billing/postedDateRange";
 import { formatCents } from "@/lib/money";
 import type { ResidentBillingAccountSummary } from "@/lib/billing/paymentsLifecycle";
 import { ArrowLeft, PencilLine } from "lucide-react";
@@ -13,17 +15,20 @@ type InvoiceLineItem = {
   description: string;
   amountMinor: number;
   serviceMonth: string | null;
-  wardIdSnapshot: string | null;
   quantity: number;
 };
 
 type InvoiceDetail = {
   id: string;
   accountId: string;
+  accountType: "resident" | "home";
+  homeId?: string | null;
+  invNo?: string | null;
+  purchaseOrderId?: string | null;
   status: string;
-  billingPeriod: string | null;
   issuedOn: string | null;
   totalMinorSnapshot: number | null;
+  monthlyFeeAmountMinor: number | null;
   createdAtUtcMs: number;
   updatedAtUtcMs: number;
   lineItems: InvoiceLineItem[];
@@ -74,10 +79,39 @@ export function InvoiceDetailClient({
   const [lineModalOpen, setLineModalOpen] = useState(false);
   const [editingLine, setEditingLine] = useState<InvoiceLineItem | null>(null);
 
-  const residentName = useMemo(() => {
+  const accountLabel = useMemo(() => {
     if (!invoice) return null;
-    return accounts.find((a) => a.accountId === invoice.accountId)?.fullName ?? "Resident";
+    const accountType = invoice.accountType ?? "resident";
+    if (accountType === "home") {
+      return homeName;
+    }
+    return (
+      accounts.find((a) => a.accountId === invoice.accountId)?.fullName ?? "Unknown resident"
+    );
+  }, [accounts, homeName, invoice]);
+
+  const invoiceHeading = useMemo(() => {
+    if (!invoice) return "Invoice";
+    const n = invoice.invNo?.trim();
+    if (n) return n;
+    return invoice.status === "draft" ? "Draft invoice" : "Invoice";
+  }, [invoice]);
+  const selectedResidentId = useMemo(() => {
+    if (!invoice) return null;
+    return accounts.find((a) => a.accountId === invoice.accountId)?.residentId ?? null;
   }, [accounts, invoice]);
+  const ledgerHref = useMemo(() => {
+    const atMs = Date.now();
+    const ytd = utcYearToDatePostedDateRange(atMs);
+    return buildDashboardLedgerPath(
+      homeId,
+      ytd.postedFrom,
+      ytd.postedTo,
+      ytd.postedFrom,
+      ytd.postedTo,
+      { residentId: selectedResidentId },
+    );
+  }, [homeId, selectedResidentId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -114,7 +148,6 @@ export function InvoiceDetailClient({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          billingPeriod: invoice.billingPeriod,
           issuedOn: invoice.issuedOn,
           lineItems: invoice.lineItems.map((line) => ({
             id: line.id,
@@ -122,7 +155,6 @@ export function InvoiceDetailClient({
             description: line.description,
             amountMinor: line.amountMinor,
             serviceMonth: line.serviceMonth,
-            wardIdSnapshot: line.wardIdSnapshot,
           })),
         }),
       });
@@ -182,10 +214,25 @@ export function InvoiceDetailClient({
         <>
           <section className="village-card village-reveal village-reveal-delay-1 overflow-hidden p-0">
             <div className="border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_14%,var(--bg-elevated)_86%)] px-6 py-6 sm:px-8">
-              <p className="village-kicker text-xs">Billing</p>
-              <h1 className="mt-2 font-display text-3xl font-normal tracking-tight text-pine-2">
-                {residentName ?? "Invoice"}
-              </h1>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="village-kicker text-xs">Billing</p>
+                  <h1 className="mt-2 font-display text-3xl font-normal tracking-tight text-pine-2">
+                    {invoiceHeading}
+                  </h1>
+                  {accountLabel ? (
+                    <div className="mt-4 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_55%,transparent)] pt-4">
+                      <p className="village-kicker text-xs">Account</p>
+                      <p className="mt-1.5 font-display text-xl font-normal tracking-tight text-pine-2/95">
+                        {accountLabel}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+                <Link href={ledgerHref} className="village-btn-primary px-4 py-2 text-sm">
+                  Payments
+                </Link>
+              </div>
               <div className="mt-6 grid gap-6 sm:grid-cols-2">
                 <dl className="space-y-3 text-sm">
                   <div>
@@ -195,29 +242,34 @@ export function InvoiceDetailClient({
                     </dd>
                   </div>
                   <div>
-                    <dt className="font-medium text-[var(--text-secondary)]">Billing period</dt>
+                    <dt className="font-medium text-[var(--text-secondary)]">Invoice date</dt>
                     <dd className="text-[var(--text-primary)]">
                       {invoice.status === "draft" ? (
                         <input
                           className="village-input mt-1 max-w-xs"
-                          type="month"
-                          value={invoice.billingPeriod ?? ""}
-                          onChange={(e) =>
-                            setInvoice((prev) =>
-                              prev
-                                ? { ...prev, billingPeriod: e.target.value || null }
-                                : prev,
-                            )
-                          }
+                          type="date"
+                          value={invoice.issuedOn ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setInvoice((prev) => {
+                              if (!prev) return prev;
+                              if (v === "") {
+                                return { ...prev, issuedOn: null };
+                              }
+                              if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+                                return prev;
+                              }
+                              return {
+                                ...prev,
+                                issuedOn: v,
+                              };
+                            });
+                          }}
                         />
                       ) : (
-                        invoice.billingPeriod ?? "—"
+                        invoice.issuedOn ?? "—"
                       )}
                     </dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-[var(--text-secondary)]">Issued on</dt>
-                    <dd className="text-[var(--text-primary)]">{invoice.issuedOn ?? "—"}</dd>
                   </div>
                 </dl>
                 <dl className="space-y-3 text-sm">
@@ -246,7 +298,7 @@ export function InvoiceDetailClient({
                 <h2 className="font-display text-lg font-semibold text-[var(--text-primary)]">Invoice lines</h2>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
                   {invoice.status === "draft"
-                    ? "Add lines or edit them in place with Edit. Save saves the billing period on this draft."
+                    ? "Add lines or edit them in place with Edit. Save saves the invoice date and lines on this draft."
                     : "Posted invoice lines are read-only."}
                 </p>
               </div>
@@ -322,7 +374,7 @@ export function InvoiceDetailClient({
                     disabled={saveBusy}
                     onClick={() => void saveDraftEdits()}
                   >
-                    {saveBusy ? "Saving…" : "Save billing period"}
+                    {saveBusy ? "Saving…" : "Save draft"}
                   </button>
                   <button
                     type="button"
@@ -345,6 +397,7 @@ export function InvoiceDetailClient({
             invoiceId={invoiceId}
             currencyCode={defaultCurrencyCode}
             invoiceStatus={invoice.status}
+            monthlyFeeAmountMinor={invoice.monthlyFeeAmountMinor}
             onClose={() => setLineModalOpen(false)}
             onAdded={() => void load()}
           />
@@ -355,6 +408,7 @@ export function InvoiceDetailClient({
             invoiceId={invoiceId}
             currencyCode={defaultCurrencyCode}
             invoiceStatus={invoice.status}
+            monthlyFeeAmountMinor={invoice.monthlyFeeAmountMinor}
             onClose={() => setEditingLine(null)}
             onSaved={() => void load()}
           />

@@ -109,7 +109,7 @@ describe("POST /api/internal/cron/generate-monthly-charges", () => {
     expect(res.status).toBe(401);
   });
 
-  it("runs generation and finalization when bearer token matches CRON_SECRET", async () => {
+  it("runs generation and leaves invoices open when bearer token matches CRON_SECRET", async () => {
     process.env.DATABASE_PATH = dbPath;
     const res = await POST(
       new Request("http://localhost/api/internal/cron/generate-monthly-charges", {
@@ -129,16 +129,8 @@ describe("POST /api/internal/cron/generate-monthly-charges", () => {
         created: 1,
         skipped: [],
       },
-      finalize: {
-        billingMonth: "2026-11",
-      },
     });
-    const body = json as {
-      finalize: { finalizedInvoiceIds: string[]; conflictInvoiceIds: string[] };
-    };
-    expect(body.finalize.finalizedInvoiceIds).toHaveLength(1);
-    expect(body.finalize.conflictInvoiceIds).toEqual([]);
     expect(countInvoices()).toBe(1);
-    expect(countBillingTxns()).toBe(1);
+    expect(countBillingTxns()).toBe(0);
   });
 });

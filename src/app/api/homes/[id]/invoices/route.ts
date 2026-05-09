@@ -1,5 +1,6 @@
 import { getDb } from "@/db/client";
 import { requireSessionActor } from "@/lib/authz/sessionActor";
+import { ensureHomeAccount } from "@/lib/billing/homeAccounts";
 import { createDraftInvoice, listHomeInvoices } from "@/lib/billing/invoiceLifecycle";
 import { homesErrorResponse } from "@/lib/homes/http";
 import { getSessionOptions, type SessionData } from "@/lib/session";
@@ -15,7 +16,6 @@ type DraftLineItemInput = {
   description: string;
   amountMinor: number;
   serviceMonth?: string | null;
-  wardIdSnapshot?: string | null;
 };
 
 export async function GET(_req: Request, { params }: RouteParams) {
@@ -83,27 +83,26 @@ export async function POST(req: Request, { params }: RouteParams) {
       ...(typeof line.serviceMonth === "string" || line.serviceMonth === null
         ? { serviceMonth: line.serviceMonth as string | null }
         : {}),
-      ...(typeof line.wardIdSnapshot === "string" || line.wardIdSnapshot === null
-        ? { wardIdSnapshot: line.wardIdSnapshot as string | null }
-        : {}),
     });
   }
-  if (typeof rec.accountId !== "string") {
-    return NextResponse.json(
-      { error: "accountId must be a string." },
-      { status: 400 },
-    );
+  const billingAccountType =
+    rec.billingAccountType === "home" ? ("home" as const) : ("resident" as const);
+  let accountId: string;
+  if (billingAccountType === "home") {
+    accountId = ensureHomeAccount(getDb(), homeId).id;
+  } else {
+    if (typeof rec.accountId !== "string" || rec.accountId.trim() === "") {
+      return NextResponse.json(
+        { error: "accountId must be a non-empty string for resident invoices." },
+        { status: 400 },
+      );
+    }
+    accountId = rec.accountId.trim();
   }
   try {
     const { invoiceId } = createDraftInvoice(getDb(), requireSessionActor(session), {
       homeId,
-      accountId: rec.accountId,
-      ...(typeof rec.billingPeriod === "string" || rec.billingPeriod === null
-        ? { billingPeriod: rec.billingPeriod as string | null }
-        : {}),
-      ...(typeof rec.issuedOn === "string" || rec.issuedOn === null
-        ? { issuedOn: rec.issuedOn as string | null }
-        : {}),
+      accountId,
       lineItems,
     });
     return NextResponse.json({ invoiceId }, { status: 201 });

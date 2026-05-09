@@ -4,14 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HomePaymentsLedgerSection } from "./HomePaymentsLedgerSection";
 
 const mockPush = vi.fn();
+const mockRefresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
 }));
 
 afterEach(() => {
   cleanup();
   mockPush.mockClear();
+  mockRefresh.mockClear();
 });
 
 beforeEach(() => {
@@ -39,6 +41,8 @@ describe("HomePaymentsLedgerSection (20a)", () => {
       <HomePaymentsLedgerSection
         homes={[{ homeId: "h1", homeName: "Home One" }]}
         selectedHomeId="h1"
+        selectedResidentId={null}
+        residentOptions={[]}
         defaultCurrencyCode="NZD"
         ledger={{
           rows: [sampleRow],
@@ -57,6 +61,8 @@ describe("HomePaymentsLedgerSection (20a)", () => {
       <HomePaymentsLedgerSection
         homes={[{ homeId: "h1", homeName: "Home One" }]}
         selectedHomeId="h1"
+        selectedResidentId={null}
+        residentOptions={[]}
         defaultCurrencyCode="NZD"
         ledger={{
           rows: [sampleRow],
@@ -82,6 +88,14 @@ describe("HomePaymentsLedgerSection (20a)", () => {
           { homeId: "h2", homeName: "B" },
         ]}
         selectedHomeId="h1"
+        selectedResidentId={null}
+        residentOptions={[
+          {
+            residentId: "r1",
+            residentFullName: "A Resident",
+            residentStatus: "active",
+          },
+        ]}
         defaultCurrencyCode="NZD"
         ledger={{
           rows: [sampleRow],
@@ -105,8 +119,52 @@ describe("HomePaymentsLedgerSection (20a)", () => {
       expect(screen.getByRole("listbox")).toBeInTheDocument();
     });
     fireEvent.click(screen.getByRole("option", { name: "B" }));
+    fireEvent.click(screen.getByRole("button", { name: /Apply filters/i }));
     const last = mockPush.mock.calls[mockPush.mock.calls.length - 1]![0] as string;
     expect(last).toContain("homeId=h2");
     expect(last).not.toMatch(/[?&]page=/);
+  });
+
+  it("applies resident filter and opens create payment modal", async () => {
+    render(
+      <HomePaymentsLedgerSection
+        homes={[{ homeId: "h1", homeName: "Home One" }]}
+        selectedHomeId="h1"
+        selectedResidentId="r1"
+        residentOptions={[
+          {
+            residentId: "r1",
+            residentFullName: "A Resident",
+            residentStatus: "active",
+          },
+          {
+            residentId: "r2",
+            residentFullName: "B Resident",
+            residentStatus: "departed",
+          },
+        ]}
+        defaultCurrencyCode="NZD"
+        ledger={{
+          rows: [sampleRow],
+          totalCount: 1,
+          page: 1,
+          pageSize: 25,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Create payment" }));
+    expect(screen.getByRole("dialog", { name: "Create payment" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Resident (optional)"));
+    await waitFor(() => {
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("option", { name: "All residents" }));
+    fireEvent.click(screen.getByRole("button", { name: /Apply filters/i }));
+
+    const last = mockPush.mock.calls[mockPush.mock.calls.length - 1]![0] as string;
+    expect(last).toContain("homeId=h1");
+    expect(last).not.toMatch(/[?&]residentId=/);
   });
 });

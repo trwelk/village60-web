@@ -28,6 +28,8 @@ export async function POST(req: Request, { params }: RouteParams) {
   const itemId = typeof rec.itemId === "string" ? rec.itemId : "";
   const ownerType = typeof rec.ownerType === "string" ? rec.ownerType : "";
   const ownerId = typeof rec.ownerId === "string" ? rec.ownerId : "";
+  const purchaseUnitType =
+    typeof rec.purchaseUnitType === "string" ? rec.purchaseUnitType : "";
   const quantityOrderedBaseUnits =
     typeof rec.quantityOrderedBaseUnits === "number"
       ? rec.quantityOrderedBaseUnits
@@ -42,6 +44,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         itemId,
         ownerType: ownerType as "HOME" | "RESIDENT",
         ownerId,
+        purchaseUnitType,
         quantityOrderedBaseUnits,
       },
       Date.now(),

@@ -6,6 +6,8 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import {
+  homePoNumberSeq,
+  homePurchaseOrders,
   homes,
   inventoryItemCategories,
   inventoryItems,
@@ -116,6 +118,102 @@ describe("home purchase orders", () => {
     expect(c.poNumber).toBe("PO-00001");
   });
 
+  it("next po_number uses numeric order when digit width changes (lexicographic would collide)", () => {
+    const { db, sqlite } = openMemoryDb();
+    connections.push(sqlite);
+    const t = Date.now();
+    db.insert(users)
+      .values({
+        id: adminActor.userId,
+        email: "admin@test.local",
+        passwordHash: "x",
+        role: "admin",
+        createdAtUtcMs: t,
+      })
+      .run();
+    db.insert(homes)
+      .values({
+        id: "h1",
+        name: "Home 1",
+        defaultCurrencyCode: "USD",
+        createdAtUtcMs: t,
+        updatedAtUtcMs: t,
+      })
+      .run();
+    const s1 = seedSupplier(db, t, "s1", "Supplier 1");
+    db.insert(homePurchaseOrders)
+      .values([
+        {
+          id: "po-gap-high",
+          homeId: "h1",
+          poNumber: "PO-100000",
+          supplierId: s1,
+          status: "DRAFT",
+          createdByUserId: adminActor.userId,
+          createdAtUtcMs: t,
+          updatedAtUtcMs: t,
+        },
+        {
+          id: "po-gap-low",
+          homeId: "h1",
+          poNumber: "PO-099999",
+          supplierId: s1,
+          status: "DRAFT",
+          createdByUserId: adminActor.userId,
+          createdAtUtcMs: t,
+          updatedAtUtcMs: t,
+        },
+      ])
+      .run();
+    const next = createHomePurchaseOrder(db, adminActor, { homeId: "h1", supplierId: s1 }, t + 1);
+    expect(next.poNumber).toBe("PO-100001");
+  });
+
+  it("bootstraps po_number sequence from existing rows when home_po_number_seq has no entry", () => {
+    const { db, sqlite } = openMemoryDb();
+    connections.push(sqlite);
+    const t = Date.now();
+    db.insert(users)
+      .values({
+        id: adminActor.userId,
+        email: "admin@test.local",
+        passwordHash: "x",
+        role: "admin",
+        createdAtUtcMs: t,
+      })
+      .run();
+    db.insert(homes)
+      .values({
+        id: "h1",
+        name: "Home 1",
+        defaultCurrencyCode: "USD",
+        createdAtUtcMs: t,
+        updatedAtUtcMs: t,
+      })
+      .run();
+    const s1 = seedSupplier(db, t, "s1", "Supplier 1");
+    db.insert(homePurchaseOrders)
+      .values({
+        id: "po-seed",
+        homeId: "h1",
+        poNumber: "PO-00012",
+        supplierId: s1,
+        status: "DRAFT",
+        createdByUserId: adminActor.userId,
+        createdAtUtcMs: t,
+        updatedAtUtcMs: t,
+      })
+      .run();
+    const next = createHomePurchaseOrder(db, adminActor, { homeId: "h1", supplierId: s1 }, t + 1);
+    expect(next.poNumber).toBe("PO-00013");
+    const seq = db
+      .select()
+      .from(homePoNumberSeq)
+      .where(eq(homePoNumberSeq.homeId, "h1"))
+      .get();
+    expect(seq?.lastSuffix).toBe(13);
+  });
+
   it("requires explicit owner and enforces owner-home consistency", () => {
     const { db, sqlite } = openMemoryDb();
     connections.push(sqlite);
@@ -189,6 +287,7 @@ describe("home purchase orders", () => {
           itemId: "item-h1",
           ownerType: "HOME",
           ownerId: "h2",
+          purchaseUnitType: "each",
           quantityOrderedBaseUnits: 3,
         },
         t + 2,
@@ -204,9 +303,26 @@ describe("home purchase orders", () => {
           itemId: "item-h1",
           ownerType: "RESIDENT",
           ownerId: "r-h2",
+          purchaseUnitType: "each",
           quantityOrderedBaseUnits: 3,
         },
         t + 3,
+      ),
+    ).toThrow(ValidationError);
+
+    expect(() =>
+      addPurchaseOrderLine(
+        db,
+        adminActor,
+        {
+          purchaseOrderId: po.id,
+          itemId: "item-h1",
+          ownerType: "HOME",
+          ownerId: "h1",
+          purchaseUnitType: "",
+          quantityOrderedBaseUnits: 3,
+        },
+        t + 4,
       ),
     ).toThrow(ValidationError);
   });
@@ -382,6 +498,7 @@ describe("home purchase orders", () => {
         itemId: "item-h1",
         ownerType: "HOME",
         ownerId: "h1",
+        purchaseUnitType: "each",
         quantityOrderedBaseUnits: 5,
       },
       t + 2,
@@ -434,6 +551,7 @@ describe("home purchase orders", () => {
       .get();
     expect(lineRow?.quantityReceivedBaseUnits).toBe(7);
     expect(lineRow?.status).toBe("RECEIVED");
+    expect(lineRow?.purchaseUnitType).toBe("each");
 
     const bal = db.select().from(schema.inventoryBalances).all();
     expect(bal).toHaveLength(1);
@@ -493,6 +611,7 @@ describe("home purchase orders", () => {
         itemId: "item-h1",
         ownerType: "HOME",
         ownerId: "h1",
+        purchaseUnitType: "each",
         quantityOrderedBaseUnits: 1,
       },
       t + 2,
@@ -546,6 +665,7 @@ describe("home purchase orders", () => {
         itemId: "item-h1",
         ownerType: "HOME",
         ownerId: "h1",
+        purchaseUnitType: "each",
         quantityOrderedBaseUnits: 2,
       },
       t + 8,
@@ -628,6 +748,7 @@ describe("home purchase orders", () => {
         itemId: "item-h1",
         ownerType: "HOME",
         ownerId: "h1",
+        purchaseUnitType: "each",
         quantityOrderedBaseUnits: 2,
       },
       t + 2,
@@ -640,6 +761,7 @@ describe("home purchase orders", () => {
         itemId: "item-h1",
         ownerType: "HOME",
         ownerId: "h1",
+        purchaseUnitType: "each",
         quantityOrderedBaseUnits: 5,
       },
       t + 3,
@@ -672,6 +794,155 @@ describe("home purchase orders", () => {
       .where(eq(schema.homePurchaseOrders.id, po.id))
       .get();
     expect(poRow?.status).toBe("CLOSED");
+  });
+
+  it("creates finalized invoices per billing owner when PO auto-closes", () => {
+    const { db, sqlite } = openMemoryDb();
+    connections.push(sqlite);
+    const t = Date.now();
+    db.insert(users)
+      .values({
+        id: adminActor.userId,
+        email: "admin@test.local",
+        passwordHash: "x",
+        role: "admin",
+        createdAtUtcMs: t,
+      })
+      .run();
+    db.insert(homes)
+      .values({
+        id: "h1",
+        name: "Home 1",
+        defaultCurrencyCode: "USD",
+        createdAtUtcMs: t,
+        updatedAtUtcMs: t,
+      })
+      .run();
+    db.insert(residents)
+      .values({
+        id: "r1",
+        homeId: "h1",
+        fullName: "Resident One",
+        normalizedFullName: "resident one",
+        dob: "1950-01-01",
+        admissionDate: "2025-01-01",
+        status: "active",
+        createdAtUtcMs: t,
+        updatedAtUtcMs: t,
+      })
+      .run();
+    db.insert(schema.accounts)
+      .values({
+        id: "acc-r1",
+        accountType: "resident",
+        residentId: "r1",
+        homeId: null,
+        currencyCode: "USD",
+        createdAtUtcMs: t,
+        updatedAtUtcMs: t,
+      })
+      .run();
+    db.insert(inventoryItems)
+      .values({
+        id: "item-h1",
+        homeId: "h1",
+        categoryId: seedItemCategory(db, t, "h1"),
+        name: "Syringe",
+        baseUnit: "each",
+        unitClass: "countable",
+        createdAtUtcMs: t,
+        updatedAtUtcMs: t,
+      })
+      .run();
+    const s1 = seedSupplier(db, t, "s1", "Supplier 1");
+    const po = createHomePurchaseOrder(db, adminActor, { homeId: "h1", supplierId: s1 }, t + 1);
+    const lHome = addPurchaseOrderLine(
+      db,
+      adminActor,
+      {
+        purchaseOrderId: po.id,
+        itemId: "item-h1",
+        ownerType: "HOME",
+        ownerId: "h1",
+        purchaseUnitType: "each",
+        quantityOrderedBaseUnits: 1,
+      },
+      t + 2,
+    );
+    const lRes = addPurchaseOrderLine(
+      db,
+      adminActor,
+      {
+        purchaseOrderId: po.id,
+        itemId: "item-h1",
+        ownerType: "RESIDENT",
+        ownerId: "r1",
+        purchaseUnitType: "each",
+        quantityOrderedBaseUnits: 1,
+      },
+      t + 3,
+    );
+    approvePurchaseOrder(db, adminActor, po.id, t + 4);
+    sendPurchaseOrder(db, adminActor, po.id, t + 5);
+    receivePurchaseOrderLine(
+      db,
+      adminActor,
+      {
+        purchaseOrderId: po.id,
+        purchaseOrderLineId: lHome.id,
+        qtyReceivedEvent: 1,
+        baseUnitsReceivedEvent: 1,
+        unitPriceCents: 100,
+        currencyCode: "USD",
+        receivedAtUtcMs: t + 6,
+      },
+      t + 6,
+    );
+    receivePurchaseOrderLine(
+      db,
+      adminActor,
+      {
+        purchaseOrderId: po.id,
+        purchaseOrderLineId: lRes.id,
+        qtyReceivedEvent: 1,
+        baseUnitsReceivedEvent: 1,
+        unitPriceCents: 250,
+        currencyCode: "USD",
+        receivedAtUtcMs: t + 7,
+      },
+      t + 7,
+    );
+
+    const poInvoices = db
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.purchaseOrderId, po.id))
+      .all();
+    expect(poInvoices.length).toBe(2);
+
+    const homeInvoice = poInvoices.find((i) => i.accountId !== "acc-r1");
+    const resInvoice = poInvoices.find((i) => i.accountId === "acc-r1");
+    expect(homeInvoice?.invNo).toMatch(/^INV-/);
+    expect(resInvoice?.invNo).toMatch(/^INV-/);
+    expect(homeInvoice?.invNo).not.toBe(resInvoice?.invNo);
+    expect(poInvoices.every((i) => i.status === "finalized")).toBe(true);
+    expect(homeInvoice?.totalMinorSnapshot).toBe(100);
+    expect(resInvoice?.totalMinorSnapshot).toBe(250);
+
+    const lines = db.select().from(schema.invoiceLineItems).all();
+    expect(lines.length).toBe(2);
+    expect(lines.every((l) => l.category === "inventory_po")).toBe(true);
+    const amounts = lines.map((l) => l.amountMinor).sort((a, b) => a - b);
+    expect(amounts).toEqual([100, 250]);
+
+    const charges = db
+      .select()
+      .from(schema.billingTransactions)
+      .where(eq(schema.billingTransactions.txnType, "charge"))
+      .all();
+    expect(charges.length).toBe(2);
+    const chargeAmounts = charges.map((c) => c.amountMinor).sort((a, b) => a - b);
+    expect(chargeAmounts).toEqual([100, 250]);
   });
 
   it("allows cancel only remaining unreceived quantity", () => {
@@ -718,6 +989,7 @@ describe("home purchase orders", () => {
         itemId: "item-h1",
         ownerType: "HOME",
         ownerId: "h1",
+        purchaseUnitType: "each",
         quantityOrderedBaseUnits: 5,
       },
       t + 2,
@@ -860,6 +1132,7 @@ describe("home purchase orders", () => {
         itemId: "item-h1",
         ownerType: "HOME",
         ownerId: "h1",
+        purchaseUnitType: "each",
         quantityOrderedBaseUnits: 5,
       },
       t + 2,

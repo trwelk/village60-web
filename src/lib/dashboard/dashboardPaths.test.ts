@@ -101,6 +101,15 @@ describe("existing path predicates are unaffected", () => {
     expect(isDashboardInventoryOrdersPath("/dashboard/inventory-orders")).toBe(
       true,
     );
+    expect(
+      isDashboardInventoryOrdersPath("/dashboard/inventory-orders/po-123"),
+    ).toBe(true);
+    expect(
+      isDashboardInventoryOrdersPath("/dashboard/inventory-orders/catalog"),
+    ).toBe(false);
+    expect(
+      isDashboardInventoryOrdersPath("/dashboard/inventory-orders/suppliers"),
+    ).toBe(false);
     expect(isDashboardInventoryOrdersPath("/dashboard/tasks")).toBe(false);
   });
 });

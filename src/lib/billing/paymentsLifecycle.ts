@@ -5,12 +5,15 @@ import type { SessionActor } from "@/lib/authz/sessionActor";
 import {
   billingPayments,
   billingTransactions,
-  residentAccounts,
+  accounts,
   residents,
+  users,
   type billingTransactions as billingTransactionsTable,
 } from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/errors";
+import { ensureHomeAccount } from "@/lib/billing/homeAccounts";
+import { settleFinalizedInvoicesFifo } from "@/lib/billing/invoiceSettlement";
 
 type BillingTransactionRow = typeof billingTransactionsTable.$inferSelect;
 
@@ -34,6 +37,17 @@ function requireBillingAdmin(
 ): asserts actor is SessionActor {
   if (!actor || actor.role !== "admin") {
     throw new ForbiddenError();
+  }
+}
+
+function assertActorUserExists(db: AppDb, actorUserId: string): void {
+  const row = db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, actorUserId))
+    .get();
+  if (!row) {
+    throw new ForbiddenError("Session is no longer valid. Please sign in again.");
   }
 }
 
@@ -66,10 +80,16 @@ function billingAccountIdForResidentInHome(
   residentId: string,
 ): string {
   const row = db
-    .select({ id: residentAccounts.id })
-    .from(residentAccounts)
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
-    .where(and(eq(residents.homeId, homeId), eq(residentAccounts.residentId, residentId)))
+    .select({ id: accounts.id })
+    .from(accounts)
+    .innerJoin(residents, eq(residents.id, accounts.residentId))
+    .where(
+      and(
+        eq(accounts.accountType, "resident"),
+        eq(residents.homeId, homeId),
+        eq(accounts.residentId, residentId),
+      ),
+    )
     .get();
   if (!row) {
     throw new NotFoundError("Billing account not found.");
@@ -103,6 +123,38 @@ export function recordPaymentForResident(
   );
   return recordPayment(db, actor, {
     accountId,
+    amountMinor: input.amountMinor,
+    receivedOn: input.receivedOn,
+    method: input.method,
+    externalReference: input.externalReference,
+    notes: input.notes,
+    postedAtUtcMs: input.postedAtUtcMs ?? Date.now(),
+  });
+}
+
+/**
+ * Record a payment against the home operating billing account (creates the
+ * account on first access). FIFO-settles finalized home invoices like resident
+ * payments.
+ */
+export function recordPaymentForHome(
+  db: AppDb,
+  actor: SessionActor | undefined,
+  input: {
+    homeId: string;
+    amountMinor: number;
+    receivedOn: string;
+    method: string;
+    externalReference?: string | null;
+    notes?: string | null;
+    postedAtUtcMs?: number;
+  },
+): { paymentId: string; ledgerTransactionId: string } {
+  requireBillingAdmin(actor);
+  assertActorMayAccessHome(db, actor, input.homeId);
+  const account = ensureHomeAccount(db, input.homeId);
+  return recordPayment(db, actor, {
+    accountId: account.id,
     amountMinor: input.amountMinor,
     receivedOn: input.receivedOn,
     method: input.method,
@@ -157,11 +209,11 @@ export function listResidentBillingAccountsForHome(
       residentId: residents.id,
       fullName: residents.fullName,
       status: residents.status,
-      accountId: residentAccounts.id,
+      accountId: accounts.id,
     })
-    .from(residentAccounts)
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
-    .where(eq(residents.homeId, homeId))
+    .from(accounts)
+    .innerJoin(residents, eq(residents.id, accounts.residentId))
+    .where(and(eq(accounts.accountType, "resident"), eq(residents.homeId, homeId)))
     .orderBy(asc(residents.fullName), asc(residents.id))
     .all();
   return rows.map((r) => ({
@@ -178,15 +230,19 @@ export function recordPayment(
   input: RecordPaymentInput,
 ): { paymentId: string; ledgerTransactionId: string } {
   requireBillingAdmin(actor);
+  assertActorUserExists(db, actor.userId);
   validatePaymentInput(input);
 
   return db.transaction((tx) => {
     const account = tx
-      .select({ id: residentAccounts.id })
-      .from(residentAccounts)
-      .where(eq(residentAccounts.id, input.accountId))
+      .select({ id: accounts.id, accountType: accounts.accountType })
+      .from(accounts)
+      .where(eq(accounts.id, input.accountId))
       .get();
-    if (!account) {
+    if (
+      !account ||
+      (account.accountType !== "resident" && account.accountType !== "home")
+    ) {
       throw new NotFoundError("Billing account not found.");
     }
 
@@ -197,6 +253,7 @@ export function recordPayment(
       .values({
         id: ledgerTransactionId,
         accountId: input.accountId,
+        accountType: account.accountType,
         txnType: "payment",
         amountMinor: -input.amountMinor,
         sourceKind: "payment",
@@ -223,6 +280,11 @@ export function recordPayment(
       })
       .run();
 
+    settleFinalizedInvoicesFifo(tx, {
+      accountId: input.accountId,
+      nowUtcMs: now,
+    });
+
     return { paymentId, ledgerTransactionId };
   });
 }
@@ -239,9 +301,9 @@ export function getResidentStatement(
   requireBillingAdmin(actor);
 
   const account = db
-    .select({ id: residentAccounts.id })
-    .from(residentAccounts)
-    .where(eq(residentAccounts.id, input.accountId))
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.id, input.accountId), eq(accounts.accountType, "resident")))
     .get();
   if (!account) {
     throw new NotFoundError("Billing account not found.");

@@ -1,5 +1,5 @@
 import { getDb } from "@/db/client";
-import { homes } from "@/db/schema";
+import { homes, residents } from "@/db/schema";
 import {
   resolveLedgerBillingMonthRange,
   utcYearToDateBillingMonthRange,
@@ -26,6 +26,7 @@ type ChargesPageProps = {
     homeId?: string;
     billingMonthFrom?: string;
     billingMonthTo?: string;
+    residentId?: string;
     page?: string;
     pageSize?: string;
   }>;
@@ -115,10 +116,30 @@ export default async function ChargesPage({ searchParams }: ChargesPageProps) {
   const pageSize = parsePageSizeParam(
     typeof q.pageSize === "string" ? q.pageSize : undefined,
   );
+  const selectedResidentIdRaw =
+    typeof q.residentId === "string" ? q.residentId.trim() : "";
+  const residentOptions = selectedHomeId
+    ? db
+        .select({
+          residentId: residents.id,
+          residentFullName: residents.fullName,
+          residentStatus: residents.status,
+        })
+        .from(residents)
+        .where(eq(residents.homeId, selectedHomeId))
+        .all()
+        .sort((a, b) => a.residentFullName.localeCompare(b.residentFullName))
+    : [];
+  const selectedResidentId = residentOptions.some(
+    (r) => r.residentId === selectedResidentIdRaw,
+  )
+    ? selectedResidentIdRaw
+    : null;
   const chargesLedger =
     selectedHomeId && homeRow
       ? listHomeMonthlyChargesLedger(db, actor, selectedHomeId, {
           ...monthRange,
+          residentId: selectedResidentId,
           paymentStatus: "all",
           page,
           pageSize,
@@ -136,6 +157,8 @@ export default async function ChargesPage({ searchParams }: ChargesPageProps) {
         ytdBillingMonthFrom={ytd.billingMonthFrom}
         ytdBillingMonthTo={ytd.billingMonthTo}
         rangeIsDefaultYtd={rangeIsDefaultYtd}
+        selectedResidentId={selectedResidentId}
+        residentOptions={residentOptions}
         ledger={chargesLedger}
       />
     </main>

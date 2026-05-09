@@ -85,10 +85,13 @@ export async function GET(req: Request, { params }: RouteParams) {
     const paymentStatus = parsePaymentStatus(
       url.searchParams.get("paymentStatus"),
     );
+    const residentIdRaw = url.searchParams.get("residentId");
+    const residentId = residentIdRaw && residentIdRaw.trim() !== "" ? residentIdRaw.trim() : null;
     const db = getDb();
     const out = listHomeMonthlyChargesLedger(db, actor, homeId, {
       billingMonthFrom,
       billingMonthTo,
+      residentId,
       paymentStatus,
       page,
       pageSize,
@@ -102,6 +105,7 @@ export async function GET(req: Request, { params }: RouteParams) {
       billingMonthFrom,
       billingMonthTo,
       paymentStatus,
+      residentId,
     });
   } catch (e) {
     const resp = homesErrorResponse(e);

@@ -534,6 +534,15 @@ body {
   transform: translateY(0);
 }
 
+/** Table / dense layouts: `.village-button` defaults to 40px min-height; shrink so rows stay even. */
+.village-button.village-button--compact {
+  min-height: 2rem;
+  padding: 0.1875rem 0.5625rem;
+  font-size: 0.6875rem;
+  gap: 0.25rem;
+  line-height: 1.15;
+}
+
 .village-button:disabled {
   cursor: not-allowed;
   opacity: 0.5;

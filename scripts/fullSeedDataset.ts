@@ -1,16 +1,19 @@
 /**
- * Full application seed: all tables populated with coherent demo data.
- * Shared by `seed.ts` (after migrations / reset) and `demo-seed.ts` (--force).
+ * Full application seed: coherent demo rows for all active schema modules.
+ * Shared by `seed.ts` and `demo-seed.ts`.
+ *
+ * Financial / analytics: spreads resident invoices (`monthly_fee` + other lines),
+ * ledger charges, receipts, home operating payments, and operating expenses across
+ * the last twelve billing months from “today” UTC so dashboards have visible trends.
  */
-import { and, eq, isNotNull } from "drizzle-orm";
 import type { getDb } from "@/db/client";
+import { eq } from "drizzle-orm";
 import {
-  expenseTypes,
+  accounts,
+  appSettings,
   authEvents,
   billingPayments,
   billingTransactions,
-  homeExpenseAttachments,
-  homeExpenses,
   homeInterestLeadSubmitBuckets,
   homeInterestLeads,
   homePurchaseOrderLines,
@@ -28,1247 +31,1024 @@ import {
   residentConditions,
   residentDepartureDetails,
   residentMedications,
-  residentAccounts,
   residents,
   tasks,
   userAdditionalHomes,
   users,
   wards,
 } from "@/db/schema";
+import { shiftBillingMonth } from "@/lib/analytics/revenueCollections";
 import { utcBillingMonthFromMs } from "@/lib/billing/billingMonth";
-import { getAppTimezone, zonedDateAtUtcMs } from "@/lib/config/appTimezone";
+import { getAppTimezone } from "@/lib/config/appTimezone";
 import { DEFAULT_CURRENCY_CODE } from "@/lib/homes/defaultCurrencyCode";
 import { hashPassword } from "@/lib/iam/password";
 import { normalizeFullNameForUniqueness } from "@/lib/residents/service";
 import { randomUUID } from "node:crypto";
 
+type AppDb = ReturnType<typeof getDb>;
+type Tx = Parameters<Parameters<AppDb["transaction"]>[0]>[0];
+
 export type FullSeedCredentials = {
   adminEmail: string;
   adminPassword: string;
-  /** First care login (same as `careAccounts[0]` when present). */
   nurseEmail: string;
   nursePassword: string;
-  /** All care-role demo accounts (shared password unless you set per-user env later). */
   careAccounts: { email: string; password: string; displayName: string }[];
   homesNamed: string[];
   timezoneLabel: string;
   calendarThrough: string;
 };
 
-type AppDb = ReturnType<typeof getDb>;
-
-const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? "admin@example.com")
-  .trim()
-  .toLowerCase();
+const adminEmail = (process.env.SEED_ADMIN_EMAIL ?? "admin@example.com").trim().toLowerCase();
 const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "ChangeMeNow!1";
-
-const nurseEmail = (process.env.SEED_DEMO_NURSE_EMAIL ?? "nurse@demo.local")
-  .trim()
-  .toLowerCase();
+const nurseEmail = (process.env.SEED_DEMO_NURSE_EMAIL ?? "nurse@demo.local").trim().toLowerCase();
 const nursePassword = process.env.SEED_DEMO_NURSE_PASSWORD ?? "DemoNurse!1";
 
-function iso(y: number, m: number, d: number): string {
-  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+const DAY_MS = 86_400_000;
+
+function dateOnlyFromUtcMs(utcMs: number): string {
+  return new Date(utcMs).toISOString().slice(0, 10);
 }
 
-function isoDatePlusDaysUtc(utcMs: number, days: number): string {
-  const d = new Date(utcMs + days * 86_400_000);
-  return d.toISOString().slice(0, 10);
+function daysAgo(nowUtcMs: number, days: number): number {
+  return nowUtcMs - days * DAY_MS;
 }
 
-function utcDateOnlyFromMs(ms: number): string {
-  const d = new Date(ms);
-  return iso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+/** Midday UTC for a `YYYY-MM-DD` date (stable ordering for seeded ledger rows). */
+function utcMsFromIsoDate(isoDay: string): number {
+  const [yP, moP, dP] = isoDay.split("-").map(Number);
+  return Date.UTC(yP, moP - 1, dP, 12, 0, 0, 0);
 }
 
-function shiftBillingMonth(ym: string, deltaMonths: number): string {
-  const [yStr, mStr] = ym.split("-");
-  const y = Number(yStr);
-  const m = Number(mStr);
-  const idx = y * 12 + (m - 1) + deltaMonths;
-  const ny = Math.floor(idx / 12);
-  const nm = idx - ny * 12 + 1;
-  return `${String(ny).padStart(4, "0")}-${String(nm).padStart(2, "0")}`;
+/** Months of resident invoice + payment history (financial analytics presets). */
+const SEED_FINANCIAL_HISTORY_MONTHS = 12;
+
+function avatarFor(name: string): string {
+  const safe = encodeURIComponent(name.replace(/\s+/g, " ").trim());
+  return `https://ui-avatars.com/api/?name=${safe}&size=128&background=0f766e&color=fff`;
 }
 
-function addUtcDaysIso(dateOnly: string, deltaDays: number): string {
-  const [y, m, d] = dateOnly.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
-  return iso(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
-}
-
-function lastUtcDomForMonthKey(monthKey: string): number {
-  const [y, m] = monthKey.split("-").map(Number);
-  return new Date(Date.UTC(y, m, 0)).getUTCDate();
-}
-
-function seedHash(s: string): number {
-  let h = 2_166_136_261;
-  for (let i = 0; i < s.length; i += 1) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16_777_619);
-  }
-  return h >>> 0;
-}
-
-/** Calendar date `paidOn` that is `daysAfterMonthEnd` days after the UTC last day of `billingMonth`. */
-function paidOnAfterBillingMonthEnd(billingMonth: string, daysAfterMonthEnd: number): string {
-  const [y, m] = billingMonth.split("-").map(Number);
-  const lastDom = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const dt = new Date(Date.UTC(y, m - 1, lastDom + daysAfterMonthEnd));
-  return iso(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
-}
-
-/** Next birthdays landing on UTC today + 1 … + 8 for dashboard week/month boards. */
-function dobWeekBirthday(slot: number, nowUtcMs: number): string {
-  const utcToday = utcDateOnlyFromMs(nowUtcMs);
-  const [uy, um, ud] = utcToday.split("-").map(Number);
-  const dt = new Date(Date.UTC(uy, um - 1, ud + 1 + slot));
-  const tm = dt.getUTCMonth() + 1;
-  const td = dt.getUTCDate();
-  const birthYear = 1934 + (slot % 17);
-  return iso(birthYear, tm, td);
-}
-
-/** Spread remaining birthdays across the next ~50 UTC days for month view density. */
-function dobMonthScatter(slot: number, nowUtcMs: number): string {
-  const utcToday = utcDateOnlyFromMs(nowUtcMs);
-  const advance = 9 + ((slot * 13) % 50);
-  const occur = addUtcDaysIso(utcToday, advance);
-  const [, om, od] = occur.split("-").map(Number);
-  const birthYear = 1936 + ((slot * 5) % 15);
-  return iso(birthYear, om!, od!);
-}
-
-type WardSeed = {
-  label: string;
-  sortOrder: number;
-  bedCount: number;
-  monthlyRatePerPersonMinor: number | null;
-};
-
-type HomeSeed = {
-  name: string;
-  /** Full postal-style address for enquiry copy and snapshots. */
-  address: string;
-  currency: string;
-  wards: WardSeed[];
-};
-
-const HOME_SEEDS: HomeSeed[] = [
-  {
-    name: "Maple",
-    address:
-      "42 Kauri Road, Mount Eden, Auckland 1024, New Zealand",
-    currency: DEFAULT_CURRENCY_CODE,
-    wards: [
-      {
-        label: "Memory Care",
-        sortOrder: 1,
-        bedCount: 14,
-        monthlyRatePerPersonMinor: 6_800_00,
-      },
-      {
-        label: "General Care",
-        sortOrder: 2,
-        bedCount: 20,
-        monthlyRatePerPersonMinor: 5_200_00,
-      },
-      {
-        label: "Respite",
-        sortOrder: 3,
-        bedCount: 6,
-        monthlyRatePerPersonMinor: 5_800_00,
-      },
-    ],
-  },
-  {
-    name: "Harbor",
-    address:
-      "180 Marina Parade, Evans Bay, Wellington 6011, New Zealand",
-    currency: DEFAULT_CURRENCY_CODE,
-    wards: [
-      {
-        label: "East Wing",
-        sortOrder: 1,
-        bedCount: 16,
-        monthlyRatePerPersonMinor: 4_950_00,
-      },
-      {
-        label: "West Wing",
-        sortOrder: 2,
-        bedCount: 16,
-        monthlyRatePerPersonMinor: 4_950_00,
-      },
-      {
-        label: "Garden Studios",
-        sortOrder: 3,
-        bedCount: 8,
-        monthlyRatePerPersonMinor: 5_400_00,
-      },
-    ],
-  },
-  {
-    name: "Riverside",
-    address:
-      "9 Oxford Terrace, Christchurch Central 8011, New Zealand",
-    currency: DEFAULT_CURRENCY_CODE,
-    wards: [
-      {
-        label: "Ground Floor",
-        sortOrder: 1,
-        bedCount: 12,
-        monthlyRatePerPersonMinor: 5_000_00,
-      },
-      {
-        label: "Upper Floor",
-        sortOrder: 2,
-        bedCount: 12,
-        monthlyRatePerPersonMinor: 5_000_00,
-      },
-    ],
-  },
-];
-
-/** Residents per ward column (home index → ward index → count). Unassigned use -1. */
-const ACTIVE_COUNTS_BY_WARD: number[][] = [
-  [6, 11, 2, 1],
-  [7, 6, 3, 0],
-  [8, 7, -1, -1],
-];
-
-/** Departed resident fixtures — timing derived from UTC billing months for analytics charts. */
-type DepartedSeedSpec = { hi: number; wi: number | null; reason: string };
-
-const DEPARTED_SEED_SPECS: DepartedSeedSpec[] = [
-  { hi: 0, wi: 1, reason: "Transferred to public hospital — acute care" },
-  { hi: 1, wi: 0, reason: "Family requested transfer closer to relatives" },
-  { hi: 2, wi: null, reason: "Deceased" },
-  {
-    hi: 0,
-    wi: 0,
-    reason:
-      "Permanent move to another aged residential care facility following family review of care needs and location preferences.",
-  },
-  { hi: 1, wi: 2, reason: "Respite stay ended; returned home with supports" },
-  { hi: 2, wi: 1, reason: "Rest home level care — transferred within group" },
-];
-
-const FIRST_NAMES = [
-  "Margaret",
-  "James",
-  "Eleanor",
-  "Arthur",
-  "Patricia",
-  "William",
-  "Dorothy",
-  "Robert",
-  "Joan",
-  "David",
-  "Helen",
-  "Brian",
-  "Betty",
-  "Graham",
-  "Audrey",
-  "Keith",
-  "Iris",
-  "Neville",
-  "Joyce",
-  "Colin",
-  "Marjorie",
-  "Raymond",
-  "Linda",
-  "Stanley",
-  "Carol",
-  "Murray",
-  "Sandra",
-  "Allan",
-  "Pamela",
-  "Ross",
-  "Shirley",
-  "Wayne",
-  "Raewyn",
-  "Barry",
-  "Sue",
-  "Kevin",
-  "Janice",
-  "Peter",
-  "Glenda",
-  "Nigel",
-];
-
-const LAST_NAMES = [
-  "Thompson",
-  "Ngata",
-  "Patel",
-  "Williams",
-  "Chen",
-  "O'Brien",
-  "Singh",
-  "Walker",
-  "Kumar",
-  "Murphy",
-  "Zhang",
-  "Kelly",
-  "Robinson",
-  "Lee",
-  "Anderson",
-  "Brown",
-  "Taylor",
-  "Martin",
-  "Wilson",
-  "Davies",
-  "Cooper",
-  "Bennett",
-  "Richardson",
-  "Scott",
-  "Watson",
-  "Hughes",
-  "Edwards",
-  "Stewart",
-  "Morris",
-  "Rogers",
-];
-
-function pickName(i: number): string {
-  return `${FIRST_NAMES[i % FIRST_NAMES.length]} ${LAST_NAMES[(i * 7) % LAST_NAMES.length]}`;
-}
-
-function nzMobileFromSlot(slot: number, salt: number): string {
-  const u = (slot * 31 + salt * 17) >>> 0;
-  const part = String(1000 + (u % 9000)).padStart(4, "0");
-  return `+64 21 555 ${part}`;
-}
-
-function avatarForDisplayName(displayName: string): string {
-  const q = encodeURIComponent(displayName.replace(/[()]/g, " ").trim());
-  return `https://ui-avatars.com/api/?name=${q}&size=128&background=0f766e&color=fff`;
-}
-
-const NOK_RELATIONSHIPS = [
-  "Child",
-  "Spouse",
-  "Grandchild",
-  "Sibling",
-  "Niece",
-  "Nephew",
-  "Friend",
-  "Legal guardian",
-] as const;
-
-/** Varied next-of-kin / POA; keeps demo records realistic in forms and exports. */
-function nokAndPoaForSlot(slot: number) {
-  const nokName = pickName(slot + 2_011);
-  const nokRelationship = NOK_RELATIONSHIPS[slot % NOK_RELATIONSHIPS.length]!;
-  const nokContact = nzMobileFromSlot(slot, 1);
-  const poaSameAsNok = slot % 3 === 0;
-  if (poaSameAsNok) {
-    return {
-      nokName,
-      nokContact,
-      nokRelationship,
-      poaSameAsNok: true,
-      poaName: null as string | null,
-      poaContact: null as string | null,
-      poaRelationship: null as string | null,
-    };
-  }
-  const poaName = pickName(slot + 4_019);
-  return {
-    nokName,
-    nokContact,
-    nokRelationship,
-    poaSameAsNok: false,
-    poaName,
-    poaContact: nzMobileFromSlot(slot, 2),
-    poaRelationship: "Court-appointed EPOA — property & personal care",
-  };
-}
-
-type InterestLeadFixture = {
-  homeIdx: number;
-  contactName: string;
-  phone: string;
-  email: string | null;
-  note: string | null;
-  source: "web" | "admin";
-  status: "new" | "contacted" | "cancelled" | "closed";
-  consentAccepted: boolean;
-  /** Older leads first: subtract days from seed timestamp. */
-  createdDaysAgo: number;
-};
-
-const INTEREST_LEAD_FIXTURES: InterestLeadFixture[] = [
-  {
-    homeIdx: 0,
-    contactName: "Michael Hurst",
-    phone: "+64 9 555 0801",
-    email: "m.hurst@example.com",
-    note: "Asked about memory-care beds; prefers ground-floor room.",
-    source: "web",
-    status: "new",
-    consentAccepted: true,
-    createdDaysAgo: 1,
-  },
-  {
-    homeIdx: 1,
-    contactName: "Priya Maharaj",
-    phone: "+64 4 555 0902",
-    email: "priya.m@gmail.com",
-    note: "Tour booked for next Thursday afternoon.",
-    source: "web",
-    status: "contacted",
-    consentAccepted: true,
-    createdDaysAgo: 4,
-  },
-  {
-    homeIdx: 2,
-    contactName: "Campbell & Sons Trustees",
-    phone: "+64 3 555 0703",
-    email: "enquiries@campbell-trust.co.nz",
-    note: "Follow up on respite block — two weeks in June.",
-    source: "admin",
-    status: "contacted",
-    consentAccepted: true,
-    createdDaysAgo: 7,
-  },
-  {
-    homeIdx: 0,
-    contactName: "Janine Foster",
-    phone: "+64 27 555 0612",
-    email: null,
-    note: "Referred by GP; daughter lives nearby.",
-    source: "admin",
-    status: "new",
-    consentAccepted: true,
-    createdDaysAgo: 0,
-  },
-  {
-    homeIdx: 1,
-    contactName: "Terry Blake",
-    phone: "+64 22 555 0538",
-    email: "tblake@outlook.co.nz",
-    note: "Cancelled — moved to Nelson.",
-    source: "web",
-    status: "cancelled",
-    consentAccepted: true,
-    createdDaysAgo: 21,
-  },
-  {
-    homeIdx: 2,
-    contactName: "Ngāi Tahu Whānui — Hāpai Oranga",
-    phone: "+64 3 555 0449",
-    email: "hapi.oranga@example.org",
-    note: "Closed: whānau chose another facility closer to kaumātua.",
-    source: "admin",
-    status: "closed",
-    consentAccepted: true,
-    createdDaysAgo: 45,
-  },
-];
-
-type ClinicalProfile = {
-  conditions: string[];
-  allergies: { allergen: string; notes: string | null }[];
-  medications: {
-    name: string;
-    strength: string;
-    unit: string;
-    quantityPerServing: number;
-    directions: string;
-    servingsPerDay: number | null;
-    prn: boolean;
-  }[];
-};
-
-/** Rotated across all ward-assigned residents so clinical tabs are populated app-wide. */
-const CLINICAL_PROFILES: ClinicalProfile[] = [
-  {
-    conditions: ["Hypertension", "Type 2 diabetes mellitus"],
-    allergies: [{ allergen: "Penicillin", notes: "Anaphylaxis history — avoid beta-lactams." }],
-    medications: [
-      {
-        name: "Metformin",
-        strength: "500 mg",
-        unit: "tablet",
-        quantityPerServing: 1,
-        servingsPerDay: 2,
-        directions: "Twice daily — with breakfast and evening meal.",
-        prn: false,
-      },
-      {
-        name: "Amlodipine",
-        strength: "5 mg",
-        unit: "tablet",
-        quantityPerServing: 1,
-        servingsPerDay: 1,
-        directions: "Once daily.",
-        prn: false,
-      },
-    ],
-  },
-  {
-    conditions: ["Osteoarthritis", "Vitamin D deficiency"],
-    allergies: [{ allergen: "Shellfish", notes: "Mild rash only." }],
-    medications: [
-      {
-        name: "Paracetamol",
-        strength: "1 g",
-        unit: "tablet",
-        quantityPerServing: 1,
-        servingsPerDay: 3,
-        directions: "Three times daily.",
-        prn: false,
-      },
-    ],
-  },
-  {
-    conditions: ["Atrial fibrillation"],
-    allergies: [],
-    medications: [
-      {
-        name: "Apixaban",
-        strength: "5 mg",
-        unit: "tablet",
-        quantityPerServing: 1,
-        servingsPerDay: 2,
-        directions: "Twice daily — 12 hours apart.",
-        prn: false,
-      },
-    ],
-  },
-  {
-    conditions: ["Dementia — Alzheimer's type"],
-    allergies: [{ allergen: "Latex", notes: null }],
-    medications: [
-      {
-        name: "Donepezil",
-        strength: "10 mg",
-        unit: "tablet",
-        quantityPerServing: 1,
-        servingsPerDay: 1,
-        directions: "Once daily at night.",
-        prn: false,
-      },
-    ],
-  },
-  {
-    conditions: ["Chronic kidney disease stage 3"],
-    allergies: [],
-    medications: [
-      {
-        name: "Furosemide",
-        strength: "40 mg",
-        unit: "tablet",
-        quantityPerServing: 1,
-        servingsPerDay: 1,
-        directions: "Morning — monitor fluid balance.",
-        prn: false,
-      },
-    ],
-  },
-  {
-    conditions: ["COPD"],
-    allergies: [{ allergen: "NSAIDs", notes: "GI bleed risk — prefer paracetamol." }],
-    medications: [
-      {
-        name: "Salbutamol inhaler",
-        strength: "100 mcg",
-        unit: "puff",
-        quantityPerServing: 2,
-        servingsPerDay: null,
-        directions: "As needed — for wheeze or shortness of breath.",
-        prn: true,
-      },
-    ],
-  },
-  {
-    conditions: ["Heart failure (NYHA class II)", "Hypothyroidism"],
-    allergies: [{ allergen: "Sulfa drugs", notes: "Rash — document on MAR." }],
-    medications: [
-      {
-        name: "Levothyroxine",
-        strength: "75 mcg",
-        unit: "tablet",
-        quantityPerServing: 1,
-        servingsPerDay: 1,
-        directions: "Once daily — fasting, 30 min before breakfast.",
-        prn: false,
-      },
-      {
-        name: "Bisoprolol",
-        strength: "2.5 mg",
-        unit: "tablet",
-        quantityPerServing: 1,
-        servingsPerDay: 1,
-        directions: "Once daily.",
-        prn: false,
-      },
-    ],
-  },
-  {
-    conditions: ["Parkinson disease"],
-    allergies: [],
-    medications: [
-      {
-        name: "Levodopa + benserazide",
-        strength: "50 / 12.5 mg",
-        unit: "tablet",
-        quantityPerServing: 1,
-        servingsPerDay: 4,
-        directions: "Four times daily — align with meals where possible.",
-        prn: false,
-      },
-    ],
-  },
-  {
-    conditions: ["Gastro-oesophageal reflux disease"],
-    allergies: [],
-    medications: [
-      {
-        name: "Omeprazole",
-        strength: "20 mg",
-        unit: "capsule",
-        quantityPerServing: 1,
-        servingsPerDay: 1,
-        directions: "Once daily — before breakfast.",
-        prn: false,
-      },
-    ],
-  },
-  {
-    conditions: ["Previous CVA — left hemiparesis", "Epilepsy"],
-    allergies: [{ allergen: "Tramadol", notes: "Confusion at low dose." }],
-    medications: [
-      {
-        name: "Levetiracetam",
-        strength: "500 mg",
-        unit: "tablet",
-        quantityPerServing: 1,
-        servingsPerDay: 2,
-        directions: "Twice daily.",
-        prn: false,
-      },
-    ],
-  },
-  {
-    conditions: ["Rheumatoid arthritis — stable"],
-    allergies: [],
-    medications: [
-      {
-        name: "Methotrexate",
-        strength: "10 mg",
-        unit: "tablet",
-        quantityPerServing: 1,
-        servingsPerDay: null,
-        directions:
-          "Weekly on Tuesday — folic acid as prescribed Wednesday (not daily dosing).",
-        prn: false,
-      },
-    ],
-  },
-  {
-    conditions: ["Vitamin B12 deficiency", "Hearing loss — bilateral"],
-    allergies: [],
-    medications: [
-      {
-        name: "Cyanocobalamin",
-        strength: "1000 mcg",
-        unit: "injection",
-        quantityPerServing: 1,
-        servingsPerDay: null,
-        directions: "Once monthly IM — clinic mornings.",
-        prn: false,
-      },
-    ],
-  },
-];
-
-type HomeBuilt = {
-  id: string;
-  wardIds: string[];
-};
-
-function wipeApplicationData(tx: Parameters<Parameters<AppDb["transaction"]>[0]>[0]) {
+function wipeApplicationData(tx: Tx): void {
   tx.delete(invoiceLineItems).run();
   tx.delete(invoices).run();
   tx.delete(billingPayments).run();
-  tx.delete(billingTransactions).where(isNotNull(billingTransactions.reversesTransactionId)).run();
   tx.delete(billingTransactions).run();
-  tx.delete(residentAccounts).run();
+  tx.delete(accounts).run();
+
   tx.delete(homePurchaseOrderReceiveEvents).run();
   tx.delete(homePurchaseOrderLines).run();
   tx.delete(homePurchaseOrders).run();
+
   tx.delete(inventoryTransactions).run();
   tx.delete(inventoryBalances).run();
-  tx.delete(tasks).run();
-  tx.delete(homeExpenseAttachments).run();
-  tx.delete(homeExpenses).run();
-  tx.delete(residentDepartureDetails).run();
-  tx.delete(residentConditions).run();
-  tx.delete(residentAllergies).run();
   tx.delete(residentMedications).run();
   tx.delete(inventoryItems).run();
   tx.delete(inventoryItemCategories).run();
-  tx.delete(expenseTypes).run();
   tx.delete(inventorySuppliers).run();
+
+  tx.delete(residentDepartureDetails).run();
+  tx.delete(residentConditions).run();
+  tx.delete(residentAllergies).run();
+  tx.delete(tasks).run();
   tx.delete(residents).run();
   tx.delete(wards).run();
+
   tx.delete(userAdditionalHomes).run();
-  tx.update(users).set({ primaryHomeId: null }).run();
   tx.delete(homeInterestLeads).run();
   tx.delete(homeInterestLeadSubmitBuckets).run();
-  tx.delete(homes).run();
   tx.delete(authEvents).run();
+
+  tx.delete(appSettings).run();
+
+  tx.update(users).set({ primaryHomeId: null }).run();
+  tx.delete(homes).run();
   tx.delete(users).run();
 }
 
+type BuiltHome = { id: string; name: string; address: string; wardIds: string[] };
+type ResidentRef = { id: string; homeId: string; status: "active" | "departed"; wardId: string | null };
+type CareSeed = { id: string; email: string; displayName: string; phone: string; primaryHomeIndex: number };
+
 export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredentials> {
-  const tz = getAppTimezone();
   const nowUtcMs = Date.now();
-  const { year, month: monthThrough, day } = zonedDateAtUtcMs(nowUtcMs, tz);
+  const ts = nowUtcMs;
+  const billingMonth = utcBillingMonthFromMs(nowUtcMs);
+  const timezoneLabel = getAppTimezone();
 
   const adminHash = await hashPassword(adminPassword);
-  const carePasswordHash = await hashPassword(nursePassword);
-  const adminId = randomUUID();
+  const careHash = await hashPassword(nursePassword);
 
-  const careSeedSpecs = [
+  const adminUserId = randomUUID();
+  const careUsers: CareSeed[] = [
     {
+      id: randomUUID(),
       email: nurseEmail,
       displayName: "Sam Demo RN",
       phone: "+64 21 555 0144",
-      primaryHi: 0,
-      extraHis: [1],
+      primaryHomeIndex: 0,
     },
     {
+      id: randomUUID(),
       email: "jordan@demo.local",
-      displayName: "Jordan Fraser (EN)",
+      displayName: "Jordan Fraser EN",
       phone: "+64 27 555 0288",
-      primaryHi: 1,
-      extraHis: [2],
+      primaryHomeIndex: 1,
     },
     {
+      id: randomUUID(),
       email: "alex@demo.local",
-      displayName: "Alex Chen (RN)",
+      displayName: "Alex Chen RN",
       phone: "+64 22 555 0361",
-      primaryHi: 2,
-      extraHis: [0],
-    },
-    {
-      email: "riley@demo.local",
-      displayName: "Riley Park (RN)",
-      phone: "+64 29 555 0402",
-      primaryHi: 0,
-      extraHis: [2],
+      primaryHomeIndex: 2,
     },
   ];
 
-  const bm0 = utcBillingMonthFromMs(nowUtcMs);
-
-  const homeRows: HomeBuilt[] = [];
-  /** Active residents with a ward — billing/clinical priorities use earlier rows first. */
-  const activeWithWard: { id: string; wardId: string }[] = [];
-  /** Every active resident (including unassigned ward) — clinical charts only. */
-  const activeResidentIdsAll: string[] = [];
-  let nameIdx = 0;
-  let activeResidentSlot = 0;
-
-  let careUserIds: string[] = [];
+  const homesBuilt: BuiltHome[] = [];
+  const residentsBuilt: ResidentRef[] = [];
+  const residentAccountByResidentId = new Map<string, string>();
+  const homeAccountByHomeId = new Map<string, string>();
 
   db.transaction((tx) => {
     wipeApplicationData(tx);
 
     tx.insert(users)
       .values({
-        id: adminId,
+        id: adminUserId,
         email: adminEmail,
         passwordHash: adminHash,
         role: "admin",
         failureTimestampsUtcMs: "[]",
         lockedUntilUtcMs: null,
-        createdAtUtcMs: nowUtcMs,
+        createdAtUtcMs: ts,
         primaryHomeId: null,
         displayName: "Jamie Administrator",
         phone: "+64 9 555 0101",
-        avatarUrl: avatarForDisplayName("Jamie Administrator"),
+        avatarUrl: avatarFor("Jamie Administrator"),
       })
       .run();
 
-    const t = Date.now();
-    careUserIds = [];
-    for (const spec of careSeedSpecs) {
-      const uid = randomUUID();
-      careUserIds.push(uid);
+    for (const care of careUsers) {
       tx.insert(users)
         .values({
-          id: uid,
-          email: spec.email,
-          passwordHash: carePasswordHash,
+          id: care.id,
+          email: care.email,
+          passwordHash: careHash,
           role: "care",
           failureTimestampsUtcMs: "[]",
           lockedUntilUtcMs: null,
-          createdAtUtcMs: nowUtcMs,
+          createdAtUtcMs: ts,
           primaryHomeId: null,
-          displayName: spec.displayName,
-          phone: spec.phone,
-          avatarUrl: avatarForDisplayName(spec.displayName),
+          displayName: care.displayName,
+          phone: care.phone,
+          avatarUrl: avatarFor(care.displayName),
         })
         .run();
     }
 
-    for (let hi = 0; hi < HOME_SEEDS.length; hi += 1) {
-      const h = HOME_SEEDS[hi]!;
+    const homeSpecs = [
+      {
+        name: "Maple",
+        address: "42 Kauri Road, Mount Eden, Auckland 1024, New Zealand",
+        wards: [
+          { label: "Memory Care", sortOrder: 1, bedCount: 14, monthlyRatePerPersonMinor: 680000 },
+          { label: "General Care", sortOrder: 2, bedCount: 20, monthlyRatePerPersonMinor: 520000 },
+        ],
+      },
+      {
+        name: "Harbor",
+        address: "180 Marina Parade, Evans Bay, Wellington 6011, New Zealand",
+        wards: [
+          { label: "East Wing", sortOrder: 1, bedCount: 16, monthlyRatePerPersonMinor: 495000 },
+          { label: "West Wing", sortOrder: 2, bedCount: 16, monthlyRatePerPersonMinor: 495000 },
+        ],
+      },
+      {
+        name: "Riverside",
+        address: "9 Oxford Terrace, Christchurch Central 8011, New Zealand",
+        wards: [
+          { label: "Ground Floor", sortOrder: 1, bedCount: 12, monthlyRatePerPersonMinor: 500000 },
+          { label: "Upper Floor", sortOrder: 2, bedCount: 12, monthlyRatePerPersonMinor: 500000 },
+        ],
+      },
+    ] as const;
+
+    for (const homeSpec of homeSpecs) {
       const homeId = randomUUID();
-      const wardIds: string[] = [];
       tx.insert(homes)
         .values({
           id: homeId,
-          name: h.name,
-          address: h.address,
-          defaultCurrencyCode: h.currency,
+          name: homeSpec.name,
+          address: homeSpec.address,
+          defaultCurrencyCode: DEFAULT_CURRENCY_CODE,
           archivedAtUtcMs: null,
-          createdAtUtcMs: t,
-          updatedAtUtcMs: t,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
         })
         .run();
-      for (const w of h.wards) {
-        const wid = randomUUID();
-        wardIds.push(wid);
+
+      const wardIds: string[] = [];
+      for (const ward of homeSpec.wards) {
+        const wardId = randomUUID();
+        wardIds.push(wardId);
         tx.insert(wards)
           .values({
-            id: wid,
+            id: wardId,
             homeId,
-            label: w.label,
-            sortOrder: w.sortOrder,
-            bedCount: w.bedCount,
-            monthlyRatePerPersonMinor: w.monthlyRatePerPersonMinor,
+            label: ward.label,
+            sortOrder: ward.sortOrder,
+            bedCount: ward.bedCount,
+            monthlyRatePerPersonMinor: ward.monthlyRatePerPersonMinor,
             archivedAtUtcMs: null,
-            createdAtUtcMs: t,
-            updatedAtUtcMs: t,
+            createdAtUtcMs: ts,
+            updatedAtUtcMs: ts,
           })
           .run();
       }
-      homeRows.push({ id: homeId, wardIds });
+
+      homesBuilt.push({
+        id: homeId,
+        name: homeSpec.name,
+        address: homeSpec.address,
+        wardIds,
+      });
     }
 
     tx.update(users)
-      .set({ primaryHomeId: homeRows[0]?.id ?? null })
-      .where(eq(users.id, adminId))
+      .set({ primaryHomeId: homesBuilt[0]!.id })
+      .where(eq(users.id, adminUserId))
       .run();
 
-    for (let i = 0; i < careSeedSpecs.length; i += 1) {
-      const spec = careSeedSpecs[i]!;
-      const uid = careUserIds[i]!;
+    for (const care of careUsers) {
       tx.update(users)
-        .set({ primaryHomeId: homeRows[spec.primaryHi]?.id ?? null })
-        .where(eq(users.id, uid))
+        .set({ primaryHomeId: homesBuilt[care.primaryHomeIndex]!.id })
+        .where(eq(users.id, care.id))
         .run();
-      for (const hi of spec.extraHis) {
-        const hid = homeRows[hi]?.id;
-        if (hid) {
-          tx.insert(userAdditionalHomes).values({ userId: uid, homeId: hid }).run();
-        }
-      }
     }
 
-    for (const lead of INTEREST_LEAD_FIXTURES) {
-      const hid = homeRows[lead.homeIdx]!.id;
-      const hmeta = HOME_SEEDS[lead.homeIdx]!;
-      const createdAtUtcMs = t - lead.createdDaysAgo * 86_400_000;
+    tx.insert(userAdditionalHomes)
+      .values({
+        userId: careUsers[0]!.id,
+        homeId: homesBuilt[1]!.id,
+      })
+      .run();
+    tx.insert(userAdditionalHomes)
+      .values({
+        userId: careUsers[1]!.id,
+        homeId: homesBuilt[2]!.id,
+      })
+      .run();
+
+    const leadFixtures = [
+      {
+        home: 0,
+        contactName: "Michael Hurst",
+        phone: "+64 9 555 0801",
+        email: "m.hurst@example.com",
+        note: "Asked about memory-care beds.",
+        source: "web" as const,
+        status: "new",
+        daysOld: 1,
+      },
+      {
+        home: 1,
+        contactName: "Priya Maharaj",
+        phone: "+64 4 555 0902",
+        email: "priya.m@gmail.com",
+        note: "Tour booked for next week.",
+        source: "web" as const,
+        status: "contacted",
+        daysOld: 4,
+      },
+      {
+        home: 2,
+        contactName: "Campbell Trustees",
+        phone: "+64 3 555 0703",
+        email: "enquiries@campbell-trust.co.nz",
+        note: "Two-week respite in June.",
+        source: "admin" as const,
+        status: "closed",
+        daysOld: 15,
+      },
+    ];
+
+    const leadStatusesCycle = ["new", "contacted", "cancelled", "closed"] as const;
+
+    const leadExtras = Array.from({ length: 14 }, (_, i) => ({
+      home: i % 3,
+      contactName: `Walk-in Prospect ${String(i + 1).padStart(2, "0")}`,
+      phone: `+64 21 558 ${1000 + i}`,
+      email: `prospect.${i + 1}@example.com`,
+      note: i % 4 === 0 ? "Referred by local GP surgery." : "Website enquiry form.",
+      source: i % 3 === 0 ? ("web" as const) : ("admin" as const),
+      status: leadStatusesCycle[i % leadStatusesCycle.length]!,
+      daysOld: 8 + i * 19,
+    }));
+    for (const lead of [...leadFixtures, ...leadExtras]) {
+      const home = homesBuilt[lead.home]!;
+      const createdAtUtcMs = daysAgo(ts, lead.daysOld);
       tx.insert(homeInterestLeads)
         .values({
           id: randomUUID(),
-          homeId: hid,
-          homeNameSnapshot: hmeta.name,
-          homeAddressSnapshot: hmeta.address,
+          homeId: home.id,
+          homeNameSnapshot: home.name,
+          homeAddressSnapshot: home.address,
           contactName: lead.contactName,
           phone: lead.phone,
           email: lead.email,
           note: lead.note,
           source: lead.source,
-          consentAccepted: lead.consentAccepted,
+          consentAccepted: true,
           status: lead.status,
-          createdByUserId: lead.source === "admin" ? adminId : null,
+          createdByUserId: lead.source === "admin" ? adminUserId : null,
           createdAtUtcMs,
           updatedAtUtcMs: createdAtUtcMs,
         })
         .run();
     }
 
-    tx.insert(authEvents)
+    tx.insert(homeInterestLeadSubmitBuckets)
       .values({
-        id: randomUUID(),
-        userId: adminId,
-        email: adminEmail,
-        eventType: "sign_in",
-        occurredAtUtcMs: nowUtcMs - 3 * 86_400_000,
-      })
-      .run();
-    for (let ci = 0; ci < careSeedSpecs.length; ci += 1) {
-      tx.insert(authEvents)
-        .values({
-          id: randomUUID(),
-          userId: careUserIds[ci]!,
-          email: careSeedSpecs[ci]!.email,
-          eventType: "sign_in",
-          occurredAtUtcMs: nowUtcMs - (2 + ci) * 86_400_000,
-        })
-        .run();
-    }
-    tx.insert(authEvents)
-      .values({
-        id: randomUUID(),
-        userId: null,
-        email: "unknown.person@example.com",
-        eventType: "sign_in_failed",
-        occurredAtUtcMs: nowUtcMs - 3_600_000,
+        ipKey: "seed::127.0.0.1",
+        windowStartUtcMs: daysAgo(ts, 1),
+        count: 2,
       })
       .run();
 
-    const departedForCensus = DEPARTED_SEED_SPECS.map((spec, di) => {
-      const departMonthKey = shiftBillingMonth(bm0, -di * 2);
-      const [dy, dm] = departMonthKey.split("-").map(Number);
-      const departDom = Math.min(28, 8 + di * 3);
-      const departMs = Date.UTC(dy, dm - 1, departDom, 14, 30, 0);
-      const admitYm = shiftBillingMonth(departMonthKey, -(14 + di * 3));
-      const admitDom = Math.min(28, 6 + di * 2);
-      const admit = `${admitYm}-${String(admitDom).padStart(2, "0")}`;
-      const wardId =
-        spec.wi === null ? null : homeRows[spec.hi]!.wardIds[spec.wi]!;
-      return {
-        hi: spec.hi,
-        wi: spec.wi,
-        homeId: homeRows[spec.hi]!.id,
-        wardId,
-        departMs,
-        admit,
-        reason: spec.reason,
-      };
-    });
-
-    for (let hi = 0; hi < homeRows.length; hi += 1) {
-      const home = homeRows[hi]!;
-      const counts = ACTIVE_COUNTS_BY_WARD[hi]!;
-
-      for (let wi = 0; wi < counts.length; wi += 1) {
-        const n = counts[wi]!;
-        if (n <= 0) {
-          continue;
-        }
-        const wardId = wi < home.wardIds.length ? home.wardIds[wi]! : null;
-        for (let k = 0; k < n; k += 1) {
-          const fullName = pickName(nameIdx);
-          nameIdx += 1;
-          const admitMonthRolling = shiftBillingMonth(bm0, -(activeResidentSlot % 12));
-          const admitDom = Math.min(
-            lastUtcDomForMonthKey(admitMonthRolling),
-            8 + ((activeResidentSlot + hi + k) % 17),
-          );
-          const admissionDate = `${admitMonthRolling}-${String(admitDom).padStart(2, "0")}`;
-
-          const dob =
-            activeResidentSlot < 8
-              ? dobWeekBirthday(activeResidentSlot, nowUtcMs)
-              : dobMonthScatter(activeResidentSlot, nowUtcMs);
-
-          const wardLabel =
-            wardId && wi < HOME_SEEDS[hi]!.wards.length
-              ? HOME_SEEDS[hi]!.wards[wi]!.label
-              : "General";
-          const contact = nokAndPoaForSlot(activeResidentSlot + hi * 100 + k * 17);
-          const assignedNurse = careUserIds[activeResidentSlot % careUserIds.length]!;
-          const id = randomUUID();
-
-          tx.insert(residents)
-            .values({
-              id,
-              homeId: home.id,
-              fullName,
-              normalizedFullName: normalizeFullNameForUniqueness(fullName),
-              dob,
-              admissionDate,
-              wardId,
-              roomText: `${wardLabel} — Room ${201 + k + wi * 25 + (hi + 1) * 3}`,
-              status: "active",
-              nokName: contact.nokName,
-              nokContact: contact.nokContact,
-              nokRelationship: contact.nokRelationship,
-              poaSameAsNok: contact.poaSameAsNok,
-              poaName: contact.poaName,
-              poaContact: contact.poaContact,
-              poaRelationship: contact.poaRelationship,
-              assignedNurseUserId: assignedNurse,
-              assignedNurseDisplayOverride:
-                activeResidentSlot % 19 === 0 ? "Night agency — Wellstaff Ltd" : null,
-              createdAtUtcMs: t,
-              updatedAtUtcMs: t,
-            })
-            .run();
-          if (wardId) {
-            activeWithWard.push({ id, wardId });
-          }
-          activeResidentIdsAll.push(id);
-          activeResidentSlot += 1;
-        }
-      }
-    }
-
-    for (const d of departedForCensus) {
-      const fullName = pickName(nameIdx);
-      const departedSlot = nameIdx + 8_000;
-      const contact = nokAndPoaForSlot(departedSlot);
-      nameIdx += 1;
-      const dob = iso(1941 + (nameIdx % 15), 4, 10 + (nameIdx % 15));
-      const id = randomUUID();
-      const wardLabel =
-        d.wi === null ? "Admissions holding" : HOME_SEEDS[d.hi]!.wards[d.wi]!.label;
-      const roomText =
-        d.wi === null
-          ? `Holding — Bed ${310 + (nameIdx % 25)}`
-          : `${wardLabel} — Room ${215 + (nameIdx % 35)}`;
-      const departedNurse = careUserIds[nameIdx % careUserIds.length]!;
+    for (const [index, home] of homesBuilt.entries()) {
+      const activeResidentId = randomUUID();
+      const activeName = `Resident ${index + 1} Active`;
       tx.insert(residents)
         .values({
-          id,
-          homeId: d.homeId,
-          fullName,
-          normalizedFullName: normalizeFullNameForUniqueness(fullName),
-          dob,
-          admissionDate: d.admit,
-          wardId: d.wardId,
-          roomText,
-          status: "departed",
-          nokName: contact.nokName,
-          nokContact: contact.nokContact,
-          nokRelationship: contact.nokRelationship,
-          poaSameAsNok: contact.poaSameAsNok,
-          poaName: contact.poaName,
-          poaContact: contact.poaContact,
-          poaRelationship: contact.poaRelationship,
-          assignedNurseUserId: departedNurse,
+          id: activeResidentId,
+          homeId: home.id,
+          fullName: activeName,
+          normalizedFullName: normalizeFullNameForUniqueness(activeName),
+          dob: `19${54 + index}-0${index + 4}-1${index + 1}`,
+          admissionDate: dateOnlyFromUtcMs(daysAgo(ts, 220 + index * 30)),
+          wardId: home.wardIds[0]!,
+          roomText: `${home.name} Room ${200 + index}`,
+          status: "active",
+          nokName: `Family Contact ${index + 1}`,
+          nokContact: `+64 21 555 01${40 + index}`,
+          nokRelationship: "Child",
+          poaSameAsNok: index % 2 === 0,
+          poaName: index % 2 === 0 ? null : `POA Contact ${index + 1}`,
+          poaContact: index % 2 === 0 ? null : `+64 22 555 01${60 + index}`,
+          poaRelationship: index % 2 === 0 ? null : "Power of attorney",
+          assignedNurseUserId: careUsers[index]!.id,
           assignedNurseDisplayOverride: null,
-          createdAtUtcMs: t,
-          updatedAtUtcMs: t,
+          portraitStoredRelativePath: null,
+          portraitContentType: null,
+          portraitSizeBytes: null,
+          portraitUpdatedAtUtcMs: null,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
+      residentsBuilt.push({
+        id: activeResidentId,
+        homeId: home.id,
+        status: "active",
+        wardId: home.wardIds[0]!,
+      });
+
+      const departedResidentId = randomUUID();
+      const departedName = `Resident ${index + 1} Departed`;
+      tx.insert(residents)
+        .values({
+          id: departedResidentId,
+          homeId: home.id,
+          fullName: departedName,
+          normalizedFullName: normalizeFullNameForUniqueness(departedName),
+          dob: `19${48 + index}-1${index + 1}-0${index + 2}`,
+          admissionDate: dateOnlyFromUtcMs(daysAgo(ts, 500 + index * 45)),
+          wardId: home.wardIds[1] ?? home.wardIds[0]!,
+          roomText: `${home.name} Room ${300 + index}`,
+          status: "departed",
+          nokName: `Family Contact D${index + 1}`,
+          nokContact: `+64 27 555 02${20 + index}`,
+          nokRelationship: "Sibling",
+          poaSameAsNok: false,
+          poaName: `POA D${index + 1}`,
+          poaContact: `+64 29 555 03${10 + index}`,
+          poaRelationship: "Legal guardian",
+          assignedNurseUserId: careUsers[index]!.id,
+          assignedNurseDisplayOverride: null,
+          portraitStoredRelativePath: null,
+          portraitContentType: null,
+          portraitSizeBytes: null,
+          portraitUpdatedAtUtcMs: null,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
         })
         .run();
       tx.insert(residentDepartureDetails)
         .values({
-          residentId: id,
-          reason: d.reason,
-          departedAtUtcMs: d.departMs,
+          residentId: departedResidentId,
+          reason: "Transferred to another care home",
+          departedAtUtcMs: daysAgo(ts, 30 + index * 10),
+        })
+        .run();
+      residentsBuilt.push({
+        id: departedResidentId,
+        homeId: home.id,
+        status: "departed",
+        wardId: home.wardIds[1] ?? home.wardIds[0]!,
+      });
+    }
+
+    for (const [idx, resident] of residentsBuilt.entries()) {
+      tx.insert(residentConditions)
+        .values({
+          id: randomUUID(),
+          residentId: resident.id,
+          label: idx % 2 === 0 ? "Hypertension" : "Osteoarthritis",
+          sortOrder: 0,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
+      tx.insert(residentAllergies)
+        .values({
+          id: randomUUID(),
+          residentId: resident.id,
+          allergen: idx % 2 === 0 ? "Penicillin" : "Shellfish",
+          notes: idx % 2 === 0 ? "Mild rash" : null,
+          sortOrder: 0,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
         })
         .run();
     }
 
-    const medicationCatalogCache = new Map<string, string>();
-    const medicationCategoryByHome = new Map<string, string>();
+    const supplierId = randomUUID();
+    tx.insert(inventorySuppliers)
+      .values({
+        id: supplierId,
+        name: "Care Supply Co",
+        address: "101 Industry Road, Auckland",
+        phone: "+64 9 555 7070",
+        email: "orders@caresupply.example",
+        createdAtUtcMs: ts,
+        updatedAtUtcMs: ts,
+      })
+      .run();
 
-    for (let ci = 0; ci < activeResidentIdsAll.length; ci += 1) {
-      const residentId = activeResidentIdsAll[ci]!;
-      const resRow = tx
-        .select({ homeId: residents.homeId })
-        .from(residents)
-        .where(eq(residents.id, residentId))
-        .get();
-      if (!resRow) {
-        throw new Error(`Seed: missing resident ${residentId}`);
+    const itemByHome = new Map<string, string>();
+    for (const home of homesBuilt) {
+      const categoryId = randomUUID();
+      tx.insert(inventoryItemCategories)
+        .values({
+          id: categoryId,
+          homeId: home.id,
+          name: "Medication",
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
+
+      const itemId = randomUUID();
+      itemByHome.set(home.id, itemId);
+      tx.insert(inventoryItems)
+        .values({
+          id: itemId,
+          homeId: home.id,
+          categoryId,
+          name: "Paracetamol 500mg",
+          baseUnit: "tablet",
+          unitClass: "countable",
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
+
+      const balanceId = randomUUID();
+      tx.insert(inventoryBalances)
+        .values({
+          id: balanceId,
+          ownerType: "HOME",
+          ownerId: home.id,
+          itemId,
+          quantityBaseUnits: 120,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
+
+      tx.insert(inventoryTransactions)
+        .values({
+          id: randomUUID(),
+          ownerType: "HOME",
+          ownerId: home.id,
+          itemId,
+          transactionType: "RECEIVE",
+          transferId: null,
+          quantityDeltaBaseUnits: 120,
+          sourceType: "PO_RECEIVE",
+          sourceId: balanceId,
+          note: "Initial stock",
+          actorUserId: adminUserId,
+          createdAtUtcMs: ts,
+        })
+        .run();
+    }
+
+    for (const [idx, resident] of residentsBuilt.entries()) {
+      if (resident.status !== "active") {
+        continue;
       }
-      const def = CLINICAL_PROFILES[ci % CLINICAL_PROFILES.length]!;
-      let sort = 0;
-      for (const label of def.conditions) {
-        tx.insert(residentConditions)
+      const itemId = itemByHome.get(resident.homeId);
+      if (!itemId) {
+        continue;
+      }
+      tx.insert(residentMedications)
+        .values({
+          id: randomUUID(),
+          residentId: resident.id,
+          itemId,
+          quantityPerServing: 2,
+          servingsPerDay: 3,
+          directions: "After meals",
+          prn: false,
+          status: "active",
+          sortOrder: idx,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
+    }
+
+    for (const home of homesBuilt) {
+      const accountId = randomUUID();
+      homeAccountByHomeId.set(home.id, accountId);
+      tx.insert(accounts)
+        .values({
+          id: accountId,
+          accountType: "home",
+          residentId: null,
+          homeId: home.id,
+          currencyCode: DEFAULT_CURRENCY_CODE,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
+    }
+    for (const resident of residentsBuilt) {
+      const accountId = randomUUID();
+      residentAccountByResidentId.set(resident.id, accountId);
+      tx.insert(accounts)
+        .values({
+          id: accountId,
+          accountType: "resident",
+          residentId: resident.id,
+          homeId: null,
+          currencyCode: DEFAULT_CURRENCY_CODE,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
+    }
+
+    const homeIndexById = new Map(homesBuilt.map((h, i) => [h.id, i]));
+    const wardHeadlineFeeByHomeIdx = [680000, 495000, 500000] as const;
+    const receiptMethodsCycle = ["bank_transfer", "cash", "cheque"] as const;
+
+    for (const resident of residentsBuilt) {
+      const accountId = residentAccountByResidentId.get(resident.id);
+      if (!accountId) {
+        continue;
+      }
+      const hi = homeIndexById.get(resident.homeId) ?? 0;
+
+      if (resident.status === "departed") {
+        const departedInvoiceId = randomUUID();
+        tx.insert(invoices)
+          .values({
+            id: departedInvoiceId,
+            accountId,
+            homeId: resident.homeId,
+            invNo: `INV-D-${String(hi + 1).padStart(2, "0")}-${resident.id.replace(/-/g, "").slice(0, 6)}`,
+            purchaseOrderId: null,
+            status: "draft",
+            issuedOn: `${billingMonth}-01`,
+            totalMinorSnapshot: 520000,
+            createdAtUtcMs: ts,
+            updatedAtUtcMs: ts,
+          })
+          .run();
+        tx.insert(invoiceLineItems)
           .values({
             id: randomUUID(),
-            residentId,
-            label,
-            sortOrder: sort++,
-            createdAtUtcMs: t,
-            updatedAtUtcMs: t,
+            invoiceId: departedInvoiceId,
+            category: "monthly_fee",
+            description: "Draft carry-forward (departed resident)",
+            amountMinor: 520000,
+            serviceMonth: billingMonth,
+            quantity: 1,
+            createdAtUtcMs: ts,
+            updatedAtUtcMs: ts,
+          })
+          .run();
+        continue;
+      }
+
+      for (let mi = 0; mi < SEED_FINANCIAL_HISTORY_MONTHS; mi++) {
+        const ym = shiftBillingMonth(billingMonth, -mi);
+        const issuedOn = `${ym}-15`;
+        const feeMinor =
+          wardHeadlineFeeByHomeIdx[hi] + (mi % 5) * 2800 + hi * 1100;
+        const miscMinor = 38000 + mi * 700 + hi * 350;
+        const otherMinor = 9200 + mi * 120;
+        const totalSnap = feeMinor + miscMinor + otherMinor;
+
+        const invoiceId = randomUUID();
+        const lineFeeId = randomUUID();
+        const lineMiscId = randomUUID();
+        const lineOtherId = randomUUID();
+        tx.insert(invoices)
+          .values({
+            id: invoiceId,
+            accountId,
+            homeId: resident.homeId,
+            invNo: `INV-${String(hi + 1).padStart(2, "0")}-${ym}-${String(mi).padStart(2, "0")}`,
+            purchaseOrderId: null,
+            status: "finalized",
+            issuedOn,
+            totalMinorSnapshot: totalSnap,
+            createdAtUtcMs: utcMsFromIsoDate(issuedOn),
+            updatedAtUtcMs: utcMsFromIsoDate(issuedOn),
+          })
+          .run();
+
+        tx.insert(invoiceLineItems)
+          .values({
+            id: lineFeeId,
+            invoiceId,
+            category: "monthly_fee",
+            description: `Residential board (${ym})`,
+            amountMinor: feeMinor,
+            serviceMonth: ym,
+            quantity: 1,
+            createdAtUtcMs: ts,
+            updatedAtUtcMs: ts,
+          })
+          .run();
+        tx.insert(invoiceLineItems)
+          .values({
+            id: lineMiscId,
+            invoiceId,
+            category: "misc",
+            description: "Clinical consumables & incidentals",
+            amountMinor: miscMinor,
+            serviceMonth: null,
+            quantity: 1,
+            createdAtUtcMs: ts,
+            updatedAtUtcMs: ts,
+          })
+          .run();
+        tx.insert(invoiceLineItems)
+          .values({
+            id: lineOtherId,
+            invoiceId,
+            category: "other_charge",
+            description: "Therapy equipment rental",
+            amountMinor: otherMinor,
+            serviceMonth: null,
+            quantity: 1,
+            createdAtUtcMs: ts,
+            updatedAtUtcMs: ts,
+          })
+          .run();
+
+        const monthlySourceId = `${accountId}:${ym}`;
+        const postedChargeAt = utcMsFromIsoDate(issuedOn);
+
+        tx.insert(billingTransactions)
+          .values({
+            id: randomUUID(),
+            accountId,
+            accountType: "resident",
+            txnType: "charge",
+            amountMinor: feeMinor,
+            sourceKind: "invoice_monthly_fee",
+            sourceId: monthlySourceId,
+            memo: `Board ${ym}`,
+            recordedByUserId: adminUserId,
+            postedAtUtcMs: postedChargeAt + 3600,
+          })
+          .run();
+        tx.insert(billingTransactions)
+          .values({
+            id: randomUUID(),
+            accountId,
+            accountType: "resident",
+            txnType: "charge",
+            amountMinor: miscMinor,
+            sourceKind: "invoice_line_item",
+            sourceId: lineMiscId,
+            memo: "Clinical consumables & incidentals",
+            recordedByUserId: adminUserId,
+            postedAtUtcMs: postedChargeAt + 7200,
+          })
+          .run();
+        tx.insert(billingTransactions)
+          .values({
+            id: randomUUID(),
+            accountId,
+            accountType: "resident",
+            txnType: "charge",
+            amountMinor: otherMinor,
+            sourceKind: "invoice_line_item",
+            sourceId: lineOtherId,
+            memo: "Therapy equipment rental",
+            recordedByUserId: adminUserId,
+            postedAtUtcMs: postedChargeAt + 10_800,
+          })
+          .run();
+
+        const payPortion =
+          mi % 7 === 0
+            ? 1
+            : mi % 5 === 0
+              ? 0.92
+              : 0.55 + ((mi + hi) % 5) * 0.08;
+        const payMinor = Math.max(5000, Math.floor(totalSnap * payPortion));
+        const receivedOn =
+          ym < billingMonth
+            ? `${ym}-${String(Math.min(22 + (mi % 7), 28)).padStart(2, "0")}`
+            : dateOnlyFromUtcMs(daysAgo(ts, 1 + mi));
+        const paymentId = randomUUID();
+        const paymentTxnId = randomUUID();
+        tx.insert(billingTransactions)
+          .values({
+            id: paymentTxnId,
+            accountId,
+            accountType: "resident",
+            txnType: "payment",
+            amountMinor: -payMinor,
+            sourceKind: "payment",
+            sourceId: paymentId,
+            memo: mi % 3 === 0 ? "Standing order instalment" : "Family transfer",
+            recordedByUserId: adminUserId,
+            postedAtUtcMs: utcMsFromIsoDate(receivedOn),
+          })
+          .run();
+        tx.insert(billingPayments)
+          .values({
+            id: paymentId,
+            accountId,
+            amountMinor: payMinor,
+            receivedOn,
+            method: receiptMethodsCycle[(mi + hi) % receiptMethodsCycle.length]!,
+            externalReference:
+              receiptMethodsCycle[(mi + hi) % receiptMethodsCycle.length] ===
+              "bank_transfer"
+                ? `NZD-SEED-${ym}-${resident.id.slice(0, 4)}`
+                : null,
+            notes: `Seeded receipt — ${ym}`,
+            recordedByUserId: adminUserId,
+            ledgerTransactionId: paymentTxnId,
+            createdAtUtcMs: utcMsFromIsoDate(receivedOn),
+            updatedAtUtcMs: utcMsFromIsoDate(receivedOn),
           })
           .run();
       }
-      sort = 0;
-      for (const a of def.allergies) {
-        tx.insert(residentAllergies)
+
+      const draftPeekId = randomUUID();
+      const draftYmRecent = billingMonth;
+      tx.insert(invoices)
+        .values({
+          id: draftPeekId,
+          accountId,
+          homeId: resident.homeId,
+          invNo: null,
+          purchaseOrderId: null,
+          status: "draft",
+          issuedOn: null,
+          totalMinorSnapshot: null,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
+      tx.insert(invoiceLineItems)
+        .values({
+          id: randomUUID(),
+          invoiceId: draftPeekId,
+          category: "monthly_fee",
+          description: `Upcoming board — ${draftYmRecent} (estimate)`,
+          amountMinor: wardHeadlineFeeByHomeIdx[hi] + 5500,
+          serviceMonth: draftYmRecent,
+          quantity: 1,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
+    }
+
+    for (const [hi, home] of homesBuilt.entries()) {
+      const homeAcct = homeAccountByHomeId.get(home.id);
+      if (!homeAcct) {
+        continue;
+      }
+      for (const miOffset of [0, 2, 4, 6, 8, 10]) {
+        const ym = shiftBillingMonth(billingMonth, -miOffset);
+        const recv = `${ym}-${String(12 + hi).padStart(2, "0")}`;
+        const payAmt = 125000 + miOffset * 2800 + hi * 9100;
+        const paymentId = randomUUID();
+        const paymentTxnId = randomUUID();
+        tx.insert(billingTransactions)
           .values({
-            id: randomUUID(),
-            residentId,
-            allergen: a.allergen,
-            notes: a.notes,
-            sortOrder: sort++,
-            createdAtUtcMs: t,
-            updatedAtUtcMs: t,
+            id: paymentTxnId,
+            accountId: homeAcct,
+            accountType: "home",
+            txnType: "payment",
+            amountMinor: -payAmt,
+            sourceKind: "payment",
+            sourceId: paymentId,
+            memo: `Operating levy (${ym})`,
+            recordedByUserId: adminUserId,
+            postedAtUtcMs: utcMsFromIsoDate(recv),
           })
           .run();
-      }
-      sort = 0;
-      for (const m of def.medications) {
-        const name = m.name.trim().replace(/\s+/g, " ");
-        const strength = m.strength.trim().replace(/\s+/g, " ");
-        const unit = m.unit.trim();
-        let categoryId = medicationCategoryByHome.get(resRow.homeId);
-        if (!categoryId) {
-          categoryId = randomUUID();
-          tx.insert(inventoryItemCategories)
-            .values({
-              id: categoryId,
-              homeId: resRow.homeId,
-              name: "Medication",
-              createdAtUtcMs: t,
-              updatedAtUtcMs: t,
-            })
-            .run();
-          medicationCategoryByHome.set(resRow.homeId, categoryId);
-        }
-
-        const inventoryName = `${name} (${strength})`;
-        const cacheKey = `${resRow.homeId}\0${inventoryName}\0${unit}`;
-        let inventoryItemId = medicationCatalogCache.get(cacheKey);
-        if (!inventoryItemId) {
-          inventoryItemId = randomUUID();
-          tx.insert(inventoryItems)
-            .values({
-              id: inventoryItemId,
-              homeId: resRow.homeId,
-              categoryId,
-              name: inventoryName,
-              baseUnit: unit,
-              unitClass: "countable",
-              createdAtUtcMs: t,
-              updatedAtUtcMs: t,
-            })
-            .run();
-          medicationCatalogCache.set(cacheKey, inventoryItemId);
-        }
-        tx.insert(residentMedications)
+        tx.insert(billingPayments)
           .values({
-            id: randomUUID(),
-            residentId,
-            itemId: inventoryItemId,
-            quantityPerServing: m.quantityPerServing,
-            servingsPerDay: m.servingsPerDay,
-            directions: m.directions,
-            prn: m.prn,
-            status: "active",
-            sortOrder: sort++,
-            createdAtUtcMs: t,
-            updatedAtUtcMs: t,
+            id: paymentId,
+            accountId: homeAcct,
+            amountMinor: payAmt,
+            receivedOn: recv,
+            method: miOffset % 2 === 0 ? "bank_transfer" : "cheque",
+            externalReference: `HOME-LEVY-${home.name}-${ym}`,
+            notes: "Seeded home operating receipt",
+            recordedByUserId: adminUserId,
+            ledgerTransactionId: paymentTxnId,
+            createdAtUtcMs: utcMsFromIsoDate(recv),
+            updatedAtUtcMs: utcMsFromIsoDate(recv),
           })
           .run();
       }
     }
+    for (const [index, home] of homesBuilt.entries()) {
+      const itemId = itemByHome.get(home.id);
+      if (!itemId) {
+        continue;
+      }
+      const poId = randomUUID();
+      tx.insert(homePurchaseOrders)
+        .values({
+          id: poId,
+          homeId: home.id,
+          poNumber: `PO-${home.name.toUpperCase()}-00${index + 1}`,
+          supplierId,
+          status: "SENT",
+          currencyCode: DEFAULT_CURRENCY_CODE,
+          approvedAtUtcMs: daysAgo(ts, 5),
+          approvedByUserId: adminUserId,
+          sentAtUtcMs: daysAgo(ts, 4),
+          sentByUserId: adminUserId,
+          createdByUserId: adminUserId,
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
 
-    const h0 = homeRows[0]!;
-    const h1 = homeRows[1]!;
-    const h2 = homeRows[2]!;
-    const dueSoon = isoDatePlusDaysUtc(nowUtcMs, 3);
-    const dueDone = isoDatePlusDaysUtc(nowUtcMs, -10);
+      const lineId = randomUUID();
+      tx.insert(homePurchaseOrderLines)
+        .values({
+          id: lineId,
+          purchaseOrderId: poId,
+          itemId,
+          ownerType: "HOME",
+          ownerId: home.id,
+          purchaseUnitType: "tablet",
+          quantityOrderedBaseUnits: 200,
+          quantityReceivedBaseUnits: 200,
+          status: "CLOSED",
+          createdAtUtcMs: ts,
+          updatedAtUtcMs: ts,
+        })
+        .run();
+
+      tx.insert(homePurchaseOrderReceiveEvents)
+        .values({
+          id: randomUUID(),
+          purchaseOrderId: poId,
+          purchaseOrderLineId: lineId,
+          qtyReceivedEvent: 200,
+          baseUnitsReceivedEvent: 200,
+          unitPriceCents: 15,
+          currencyCode: DEFAULT_CURRENCY_CODE,
+          receivedAtUtcMs: daysAgo(ts, 3),
+          note: "Full delivery",
+          createdByUserId: adminUserId,
+          createdAtUtcMs: ts,
+        })
+        .run();
+    }
 
     tx.insert(tasks)
       .values({
         id: randomUUID(),
-        homeId: h0.id,
-        title: "Fire drill paperwork — upload signed attendance sheet",
-        notes:
-          "District health board audit folder; scan and attach PDF once ward managers sign.",
-        dueDate: dueSoon,
+        homeId: homesBuilt[0]!.id,
+        title: "Upload fire drill attendance sheet",
+        notes: "Signed by all shift leads.",
+        dueDate: dateOnlyFromUtcMs(daysAgo(ts, -3)),
         priority: "urgent",
         status: "open",
-        createdByUserId: adminId,
+        createdByUserId: adminUserId,
         completedAtUtcMs: null,
-        createdAtUtcMs: t,
-        updatedAtUtcMs: t,
+        createdAtUtcMs: ts,
+        updatedAtUtcMs: ts,
       })
       .run();
     tx.insert(tasks)
       .values({
         id: randomUUID(),
-        homeId: h0.id,
-        title: "Replace guest Wi-Fi poster in main lounge",
-        notes: null,
-        dueDate: dueDone,
+        homeId: homesBuilt[1]!.id,
+        title: "Replace dining room handrails",
+        notes: "Contractor booked.",
+        dueDate: dateOnlyFromUtcMs(daysAgo(ts, 5)),
         priority: "normal",
         status: "completed",
-        createdByUserId: careUserIds[0]!,
-        completedAtUtcMs: nowUtcMs - 9 * 86_400_000,
-        createdAtUtcMs: t - 12 * 86_400_000,
-        updatedAtUtcMs: t,
+        createdByUserId: careUsers[1]!.id,
+        completedAtUtcMs: daysAgo(ts, 2),
+        createdAtUtcMs: daysAgo(ts, 9),
+        updatedAtUtcMs: ts,
       })
       .run();
-    tx.insert(tasks)
+
+    const taskSubjects = [
+      "Review hoist sling inventory",
+      "Family meeting invites — quarterly",
+      "Linens reorder (facecloths)",
+      "Medic fridge temp log audit",
+      "Garden pathway lighting check",
+      "Staff hand hygiene observations",
+      "Activity calendar April publish",
+      "Window restrictor signage walkthrough",
+      "Backup generator test log",
+      "Hydration rounding pilot debrief",
+    ];
+    for (let ti = 0; ti < taskSubjects.length; ti++) {
+      const homeTi = homesBuilt[ti % homesBuilt.length]!;
+      const doneOpen = ti % 3 !== 1;
+      tx.insert(tasks)
+        .values({
+          id: randomUUID(),
+          homeId: homeTi.id,
+          title: taskSubjects[ti]!,
+          notes: ti % 2 === 0 ? "Tracked in schema seed batch." : null,
+          dueDate: dateOnlyFromUtcMs(daysAgo(ts, 45 - ti * 3)),
+          priority: ti % 4 === 0 ? "urgent" : "normal",
+          status: doneOpen ? "completed" : "open",
+          createdByUserId: ti % 2 === 0 ? adminUserId : careUsers[ti % careUsers.length]!.id,
+          completedAtUtcMs: doneOpen ? daysAgo(ts, 38 - ti * 2) : null,
+          createdAtUtcMs: daysAgo(ts, 62 - ti),
+          updatedAtUtcMs: ts,
+        })
+        .run();
+    }
+    tx.insert(authEvents)
       .values({
         id: randomUUID(),
-        homeId: h1.id,
-        title: "Review respite bedding inventory before long weekend",
-        notes: "Cross-check linen cupboard labels with spreadsheet.",
-        dueDate: null,
-        priority: "normal",
-        status: "open",
-        createdByUserId: adminId,
-        completedAtUtcMs: null,
-        createdAtUtcMs: t,
-        updatedAtUtcMs: t,
+        userId: adminUserId,
+        email: adminEmail,
+        eventType: "sign_in",
+        occurredAtUtcMs: daysAgo(ts, 1),
       })
       .run();
-    tx.insert(tasks)
+    for (const [index, care] of careUsers.entries()) {
+      tx.insert(authEvents)
+        .values({
+          id: randomUUID(),
+          userId: care.id,
+          email: care.email,
+          eventType: "sign_in",
+          occurredAtUtcMs: daysAgo(ts, 2 + index),
+        })
+        .run();
+    }
+
+    tx.insert(appSettings)
       .values({
-        id: randomUUID(),
-        homeId: h2.id,
-        title: "Lift service certificate filed",
-        notes: "Annual certification completed by contractor.",
-        dueDate: iso(year, monthThrough, Math.min(day, 28)),
-        priority: "urgent",
-        status: "completed",
-        createdByUserId: adminId,
-        completedAtUtcMs: nowUtcMs - 2 * 86_400_000,
-        createdAtUtcMs: t - 5 * 86_400_000,
-        updatedAtUtcMs: t,
+        key: "billing.finalizedInvoiceGraceDays",
+        valueInt: 5,
+        updatedAtUtcMs: ts,
       })
       .run();
   });
-
-  const residentRows = db
-    .select({
-      residentId: residents.id,
-      currencyCode: homes.defaultCurrencyCode,
-    })
-    .from(residents)
-    .innerJoin(homes, eq(homes.id, residents.homeId))
-    .all();
-  const tsAccounts = Date.now();
-  for (const row of residentRows) {
-    db.insert(residentAccounts)
-      .values({
-        id: randomUUID(),
-        residentId: row.residentId,
-        currencyCode: row.currencyCode,
-        createdAtUtcMs: tsAccounts,
-        updatedAtUtcMs: tsAccounts,
-      })
-      .run();
-  }
-
-  const sanity = db
-    .select({ id: residents.id })
-    .from(residents)
-    .where(and(eq(residents.status, "active"), isNotNull(residents.wardId)))
-    .all();
-  if (sanity.length !== activeWithWard.length) {
-    throw new Error("Seed invariant failed: active-with-ward resident count mismatch.");
-  }
 
   return {
     adminEmail,
     adminPassword,
     nurseEmail,
     nursePassword,
-    careAccounts: careSeedSpecs.map((s) => ({
-      email: s.email,
+    careAccounts: careUsers.map((c) => ({
+      email: c.email,
       password: nursePassword,
-      displayName: s.displayName,
+      displayName: c.displayName,
     })),
-    homesNamed: HOME_SEEDS.map((h) => h.name),
-    timezoneLabel: tz,
-    calendarThrough: bm0,
+    homesNamed: homesBuilt.map((h) => h.name),
+    timezoneLabel,
+    calendarThrough: billingMonth,
   };
 }

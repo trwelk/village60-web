@@ -16,7 +16,7 @@ function runAllMigrations(file: string) {
   sqlite.close();
 }
 
-describe("migration 0046: home_accounts + polymorphic billing_transactions", () => {
+describe("migration 0046+: unified accounts + polymorphic billing_transactions", () => {
   let dbPath: string;
 
   beforeEach(() => {
@@ -31,16 +31,18 @@ describe("migration 0046: home_accounts + polymorphic billing_transactions", () 
     }
   });
 
-  it("creates the home_accounts table with the correct columns", () => {
+  it("creates the accounts table with polymorphic owner columns", () => {
     runAllMigrations(dbPath);
     const sqlite = new Database(dbPath);
 
     const columns = sqlite
-      .prepare("PRAGMA table_info('home_accounts')")
+      .prepare("PRAGMA table_info('accounts')")
       .all() as { name: string; notnull: number }[];
     const names = columns.map((c) => c.name);
 
+    expect(names).toContain("account_type");
     expect(names).toContain("id");
+    expect(names).toContain("resident_id");
     expect(names).toContain("home_id");
     expect(names).toContain("currency_code");
     expect(names).toContain("created_at_utc_ms");
@@ -49,7 +51,7 @@ describe("migration 0046: home_accounts + polymorphic billing_transactions", () 
     sqlite.close();
   });
 
-  it("enforces the unique index on home_accounts.home_id", () => {
+  it("enforces unique home ownership in accounts", () => {
     runAllMigrations(dbPath);
     const sqlite = new Database(dbPath);
     sqlite.pragma("foreign_keys = ON");
@@ -64,13 +66,13 @@ describe("migration 0046: home_accounts + polymorphic billing_transactions", () 
     ).run(homeId, "Test Home", currencyCode, t, t);
 
     sqlite.prepare(
-      "INSERT INTO home_accounts (id, home_id, currency_code, created_at_utc_ms, updated_at_utc_ms) VALUES (?, ?, ?, ?, ?)",
-    ).run(randomUUID(), homeId, currencyCode, t, t);
+      "INSERT INTO accounts (id, account_type, resident_id, home_id, currency_code, created_at_utc_ms, updated_at_utc_ms) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).run(randomUUID(), "home", null, homeId, currencyCode, t, t);
 
     expect(() =>
       sqlite.prepare(
-        "INSERT INTO home_accounts (id, home_id, currency_code, created_at_utc_ms, updated_at_utc_ms) VALUES (?, ?, ?, ?, ?)",
-      ).run(randomUUID(), homeId, currencyCode, t, t),
+        "INSERT INTO accounts (id, account_type, resident_id, home_id, currency_code, created_at_utc_ms, updated_at_utc_ms) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      ).run(randomUUID(), "home", null, homeId, currencyCode, t, t),
     ).toThrow(/UNIQUE constraint failed/);
 
     sqlite.close();

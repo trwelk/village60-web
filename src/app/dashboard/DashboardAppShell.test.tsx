@@ -117,8 +117,27 @@ describe("DashboardAppShell", () => {
       within(rail).getByRole("link", { name: "Invoices" }),
     ).toHaveAttribute("href", "/dashboard/invoices");
     expect(
+      within(rail).getByRole("link", { name: "Payments" }),
+    ).toHaveAttribute("href", "/dashboard/ledger");
+    const billing = within(rail).getByRole("group", { name: "Billing" });
+    expect(
+      within(billing).getByRole("link", { name: "Resident charges" }),
+    ).toHaveAttribute("href", "/dashboard/charges");
+    expect(
+      within(billing).getByRole("link", { name: "Home expenses" }),
+    ).toHaveAttribute("href", "/dashboard/home-expenses");
+    expect(
+      within(billing).getByRole("link", { name: "Resident payments" }),
+    ).toHaveAttribute("href", "/dashboard/payments");
+    expect(
+      within(billing).getByRole("link", { name: "Home payments" }),
+    ).toHaveAttribute("href", "/dashboard/home-payments");
+    expect(
       within(rail).getByRole("link", { name: "Revenue" }),
     ).toHaveAttribute("href", "/dashboard/analytics/revenue-collections");
+    expect(
+      within(rail).getByRole("link", { name: "Billing overview" }),
+    ).toHaveAttribute("href", "/dashboard/analytics/financial");
     expect(
       within(rail).getByRole("link", { name: "Leads" }),
     ).toHaveAttribute("href", "/dashboard/leads");
@@ -157,6 +176,9 @@ describe("DashboardAppShell", () => {
     const rail = screen.getByRole("complementary", { name: "Primary" });
     expect(
       within(rail).queryByRole("link", { name: "Revenue" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(rail).queryByRole("link", { name: "Billing overview" }),
     ).not.toBeInTheDocument();
   });
 
@@ -199,6 +221,20 @@ describe("DashboardAppShell", () => {
     const rail = screen.getByRole("complementary", { name: "Primary" });
     const link = within(rail).getByRole("link", {
       name: "Revenue",
+    });
+    expect(link).toHaveAttribute("aria-current", "page");
+  });
+
+  it("Billing overview nav is active on analytics financial route", () => {
+    pathRef.current = "/dashboard/analytics/financial";
+    renderShell(
+      <DashboardAppShell email="a@b.c" role="admin">
+        <p>content</p>
+      </DashboardAppShell>,
+    );
+    const rail = screen.getByRole("complementary", { name: "Primary" });
+    const link = within(rail).getByRole("link", {
+      name: "Billing overview",
     });
     expect(link).toHaveAttribute("aria-current", "page");
   });

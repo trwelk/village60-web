@@ -7,9 +7,10 @@ import {
   homes,
   invoices,
   invoiceLineItems,
-  residentAccounts,
+  accounts,
   residents,
   users,
+  wards,
 } from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError } from "@/lib/homes/errors";
@@ -18,6 +19,9 @@ export type HomeMonthlyChargeLedgerRow = {
   id: string;
   chargeId: string;
   billingMonth: string;
+  invoiceLineDescription: string;
+  invoiceLineCategory: string;
+  invoiceStatus: string;
   wardIdSnapshot?: string;
   wardLabel?: string | null;
   wardLabelSnapshot: string | null;
@@ -104,14 +108,18 @@ export type HomeMonthlyPaymentLedgerRow = {
 };
 
 type ChargeCore = {
+  invoiceLineId: string;
   chargeId: string;
-  accountId: string;
   residentId: string;
   residentFullName: string;
   residentStatus: string;
   billingMonth: string;
+  invoiceLineDescription: string;
+  invoiceLineCategory: string;
+  invoiceStatus: string;
   amountMinorSnapshot: number;
   wardIdSnapshot: string | null;
+  wardLabelSnapshot: string | null;
 };
 
 function requireBillingAdmin(actor: SessionActor | undefined): asserts actor is SessionActor {
@@ -120,129 +128,60 @@ function requireBillingAdmin(actor: SessionActor | undefined): asserts actor is 
   }
 }
 
-function linkedPaymentByChargeId(db: AppDb, chargeId: string) {
-  return db
-    .select({ payment: billingPayments, txn: billingTransactions })
-    .from(billingPayments)
-    .innerJoin(billingTransactions, eq(billingTransactions.id, billingPayments.ledgerTransactionId))
-    .where(eq(billingTransactions.memo, `charge:${chargeId}`))
-    .get();
-}
-
-function chargeRowsForHome(db: AppDb, homeId: string, from?: string, to?: string): ChargeCore[] {
-  const lineItemRows = db
+function chargeRowsForHome(
+  db: AppDb,
+  homeId: string,
+  input: { from?: string; to?: string; residentId?: string },
+): ChargeCore[] {
+  const rows = db
     .select({
-      charge: billingTransactions,
       invoice: invoices,
       resident: residents,
       line: invoiceLineItems,
+      ward: wards,
     })
-    .from(billingTransactions)
-    .innerJoin(residentAccounts, eq(residentAccounts.id, billingTransactions.accountId))
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
-    .innerJoin(
-      invoiceLineItems,
+    .from(invoiceLineItems)
+    .innerJoin(invoices, eq(invoiceLineItems.invoiceId, invoices.id))
+    .innerJoin(accounts, eq(accounts.id, invoices.accountId))
+    .innerJoin(residents, eq(residents.id, accounts.residentId))
+    .leftJoin(wards, eq(wards.id, residents.wardId))
+    .where(
       and(
-        eq(billingTransactions.sourceKind, "invoice_line_item"),
-        eq(billingTransactions.sourceId, invoiceLineItems.id),
+        eq(accounts.accountType, "resident"),
+        eq(residents.homeId, homeId),
+        input.residentId ? eq(residents.id, input.residentId) : sql`1=1`,
       ),
     )
-    .innerJoin(invoices, eq(invoiceLineItems.invoiceId, invoices.id))
-    .where(and(eq(residents.homeId, homeId), eq(billingTransactions.txnType, "charge")))
     .all();
 
-  const monthlyFeeRows = db
-    .select({
-      charge: billingTransactions,
-      invoice: invoices,
-      resident: residents,
-      line: invoiceLineItems,
-    })
-    .from(billingTransactions)
-    .innerJoin(residentAccounts, eq(residentAccounts.id, billingTransactions.accountId))
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
-    .innerJoin(
-      invoiceLineItems,
-      and(
-        eq(billingTransactions.sourceKind, "invoice_monthly_fee"),
-        eq(invoiceLineItems.category, "monthly_fee"),
-        sql`(${billingTransactions.accountId} || ':' || ${invoiceLineItems.serviceMonth}) = ${billingTransactions.sourceId}`,
-      ),
-    )
-    .innerJoin(invoices, eq(invoiceLineItems.invoiceId, invoices.id))
-    .where(and(eq(residents.homeId, homeId), eq(billingTransactions.txnType, "charge")))
-    .all();
-
-  const legacyInvoiceRows = db
-    .select({
-      charge: billingTransactions,
-      invoice: invoices,
-      resident: residents,
-      line: invoiceLineItems,
-    })
-    .from(billingTransactions)
-    .innerJoin(residentAccounts, eq(residentAccounts.id, billingTransactions.accountId))
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
-    .innerJoin(
-      invoices,
-      and(eq(billingTransactions.sourceKind, "invoice"), eq(billingTransactions.sourceId, invoices.id)),
-    )
-    .leftJoin(
-      invoiceLineItems,
-      and(eq(invoiceLineItems.invoiceId, invoices.id), eq(invoiceLineItems.serviceMonth, invoices.billingPeriod)),
-    )
-    .where(and(eq(residents.homeId, homeId), eq(billingTransactions.txnType, "charge")))
-    .all();
-
-  const merged = [...lineItemRows, ...monthlyFeeRows, ...legacyInvoiceRows];
-  const byChargeId = new Map<string, (typeof merged)[0]>();
-  for (const r of merged) {
-    byChargeId.set(r.charge.id, r);
-  }
-
-  return [...byChargeId.values()]
-    .filter((r) => r.invoice.billingPeriod !== null)
-    .map((r) => ({
-      chargeId: r.charge.id,
-      accountId: r.charge.accountId,
+  return rows
+    .map((r) => {
+      const billingMonth =
+        r.line.serviceMonth ??
+        (r.invoice.issuedOn && r.invoice.issuedOn.length >= 7
+          ? r.invoice.issuedOn.slice(0, 7)
+          : null);
+      if (!billingMonth) {
+        return null;
+      }
+      return {
+        invoiceLineId: r.line.id,
+        chargeId: r.line.id,
       residentId: r.resident.id,
       residentFullName: r.resident.fullName,
       residentStatus: r.resident.status,
-      billingMonth: r.invoice.billingPeriod!,
-      amountMinorSnapshot: r.charge.amountMinor,
-      wardIdSnapshot: r.line?.wardIdSnapshot ?? null,
-    }))
-    .filter((r) => (from ? r.billingMonth >= from : true))
-    .filter((r) => (to ? r.billingMonth <= to : true));
-}
-
-function mapChargeWithPayment(db: AppDb, c: ChargeCore): HomeMonthlyChargeLedgerRow {
-  const linked = linkedPaymentByChargeId(db, c.chargeId);
-  return {
-    id: c.chargeId,
-    chargeId: c.chargeId,
-    residentId: c.residentId,
-    residentFullName: c.residentFullName,
-    residentStatus: c.residentStatus,
-    billingMonth: c.billingMonth,
-    wardIdSnapshot: c.wardIdSnapshot ?? undefined,
-    wardLabel: null,
-    wardLabelSnapshot: null,
-    amountMinorSnapshot: c.amountMinorSnapshot,
-    paid: Boolean(linked),
-    paidOn: linked?.payment.receivedOn ?? null,
-    payment: linked
-      ? {
-          id: linked.payment.id,
-          amountMinor: linked.payment.amountMinor,
-          paidOn: linked.payment.receivedOn,
-          notes: linked.payment.notes,
-          recordedByUserId: linked.payment.recordedByUserId ?? "",
-          createdAtUtcMs: linked.payment.createdAtUtcMs,
-          updatedAtUtcMs: linked.payment.updatedAtUtcMs,
-        }
-      : null,
-  };
+        billingMonth,
+        invoiceLineDescription: r.line.description,
+        invoiceLineCategory: r.line.category,
+        invoiceStatus: r.invoice.status,
+        amountMinorSnapshot: r.line.amountMinor,
+        wardIdSnapshot: r.resident.wardId,
+        wardLabelSnapshot: r.ward?.label ?? null,
+      } satisfies ChargeCore;
+    })
+    .filter((r): r is ChargeCore => r !== null)
+    .filter((r) => (input.from ? r.billingMonth >= input.from : true))
+    .filter((r) => (input.to ? r.billingMonth <= input.to : true));
 }
 
 export function listHomeMonthlyChargesLedger(
@@ -251,6 +190,7 @@ export function listHomeMonthlyChargesLedger(
   homeId: string,
   input: {
     paymentStatus: HomeMonthlyChargesLedgerPaymentStatusFilter;
+    residentId?: string | null;
     billingMonthFrom?: string;
     billingMonthTo?: string;
     page: number;
@@ -267,10 +207,39 @@ export function listHomeMonthlyChargesLedger(
   assertActorMayAccessHome(db, actor, homeId);
   const home = db.select({ id: homes.id }).from(homes).where(eq(homes.id, homeId)).get();
   if (!home) throw new NotFoundError();
+  if (input.residentId) {
+    const resident = db
+      .select({ id: residents.id })
+      .from(residents)
+      .where(and(eq(residents.id, input.residentId), eq(residents.homeId, homeId)))
+      .get();
+    if (!resident) {
+      throw new NotFoundError();
+    }
+  }
 
-  let rows = chargeRowsForHome(db, homeId, input.billingMonthFrom, input.billingMonthTo).map((c) =>
-    mapChargeWithPayment(db, c),
-  );
+  let rows = chargeRowsForHome(db, homeId, {
+    from: input.billingMonthFrom,
+    to: input.billingMonthTo,
+    residentId: input.residentId ?? undefined,
+  }).map((c) => ({
+    id: c.invoiceLineId,
+    chargeId: c.chargeId,
+    residentId: c.residentId,
+    residentFullName: c.residentFullName,
+    residentStatus: c.residentStatus,
+    billingMonth: c.billingMonth,
+    invoiceLineDescription: c.invoiceLineDescription,
+    invoiceLineCategory: c.invoiceLineCategory,
+    invoiceStatus: c.invoiceStatus,
+    wardIdSnapshot: c.wardIdSnapshot ?? undefined,
+    wardLabel: c.wardLabelSnapshot,
+    wardLabelSnapshot: c.wardLabelSnapshot,
+    amountMinorSnapshot: c.amountMinorSnapshot,
+    paid: c.invoiceStatus === "paid",
+    paidOn: null,
+    payment: null,
+  }));
   if (input.paymentStatus === "paid") rows = rows.filter((r) => r.paid);
   if (input.paymentStatus === "unpaid") rows = rows.filter((r) => !r.paid);
   rows.sort((a, b) => b.billingMonth.localeCompare(a.billingMonth) || a.residentFullName.localeCompare(b.residentFullName));
@@ -320,9 +289,9 @@ export function listHomeOtherChargesLedger(
     .select({ li: invoiceLineItems, resident: residents })
     .from(invoiceLineItems)
     .innerJoin(invoices, eq(invoices.id, invoiceLineItems.invoiceId))
-    .innerJoin(residentAccounts, eq(residentAccounts.id, invoices.accountId))
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
-    .where(eq(residents.homeId, homeId))
+    .innerJoin(accounts, eq(accounts.id, invoices.accountId))
+    .innerJoin(residents, eq(residents.id, accounts.residentId))
+    .where(and(eq(accounts.accountType, "resident"), eq(residents.homeId, homeId)))
     .all()
     .filter((r) => r.li.category === "registration" || r.li.category === "deposit")
     .filter((r) => (input.residentId ? r.resident.id === input.residentId : true))
@@ -369,29 +338,56 @@ export function listHomeMonthlyPaymentsLedger(
   db: AppDb,
   actor: SessionActor | undefined,
   homeId: string,
-  input: { page: number; pageSize: number },
+  input: { page: number; pageSize: number; residentId?: string | null },
 ): { rows: HomeMonthlyPaymentLedgerRow[]; totalCount: number; page: number; pageSize: number } {
   requireBillingAdmin(actor);
   assertActorMayAccessHome(db, actor, homeId);
+  if (input.residentId) {
+    const resident = db
+      .select({ id: residents.id })
+      .from(residents)
+      .where(and(eq(residents.id, input.residentId), eq(residents.homeId, homeId)))
+      .get();
+    if (!resident) {
+      throw new NotFoundError();
+    }
+  }
   const rows = db
     .select({ p: billingPayments, txn: billingTransactions, resident: residents, user: users })
     .from(billingPayments)
     .innerJoin(billingTransactions, eq(billingTransactions.id, billingPayments.ledgerTransactionId))
-    .innerJoin(residentAccounts, eq(residentAccounts.id, billingPayments.accountId))
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
+    .innerJoin(accounts, eq(accounts.id, billingPayments.accountId))
+    .innerJoin(residents, eq(residents.id, accounts.residentId))
     .leftJoin(users, eq(users.id, billingPayments.recordedByUserId))
-    .where(eq(residents.homeId, homeId))
+    .where(
+      and(
+        eq(accounts.accountType, "resident"),
+        eq(residents.homeId, homeId),
+        input.residentId ? eq(residents.id, input.residentId) : sql`1=1`,
+      ),
+    )
     .orderBy(desc(billingPayments.receivedOn), desc(billingPayments.createdAtUtcMs))
     .all()
-    .filter((r) => r.txn.memo?.startsWith("charge:"))
+    .filter((r) => !r.txn.memo?.startsWith("other-charge:"))
     .map((r) => {
-      const chargeId = r.txn.memo!.slice("charge:".length);
-      const charge = db.select().from(billingTransactions).where(eq(billingTransactions.id, chargeId)).get();
-      const invoice = charge?.sourceId ? db.select().from(invoices).where(eq(invoices.id, charge.sourceId)).get() : null;
+      const chargeId =
+        r.txn.memo?.startsWith("charge:")
+          ? r.txn.memo.slice("charge:".length)
+          : null;
+      const charge = chargeId
+        ? db
+            .select()
+            .from(billingTransactions)
+            .where(eq(billingTransactions.id, chargeId))
+            .get()
+        : null;
+      const invoice = charge?.sourceId
+        ? db.select().from(invoices).where(eq(invoices.id, charge.sourceId)).get()
+        : null;
       return {
         paymentId: r.p.id,
-        chargeId,
-        billingMonth: invoice?.billingPeriod ?? "",
+        chargeId: chargeId ?? r.txn.id,
+        billingMonth: invoice?.issuedOn?.slice(0, 7) ?? r.p.receivedOn.slice(0, 7),
         amountMinorSnapshot: charge?.amountMinor,
         residentId: r.resident.id,
         residentFullName: r.resident.fullName,

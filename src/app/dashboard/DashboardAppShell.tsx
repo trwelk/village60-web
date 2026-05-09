@@ -8,18 +8,19 @@ import {
   isDashboardAccountPath,
   isDashboardAnalyticsAdmissionsDeparturesPath,
   isDashboardAnalyticsDemographicsStaffPath,
+  isDashboardAnalyticsFinancialPath,
   isDashboardAnalyticsRevenueCollectionsPath,
   isDashboardChargesPath,
-  isDashboardExpenseTypesPath,
-  isDashboardExpensesPath,
+  isDashboardHomeExpensesPath,
   isDashboardHomesPath,
   isDashboardInvoicesPath,
+  isDashboardLedgerPath,
   isDashboardInventoryCatalogPath,
   isDashboardInventoryOrdersPath,
   isDashboardInventorySuppliersPath,
   isDashboardLeadsPath,
-  isDashboardOtherChargesPath,
   isDashboardPaymentsPath,
+  isDashboardHomeAccountPaymentsPath,
   isDashboardResidentsPath,
   isDashboardTasksPath,
   isDashboardUsersPath,
@@ -32,13 +33,15 @@ import {
 } from "@/lib/dashboard/sidebarExpandedStorage";
 import type { LucideIcon } from "lucide-react";
 import {
+  Banknote,
+  BarChart3,
+  BookOpen,
   Building2,
   ClipboardList,
-  Coins,
   DoorOpen,
   FileSpreadsheet,
-  FileStack,
   Inbox,
+  Landmark,
   LayoutDashboard,
   LineChart,
   PackageSearch,
@@ -47,7 +50,6 @@ import {
   PieChart,
   Receipt,
   Settings,
-  Tags,
   UserCircle,
   UserCog,
   Users,
@@ -134,11 +136,16 @@ type NavLinkItem = {
   isActive: (pathname: string) => boolean;
 };
 
-type NavGroupSubLink = {
+type NavGroupLeafOnly = {
   href: string;
   label: string;
   Icon: LucideIcon;
   isActive: (pathname: string) => boolean;
+};
+
+/** Sub-link under a nav group; optional `children` renders as an indented cluster below the parent row. */
+type NavGroupSubLink = NavGroupLeafOnly & {
+  children?: NavGroupLeafOnly[];
 };
 
 type NavGroupItem = {
@@ -210,6 +217,12 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
                 isActive: isDashboardAnalyticsRevenueCollectionsPath,
               },
               {
+                href: "/dashboard/analytics/financial",
+                label: "Billing overview",
+                Icon: BarChart3,
+                isActive: isDashboardAnalyticsFinancialPath,
+              },
+              {
                 href: "/dashboard/analytics/admissions-departures",
                 label: "Admissions",
                 Icon: DoorOpen,
@@ -239,40 +252,44 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
         label: "Billing",
         items: [
           {
-            href: "/dashboard/charges",
-            label: "Charges",
-            Icon: Receipt,
-            isActive: isDashboardChargesPath,
-          },
-          {
             href: "/dashboard/invoices",
             label: "Invoices",
             Icon: FileSpreadsheet,
             isActive: isDashboardInvoicesPath,
+            children: [
+              {
+                href: "/dashboard/charges",
+                label: "Resident charges",
+                Icon: Receipt,
+                isActive: isDashboardChargesPath,
+              },
+              {
+                href: "/dashboard/home-expenses",
+                label: "Home expenses",
+                Icon: Landmark,
+                isActive: isDashboardHomeExpensesPath,
+              },
+            ],
           },
           {
-            href: "/dashboard/other-charges",
-            label: "Other charges",
-            Icon: FileStack,
-            isActive: isDashboardOtherChargesPath,
-          },
-          {
-            href: "/dashboard/payments",
+            href: "/dashboard/ledger",
             label: "Payments",
-            Icon: Wallet,
-            isActive: isDashboardPaymentsPath,
-          },
-          {
-            href: "/dashboard/expenses",
-            label: "Expenses",
-            Icon: Coins,
-            isActive: isDashboardExpensesPath,
-          },
-          {
-            href: "/dashboard/expenses/types",
-            label: "Expense types",
-            Icon: Tags,
-            isActive: isDashboardExpenseTypesPath,
+            Icon: BookOpen,
+            isActive: isDashboardLedgerPath,
+            children: [
+              {
+                href: "/dashboard/payments",
+                label: "Resident payments",
+                Icon: Wallet,
+                isActive: isDashboardPaymentsPath,
+              },
+              {
+                href: "/dashboard/home-payments",
+                label: "Home payments",
+                Icon: Banknote,
+                isActive: isDashboardHomeAccountPaymentsPath,
+              },
+            ],
           },
         ],
       },
@@ -373,32 +390,64 @@ function PrimaryNav({
                 ? "village-nav-link--rail-collapsed flex items-center"
                 : "flex items-center gap-2.5 border-l-2 pl-3 text-left",
             ].join(" ");
-            const subLinkNodes = entry.items.map((sub) => {
-              const active = sub.isActive(pathname);
+            const flatLeaves = entry.items.flatMap((sub) => {
+              const parent: NavGroupLeafOnly = {
+                href: sub.href,
+                label: sub.label,
+                Icon: sub.Icon,
+                isActive: sub.isActive,
+              };
+              return sub.children?.length ? [parent, ...sub.children] : [parent];
+            });
+            const nestedVertical =
+              navLinkLayout === "vertical" && !iconRail;
+            const subLinkNodes = (
+              nestedVertical
+                ? entry.items.flatMap((sub) => [
+                    { link: sub as NavGroupLeafOnly, nested: false },
+                    ...(sub.children?.map((c) => ({
+                      link: c,
+                      nested: true as const,
+                    })) ?? []),
+                  ])
+                : flatLeaves.map((link) => ({
+                    link,
+                    nested: false as const,
+                  }))
+            ).map(({ link: leaf, nested }) => {
+              const active = leaf.isActive(pathname);
               const borderAccent = active
                 ? "border-[var(--accent)]"
                 : "border-[color:color-mix(in_srgb,var(--line-subtle)_45%,transparent)]";
+              const nestedIndent =
+                nested && nestedVertical
+                  ? "ml-3 border-l border-[color:color-mix(in_srgb,var(--line-subtle)_45%,transparent)] pl-3 text-[0.9375rem]"
+                  : "";
               const subLinkClass =
                 iconRail || navLinkLayout !== "vertical"
                   ? linkClass
-                  : `${railSubLinkClass} ${borderAccent}`;
+                  : `${railSubLinkClass} ${borderAccent} ${nestedIndent}`.trim();
               return (
                 <Link
-                  key={sub.href}
-                  href={sub.href}
+                  key={
+                    nested && nestedVertical
+                      ? `${leaf.href}__nested`
+                      : leaf.href
+                  }
+                  href={leaf.href}
                   className={subLinkClass}
                   aria-current={active ? "page" : undefined}
-                  aria-label={iconRail ? sub.label : undefined}
-                  title={iconRail ? sub.label : undefined}
+                  aria-label={iconRail ? leaf.label : undefined}
+                  title={iconRail ? leaf.label : undefined}
                 >
-                  <sub.Icon
+                  <leaf.Icon
                     className="shrink-0"
                     size={iconRail ? 20 : 18}
                     strokeWidth={active && iconRail ? 2.25 : 2}
                     aria-hidden
                   />
                   {iconRail ? null : (
-                    <span className="min-w-0 leading-snug">{sub.label}</span>
+                    <span className="min-w-0 leading-snug">{leaf.label}</span>
                   )}
                 </Link>
               );

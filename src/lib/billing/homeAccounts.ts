@@ -1,8 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { assertActorMayAccessHome } from "@/lib/authz/homeScope";
 import type { SessionActor } from "@/lib/authz/sessionActor";
-import { billingTransactions, homeAccounts, homes } from "@/db/schema";
+import {
+  billingPayments,
+  billingTransactions,
+  accounts,
+  homes,
+  invoices,
+  users,
+} from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/errors";
 
@@ -21,11 +28,11 @@ function requireBillingAdmin(
 export function ensureHomeAccount(
   db: AppDb,
   homeId: string,
-): typeof homeAccounts.$inferSelect {
+): typeof accounts.$inferSelect {
   const existing = db
     .select()
-    .from(homeAccounts)
-    .where(eq(homeAccounts.homeId, homeId))
+    .from(accounts)
+    .where(and(eq(accounts.accountType, "home"), eq(accounts.homeId, homeId)))
     .get();
   if (existing) {
     return existing;
@@ -42,9 +49,11 @@ export function ensureHomeAccount(
 
   const now = Date.now();
   const id = randomUUID();
-  db.insert(homeAccounts)
+  db.insert(accounts)
     .values({
       id,
+      accountType: "home",
+      residentId: null,
       homeId,
       currencyCode: home.defaultCurrencyCode,
       createdAtUtcMs: now,
@@ -52,7 +61,15 @@ export function ensureHomeAccount(
     })
     .run();
 
-  return { id, homeId, currencyCode: home.defaultCurrencyCode, createdAtUtcMs: now, updatedAtUtcMs: now };
+  return {
+    id,
+    accountType: "home",
+    residentId: null,
+    homeId,
+    currencyCode: home.defaultCurrencyCode,
+    createdAtUtcMs: now,
+    updatedAtUtcMs: now,
+  };
 }
 
 export type PostHomeTransactionInput = {
@@ -122,7 +139,6 @@ export type HomeAccountLedgerLine = {
   memo: string | null;
   recordedByUserId: string | null;
   postedAtUtcMs: number;
-  reversesTransactionId: string | null;
   runningBalanceMinor: number;
 };
 
@@ -143,8 +159,8 @@ export function getHomeAccountStatement(
 
   const account = db
     .select()
-    .from(homeAccounts)
-    .where(eq(homeAccounts.homeId, homeId))
+    .from(accounts)
+    .where(and(eq(accounts.accountType, "home"), eq(accounts.homeId, homeId)))
     .get();
   if (!account) {
     return { accountId: "", currentBalanceMinor: 0, lines: [] };
@@ -170,10 +186,89 @@ export function getHomeAccountStatement(
       memo: row.memo ?? null,
       recordedByUserId: row.recordedByUserId ?? null,
       postedAtUtcMs: row.postedAtUtcMs,
-      reversesTransactionId: row.reversesTransactionId ?? null,
       runningBalanceMinor,
     };
   });
 
   return { accountId: account.id, currentBalanceMinor: runningBalanceMinor, lines };
+}
+
+export type HomeAccountPaymentLedgerRow = {
+  paymentId: string;
+  chargeId: string;
+  billingMonth: string;
+  amountMinorSnapshot?: number;
+  amountMinor: number;
+  paidOn: string;
+  method: string;
+  externalReference: string | null;
+  notes: string | null;
+  recordedByUserId: string | null;
+  recordedByEmail: string | null;
+};
+
+/**
+ * Paginated list of payment receipts posted to a home operating account
+ * (admin + home scope), newest first. Mirrors resident monthly payment ledger
+ * shape minus resident columns.
+ */
+export function listHomeAccountPaymentsLedger(
+  db: AppDb,
+  actor: SessionActor | undefined,
+  homeId: string,
+  input: { page: number; pageSize: number },
+): {
+  rows: HomeAccountPaymentLedgerRow[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+} {
+  requireBillingAdmin(actor);
+  assertActorMayAccessHome(db, actor, homeId);
+  const home = db.select({ id: homes.id }).from(homes).where(eq(homes.id, homeId)).get();
+  if (!home) throw new NotFoundError();
+
+  const rows = db
+    .select({ p: billingPayments, txn: billingTransactions, user: users })
+    .from(billingPayments)
+    .innerJoin(billingTransactions, eq(billingTransactions.id, billingPayments.ledgerTransactionId))
+    .innerJoin(accounts, eq(accounts.id, billingPayments.accountId))
+    .leftJoin(users, eq(users.id, billingPayments.recordedByUserId))
+    .where(and(eq(accounts.accountType, "home"), eq(accounts.homeId, homeId)))
+    .orderBy(desc(billingPayments.receivedOn), desc(billingPayments.createdAtUtcMs))
+    .all()
+    .filter((r) => !r.txn.memo?.startsWith("other-charge:"))
+    .map((r) => {
+      const chargeId = r.txn.memo?.startsWith("charge:")
+        ? r.txn.memo.slice("charge:".length)
+        : null;
+      const charge = chargeId
+        ? db.select().from(billingTransactions).where(eq(billingTransactions.id, chargeId)).get()
+        : null;
+      const invoice = charge?.sourceId
+        ? db.select().from(invoices).where(eq(invoices.id, charge.sourceId)).get()
+        : null;
+      return {
+        paymentId: r.p.id,
+        chargeId: chargeId ?? r.txn.id,
+        billingMonth: invoice?.issuedOn?.slice(0, 7) ?? r.p.receivedOn.slice(0, 7),
+        amountMinorSnapshot: charge?.amountMinor,
+        amountMinor: r.p.amountMinor,
+        paidOn: r.p.receivedOn,
+        method: r.p.method,
+        externalReference: r.p.externalReference ?? null,
+        notes: r.p.notes,
+        recordedByUserId: r.p.recordedByUserId,
+        recordedByEmail: r.user?.email ?? null,
+      } satisfies HomeAccountPaymentLedgerRow;
+    });
+
+  const totalCount = rows.length;
+  const offset = (input.page - 1) * input.pageSize;
+  return {
+    rows: rows.slice(offset, offset + input.pageSize),
+    totalCount,
+    page: input.page,
+    pageSize: input.pageSize,
+  };
 }

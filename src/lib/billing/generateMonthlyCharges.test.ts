@@ -10,8 +10,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
 import {
   billingTransactions,
+  invoiceLineItems,
   invoices,
-  residentAccounts,
+  accounts,
   residents,
   users,
 } from "@/db/schema";
@@ -58,14 +59,14 @@ function getOrCreateAccountId(
 ): string {
   const existing = db
     .select()
-    .from(residentAccounts)
-    .where(eq(residentAccounts.residentId, residentId))
+    .from(accounts)
+    .where(eq(accounts.residentId, residentId))
     .get();
   if (existing) {
     return existing.id;
   }
   const id = randomUUID();
-  db.insert(residentAccounts)
+  db.insert(accounts)
     .values({
       id,
       residentId,
@@ -124,8 +125,8 @@ describe("generateMonthlyCharges (PR4 draft + finalize)", () => {
 
     const account = db
       .select()
-      .from(residentAccounts)
-      .where(eq(residentAccounts.residentId, res.id))
+      .from(accounts)
+      .where(eq(accounts.residentId, res.id))
       .get();
     expect(account).toBeTruthy();
     const inv = db
@@ -133,7 +134,7 @@ describe("generateMonthlyCharges (PR4 draft + finalize)", () => {
       .from(invoices)
       .where(eq(invoices.accountId, account!.id))
       .get();
-    expect(inv?.billingPeriod).toBe("2026-04");
+    expect(inv?.issuedOn).toBe("2026-04-01");
     expect(inv?.status).toBe("draft");
     expect(inv?.totalMinorSnapshot).toBeNull();
 
@@ -166,8 +167,8 @@ describe("generateMonthlyCharges (PR4 draft + finalize)", () => {
     generateMonthlyCharges(db, { billingMonth: "2026-04" });
     const account = db
       .select()
-      .from(residentAccounts)
-      .where(eq(residentAccounts.residentId, res.id))
+      .from(accounts)
+      .where(eq(accounts.residentId, res.id))
       .get();
     const inv = db
       .select()
@@ -188,7 +189,7 @@ describe("generateMonthlyCharges (PR4 draft + finalize)", () => {
     expect(chargeTxn?.sourceId).toBe(`${account!.id}:2026-04`);
   });
 
-  it("skips residents with no ward and those whose ward has no rate", () => {
+  it("opens invoices for all active residents and only adds monthly_fee lines when ward rate exists", () => {
     const db = getDb();
     const home = createHome(db, "admin", {
       name: "H",
@@ -215,7 +216,7 @@ describe("generateMonthlyCharges (PR4 draft + finalize)", () => {
       admissionDate: "2024-06-01",
       wardId: wardNoRate.id,
     });
-    createResident(db, adminActor, {
+    const pricedResident = createResident(db, adminActor, {
       homeId: home.id,
       fullName: "Ok",
       dob: "1940-04-01",
@@ -224,22 +225,26 @@ describe("generateMonthlyCharges (PR4 draft + finalize)", () => {
     });
 
     const out = generateMonthlyCharges(db, { billingMonth: "2026-05" });
-    expect(out.created).toBe(1);
-    expect(out.skipped).toEqual(
-      expect.arrayContaining([
-        {
-          residentId: noWard.id,
-          homeId: home.id,
-          reason: "no_ward",
-        },
-        {
-          residentId: noRate.id,
-          homeId: home.id,
-          reason: "no_rate",
-        },
-      ]),
-    );
-    expect(out.skipped).toHaveLength(2);
+    expect(out.created).toBe(3);
+    expect(out.skipped).toEqual([]);
+
+    const allAccounts = db.select().from(accounts).all();
+    expect(allAccounts).toHaveLength(3);
+    const allInvoices = db.select().from(invoices).all();
+    expect(allInvoices).toHaveLength(3);
+    expect(allInvoices.every((row) => row.status === "draft")).toBe(true);
+
+    const noWardAccount = allAccounts.find((row) => row.residentId === noWard.id);
+    const noRateAccount = allAccounts.find((row) => row.residentId === noRate.id);
+    const pricedAccount = allAccounts.find((row) => row.residentId === pricedResident.id);
+    expect(noWardAccount).toBeTruthy();
+    expect(noRateAccount).toBeTruthy();
+    expect(pricedAccount).toBeTruthy();
+
+    const lines = db.select().from(invoiceLineItems).all();
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.category).toBe("monthly_fee");
+    expect(lines[0]?.amountMinor).toBe(100);
 
     const rows = db.select().from(billingTransactions).all();
     expect(rows).toHaveLength(0);
@@ -328,8 +333,8 @@ describe("generateMonthlyCharges (PR4 draft + finalize)", () => {
     generateMonthlyCharges(db, { billingMonth: "2026-08" });
     const account = db
       .select()
-      .from(residentAccounts)
-      .where(eq(residentAccounts.residentId, res.id))
+      .from(accounts)
+      .where(eq(accounts.residentId, res.id))
       .get();
     const inv = db
       .select()
@@ -377,19 +382,16 @@ describe("generateMonthlyCharges (PR4 draft + finalize)", () => {
       description: "2026-12 monthly fee",
       amountMinor: 1000,
       serviceMonth: "2026-12",
-      wardIdSnapshot: ward.id,
     };
     createDraftInvoice(db, adminActor, {
       homeId: home.id,
       accountId: accountA,
-      billingPeriod: "2026-12",
       lineItems: [line],
       nowUtcMs: now,
     });
     createDraftInvoice(db, adminActor, {
       homeId: home.id,
       accountId: accountA,
-      billingPeriod: "2026-12",
       lineItems: [{ ...line, description: "duplicate draft same month" }],
       nowUtcMs: now + 1,
     });

@@ -8,6 +8,7 @@ type ChargesPathOpts = {
   page?: number;
   pageSize?: number;
   paymentStatus?: HomeMonthlyChargesLedgerPaymentStatusFilter;
+  residentId?: string | null;
 };
 
 /**
@@ -36,6 +37,7 @@ export function buildDashboardChargesPath(
     Math.max(1, rawSize),
   );
   const paymentStatus = opts?.paymentStatus ?? "all";
+  const residentId = opts?.residentId?.trim() ?? "";
   if (page > 1) {
     p.set("page", String(page));
   }
@@ -44,6 +46,9 @@ export function buildDashboardChargesPath(
   }
   if (paymentStatus !== "all") {
     p.set("paymentStatus", paymentStatus);
+  }
+  if (residentId !== "") {
+    p.set("residentId", residentId);
   }
   return `/dashboard/charges?${p.toString()}`;
 }

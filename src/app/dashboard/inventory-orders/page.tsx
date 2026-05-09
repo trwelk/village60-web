@@ -1,5 +1,6 @@
 import { getDb } from "@/db/client";
 import { requireSessionActor } from "@/lib/authz/sessionActor";
+import { getAppTimezone } from "@/lib/config/appTimezone";
 import { listHomes } from "@/lib/homes/service";
 import { getSessionOptions, type SessionData } from "@/lib/session";
 import { getIronSession } from "iron-session";
@@ -35,8 +36,12 @@ export default async function InventoryOrdersPage({ searchParams }: PageParams) 
   }
 
   return (
-    <main className="flex flex-col gap-8 text-[var(--text-primary)]">
-      <InventoryOrdersClient homes={homes} selectedHomeId={selectedHomeId} />
+    <main className="flex flex-col gap-7 text-[var(--text-primary)]">
+      <InventoryOrdersClient
+        appTimezone={getAppTimezone()}
+        homes={homes}
+        selectedHomeId={selectedHomeId}
+      />
     </main>
   );
 }

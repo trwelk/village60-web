@@ -24,4 +24,12 @@ describe("buildDashboardChargesPath", () => {
       }),
     ).toBe("/dashboard/charges?homeId=h1&page=2&paymentStatus=unpaid");
   });
+
+  it("adds residentId when resident filter is selected", () => {
+    expect(
+      buildDashboardChargesPath("h1", "2026-01", "2026-04", "2026-01", "2026-04", {
+        residentId: "r2",
+      }),
+    ).toBe("/dashboard/charges?homeId=h1&residentId=r2");
+  });
 });

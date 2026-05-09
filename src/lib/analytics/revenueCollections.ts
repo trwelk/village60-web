@@ -4,7 +4,7 @@ import {
   billingTransactions,
   homes,
   invoices,
-  residentAccounts,
+  accounts,
   residents,
 } from "@/db/schema";
 import { utcBillingMonthFromMs } from "@/lib/billing/billingMonth";
@@ -69,7 +69,7 @@ export function sumBilledForBillingMonth(
     .where(
       and(
         eq(billingTransactions.txnType, "charge"),
-        eq(invoices.billingPeriod, billingMonth),
+        sql`substr(${invoices.issuedOn}, 1, 7) = ${billingMonth}`,
       ),
     )
     .get();
@@ -165,7 +165,7 @@ export function listTwelveMonthBilledVsCollected(
 
   const agg = db
     .select({
-      monthKey: invoices.billingPeriod,
+      monthKey: sql<string>`substr(${invoices.issuedOn}, 1, 7)`,
       billedMinor: sql<number>`ifnull(sum(${billingTransactions.amountMinor}), 0)`,
       collectedMinor: sql<number>`0`,
     })
@@ -180,12 +180,12 @@ export function listTwelveMonthBilledVsCollected(
     )
     .where(
       and(
-        isNotNull(invoices.billingPeriod),
-        gte(invoices.billingPeriod, startMonth),
-        lte(invoices.billingPeriod, endMonth),
+        isNotNull(invoices.issuedOn),
+        gte(sql`substr(${invoices.issuedOn}, 1, 7)`, startMonth),
+        lte(sql`substr(${invoices.issuedOn}, 1, 7)`, endMonth),
       ),
     )
-    .groupBy(invoices.billingPeriod)
+    .groupBy(sql`substr(${invoices.issuedOn}, 1, 7)`)
     .all();
 
   const collectedAgg = db
@@ -256,7 +256,7 @@ export function listPaymentLagByHome(db: AppDb): PaymentLagByHomeDatum[] {
     .select({
       accountId: billingTransactions.accountId,
       postedAtUtcMs: billingTransactions.postedAtUtcMs,
-      billingMonth: invoices.billingPeriod,
+      billingMonth: sql<string>`substr(${invoices.issuedOn}, 1, 7)`,
     })
     .from(billingTransactions)
     .innerJoin(
@@ -281,10 +281,10 @@ export function listPaymentLagByHome(db: AppDb): PaymentLagByHomeDatum[] {
       billingTransactions,
       eq(billingPayments.ledgerTransactionId, billingTransactions.id),
     )
-    .innerJoin(residentAccounts, eq(residentAccounts.id, billingPayments.accountId))
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
+    .innerJoin(accounts, eq(accounts.id, billingPayments.accountId))
+    .innerJoin(residents, eq(residents.id, accounts.residentId))
     .innerJoin(homes, eq(homes.id, residents.homeId))
-    .where(isNull(homes.archivedAtUtcMs))
+    .where(and(eq(accounts.accountType, "resident"), isNull(homes.archivedAtUtcMs)))
     .all();
 
   const chargesByAccount = new Map<string, { postedAtUtcMs: number; billingMonth: string }[]>();

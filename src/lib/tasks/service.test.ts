@@ -13,7 +13,7 @@ import {
   billingTransactions,
   homes,
   invoices,
-  residentAccounts,
+  accounts,
   residents,
   users,
 } from "@/db/schema";
@@ -49,9 +49,9 @@ function getOrCreateAccountId(
   },
 ): string {
   const existing = db
-    .select({ id: residentAccounts.id })
-    .from(residentAccounts)
-    .where(eq(residentAccounts.residentId, input.residentId))
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.residentId, input.residentId))
     .get();
   if (existing) {
     return existing.id;
@@ -74,7 +74,7 @@ function getOrCreateAccountId(
   }
   const accountId = randomUUID();
   const now = Date.now();
-  db.insert(residentAccounts)
+  db.insert(accounts)
     .values({
       id: accountId,
       residentId: input.residentId,
@@ -96,13 +96,23 @@ function insertCharge(
 ) {
   const now = Date.now();
   const accountId = getOrCreateAccountId(db, { residentId: input.residentId });
+  const residentHome = db
+    .select({ homeId: residents.homeId })
+    .from(residents)
+    .where(eq(residents.id, input.residentId))
+    .get();
+  if (!residentHome) {
+    throw new Error("resident not found");
+  }
   const invoiceId = randomUUID();
   db.insert(invoices)
     .values({
       id: invoiceId,
       accountId,
+      homeId: residentHome.homeId,
+      invNo: `INV-${invoiceId.replace(/-/g, "").slice(0, 8)}`,
+      purchaseOrderId: null,
       status: "finalized",
-      billingPeriod: input.billingMonth,
       issuedOn: `${input.billingMonth}-01`,
       totalMinorSnapshot: input.amountMinor,
       createdAtUtcMs: now,

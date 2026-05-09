@@ -1,5 +1,4 @@
 import { sql } from "drizzle-orm";
-import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import {
   index,
   integer,
@@ -186,48 +185,34 @@ export const residents = sqliteTable(
   ],
 );
 
-/** One billing account per resident; balance derives from billing ledger sum. */
-export const residentAccounts = sqliteTable(
-  "resident_accounts",
-  {
-    id: text("id").primaryKey(),
-    residentId: text("resident_id")
-      .notNull()
-      .references(() => residents.id, { onDelete: "cascade" }),
-    currencyCode: text("currency_code").notNull(),
-    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
-    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
-  },
-  (t) => [uniqueIndex("resident_accounts_resident_uq").on(t.residentId)],
-);
-
 /**
- * One operating-expense billing account per home. Mirrors `residentAccounts`
- * but scoped to the home itself rather than an individual resident.
- * `accountType = 'home'` in `billingTransactions` points here.
- */
-export const homeAccounts = sqliteTable(
-  "home_accounts",
-  {
-    id: text("id").primaryKey(),
-    homeId: text("home_id")
-      .notNull()
-      .references(() => homes.id, { onDelete: "restrict" }),
-    currencyCode: text("currency_code").notNull(),
-    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
-    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
-  },
-  (t) => [uniqueIndex("home_accounts_home_uq").on(t.homeId)],
-);
-
-/**
- * Append-only billing ledger with signed deltas.
+ * Unified billing accounts table.
  *
- * `accountId` is polymorphic: use `accountType` to resolve which account table
- * it references — `'resident'` → `residentAccounts`, `'home'` → `homeAccounts`.
- * FK enforcement is app-level so both owner types can coexist in one table.
- * All rows created before 0046 are implicitly `accountType = 'resident'`.
+ * Exactly one owner pointer is set by `accountType`:
+ * - `resident`: `residentId` set, `homeId` null
+ * - `home`: `homeId` set, `residentId` null
  */
+export const accounts = sqliteTable(
+  "accounts",
+  {
+    id: text("id").primaryKey(),
+    accountType: text("account_type")
+      .notNull()
+      .default("resident")
+      .$type<"resident" | "home">(),
+    residentId: text("resident_id").references(() => residents.id, { onDelete: "cascade" }),
+    homeId: text("home_id").references(() => homes.id, { onDelete: "restrict" }),
+    currencyCode: text("currency_code").notNull(),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    uniqueIndex("accounts_resident_uq").on(t.residentId),
+    uniqueIndex("accounts_home_uq").on(t.homeId),
+  ],
+);
+
+
 export const billingTransactions = sqliteTable(
   "billing_transactions",
   {
@@ -247,16 +232,10 @@ export const billingTransactions = sqliteTable(
       onDelete: "set null",
     }),
     postedAtUtcMs: integer("posted_at_utc_ms").notNull(),
-    /** Set on `txn_type = reversal` rows only; points at the posted row being undone. */
-    reversesTransactionId: text("reverses_transaction_id").references(
-      (): AnySQLiteColumn => billingTransactions.id,
-      { onDelete: "restrict" },
-    ),
   },
   (t) => [
     index("billing_transactions_account_posted_idx").on(t.accountId, t.postedAtUtcMs),
     uniqueIndex("billing_transactions_source_uq").on(t.sourceKind, t.sourceId),
-    uniqueIndex("billing_transactions_reverses_target_uq").on(t.reversesTransactionId),
   ],
 );
 
@@ -267,7 +246,7 @@ export const billingPayments = sqliteTable(
     id: text("id").primaryKey(),
     accountId: text("account_id")
       .notNull()
-      .references(() => residentAccounts.id, { onDelete: "cascade" }),
+      .references(() => accounts.id, { onDelete: "cascade" }),
     amountMinor: integer("amount_minor").notNull(),
     receivedOn: text("received_on").notNull(),
     method: text("method").notNull(),
@@ -295,15 +274,32 @@ export const invoices = sqliteTable(
     id: text("id").primaryKey(),
     accountId: text("account_id")
       .notNull()
-      .references(() => residentAccounts.id, { onDelete: "cascade" }),
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    /** Home scope for display and monotonic `invNo` (matches PO numbering per home). */
+    homeId: text("home_id").references(() => homes.id, { onDelete: "restrict" }),
+    /** Human-readable invoice number unique per `homeId` (e.g. INV-00001). */
+    invNo: text("inv_no"),
+    /** When set, draft invoice was spawned when this PO auto-closed (one row per PO + account). */
+    purchaseOrderId: text("purchase_order_id").references(() => homePurchaseOrders.id, {
+      onDelete: "set null",
+    }),
     status: text("status").notNull(),
-    billingPeriod: text("billing_period"),
+    /** Invoice document date (UTC calendar `YYYY-MM-DD`). */
     issuedOn: text("issued_on"),
     totalMinorSnapshot: integer("total_minor_snapshot"),
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
   },
-  (t) => [index("invoices_account_status_issued_idx").on(t.accountId, t.status, t.issuedOn)],
+  (t) => [
+    index("invoices_account_status_issued_idx").on(t.accountId, t.status, t.issuedOn),
+    index("invoices_home_created_idx").on(t.homeId, t.createdAtUtcMs),
+    uniqueIndex("invoices_home_inv_no_uq")
+      .on(t.homeId, t.invNo)
+      .where(sql`${t.invNo} IS NOT NULL AND ${t.homeId} IS NOT NULL`),
+    uniqueIndex("invoices_po_account_uq")
+      .on(t.purchaseOrderId, t.accountId)
+      .where(sql`${t.purchaseOrderId} IS NOT NULL`),
+  ],
 );
 
 /** Lines that make up an invoice, with category for billing semantics. */
@@ -318,9 +314,6 @@ export const invoiceLineItems = sqliteTable(
     description: text("description").notNull(),
     amountMinor: integer("amount_minor").notNull(),
     serviceMonth: text("service_month"),
-    wardIdSnapshot: text("ward_id_snapshot").references(() => wards.id, {
-      onDelete: "restrict",
-    }),
     quantity: integer("quantity").notNull().default(1),
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
@@ -531,92 +524,29 @@ export const residentMedications = sqliteTable(
 );
 
 /**
- * Global catalog for home operating expenses (29a). Names are immutable after
- * insert (app-enforced). Case-insensitive uniqueness on trim(name).
- */
-export const expenseTypes = sqliteTable(
-  "expense_types",
-  {
-    id: text("id").primaryKey(),
-    name: text("name").notNull(),
-    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
-    createdByUserId: text("created_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-  },
-  (t) => [
-    uniqueIndex("expense_types_name_ci_uq").on(sql`lower(trim(${t.name}))`),
-  ],
-);
-
-/**
- * Per-home operating expenses (29b). Amounts are in the home’s
- * `default_currency_code` as minor units. Date-only fields are ISO
- * `YYYY-MM-DD` (UTC calendar for defaults; no TZ conversion on storage).
- */
-export const homeExpenses = sqliteTable(
-  "home_expenses",
-  {
-    id: text("id").primaryKey(),
-    homeId: text("home_id")
-      .notNull()
-      .references(() => homes.id, { onDelete: "restrict" }),
-    expenseTypeId: text("expense_type_id")
-      .notNull()
-      .references(() => expenseTypes.id, { onDelete: "restrict" }),
-    amountMinor: integer("amount_minor").notNull(),
-    incurredOn: text("incurred_on").notNull(),
-    paidOn: text("paid_on"),
-    vendor: text("vendor"),
-    invoiceReference: text("invoice_reference"),
-    note: text("note"),
-    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
-    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
-    createdByUserId: text("created_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    updatedByUserId: text("updated_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-  },
-  (t) => [
-    index("home_expenses_home_incurred_idx").on(t.homeId, t.incurredOn),
-    index("home_expenses_type_idx").on(t.expenseTypeId),
-  ],
-);
-
-/**
- * Receipt files for home expenses (**29c**). Bytes live on disk under
- * `EXPENSE_ATTACHMENTS_DIR`; `stored_relative_path` is relative to that base.
- * Rows CASCADE-delete when the parent **`home_expenses`** row is removed.
- */
-export const homeExpenseAttachments = sqliteTable(
-  "home_expense_attachments",
-  {
-    id: text("id").primaryKey(),
-    homeExpenseId: text("home_expense_id")
-      .notNull()
-      .references(() => homeExpenses.id, { onDelete: "cascade" }),
-    originalFilename: text("original_filename").notNull(),
-    storedRelativePath: text("stored_relative_path").notNull(),
-    contentType: text("content_type").notNull(),
-    sizeBytes: integer("size_bytes").notNull(),
-    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
-    createdByUserId: text("created_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-  },
-  (t) => [
-    index("home_expense_attachments_expense_idx").on(t.homeExpenseId),
-  ],
-);
-
-/**
  * Global key/value settings (**34a**). Integer values only in v1; extend as needed.
  */
 export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   valueInt: integer("value_int").notNull(),
+  updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+});
+
+/** Last assigned numeric `po_number` suffix per home (PO-`lastSuffix`). */
+export const homePoNumberSeq = sqliteTable("home_po_number_seq", {
+  homeId: text("home_id")
+    .primaryKey()
+    .references(() => homes.id, { onDelete: "cascade" }),
+  lastSuffix: integer("last_suffix").notNull(),
+  updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+});
+
+/** Last assigned numeric `inv_no` suffix per home (INV-`lastSuffix`). */
+export const homeInvNumberSeq = sqliteTable("home_inv_number_seq", {
+  homeId: text("home_id")
+    .primaryKey()
+    .references(() => homes.id, { onDelete: "cascade" }),
+  lastSuffix: integer("last_suffix").notNull(),
   updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
 });
 
@@ -645,6 +575,7 @@ export const homePurchaseOrders = sqliteTable(
     createdByUserId: text("created_by_user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
+    /** PO creation instant (Unix ms UTC). Shown as “Create date” in inventory orders UI (app timezone). */
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
   },
@@ -667,6 +598,8 @@ export const homePurchaseOrderLines = sqliteTable(
       .references(() => inventoryItems.id, { onDelete: "restrict" }),
     ownerType: text("owner_type").notNull(),
     ownerId: text("owner_id").notNull(),
+    /** Supplier-facing ordering unit label (e.g. bottle); may match catalog base unit. */
+    purchaseUnitType: text("purchase_unit_type").notNull().default(""),
     quantityOrderedBaseUnits: real("quantity_ordered_base_units").notNull(),
     quantityReceivedBaseUnits: real("quantity_received_base_units")
       .notNull()

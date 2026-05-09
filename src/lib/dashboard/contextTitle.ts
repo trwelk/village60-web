@@ -7,10 +7,7 @@ import {
   isDashboardAnalyticsPath,
 
   isDashboardChargesPath,
-
-  isDashboardExpenseTypesPath,
-
-  isDashboardExpensesPath,
+  isDashboardHomeExpensesPath,
 
   isDashboardHomesPath,
 
@@ -18,9 +15,10 @@ import {
 
   isDashboardLeadsPath,
 
-  isDashboardOtherChargesPath,
+  isDashboardLedgerPath,
 
   isDashboardPaymentsPath,
+  isDashboardHomeAccountPaymentsPath,
 
   isDashboardResidentsPath,
 
@@ -83,13 +81,13 @@ export function getDashboardContextTitle(
 
   if (isDashboardChargesPath(pathname)) return "Charges";
 
-  if (isDashboardOtherChargesPath(pathname)) return "Other charges";
+  if (isDashboardHomeExpensesPath(pathname)) return "Home expenses";
 
   if (isDashboardPaymentsPath(pathname)) return "Payments";
 
-  if (isDashboardExpensesPath(pathname)) return "Home expenses";
+  if (isDashboardHomeAccountPaymentsPath(pathname)) return "Home payments";
 
-  if (isDashboardExpenseTypesPath(pathname)) return "Expense types";
+  if (isDashboardLedgerPath(pathname)) return "Ledger";
 
   if (isDashboardUsersPath(pathname)) return "Staff";
 

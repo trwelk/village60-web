@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { useDashboardWayfinding } from "@/app/dashboard/DashboardWayfinding";
 import { VillageSelect } from "@/components/VillageSelect";
 import { Ban, CheckCircle2, PackagePlus, Plus } from "lucide-react";
+import { inventoryStatusPillClass } from "@/lib/inventory/inventoryStatusPillClass";
 import { formatCents, parsePriceToCents } from "@/lib/money";
 
 const MODAL_PRIMARY_BTN_CLASS =
@@ -23,6 +24,8 @@ type PurchaseOrder = {
   currencyCode: string | null;
   totalReceivedCents: number;
   createdByUserId: string;
+  createdByDisplayName: string | null;
+  createdByEmail: string | null;
   createdAtUtcMs: number;
 };
 type PoLine = {
@@ -32,6 +35,8 @@ type PoLine = {
   ownerType: string;
   ownerId: string;
   ownerDisplayName?: string;
+  purchaseUnitTypeDisplay: string;
+  itemBaseUnit: string;
   quantityOrderedBaseUnits: number;
   quantityReceivedBaseUnits: number;
   status: string;
@@ -42,34 +47,10 @@ type ItemOption = { id: string; name: string; baseUnit: string };
 type Props = {
   homes: HomeOption[];
   selectedHomeId: string;
+  /** Home billing default; used for receive until PO currency is set by a receive event. */
+  selectedHomeCurrencyCode: string;
   purchaseOrderId: string;
 };
-
-function statusPillClass(status: string): string {
-  const normalized = status.trim().toUpperCase();
-  if (normalized === "DRAFT") {
-    return "border-amber-500/55 bg-amber-50 text-amber-800";
-  }
-  if (normalized === "APPROVED") {
-    return "border-sky-500/55 bg-sky-50 text-sky-800";
-  }
-  if (normalized === "SENT") {
-    return "border-indigo-500/55 bg-indigo-50 text-indigo-800";
-  }
-  if (normalized === "CLOSED") {
-    return "border-emerald-500/55 bg-emerald-50 text-emerald-800";
-  }
-  if (normalized === "CANCELED") {
-    return "border-rose-500/55 bg-rose-50 text-rose-800";
-  }
-  if (normalized === "RECEIVED") {
-    return "border-teal-500/55 bg-teal-50 text-teal-800";
-  }
-  if (normalized === "PARTIALLY_RECEIVED") {
-    return "border-violet-500/55 bg-violet-50 text-violet-800";
-  }
-  return "border-[var(--line)] bg-[var(--bg-muted)] text-[var(--text-secondary)]";
-}
 
 async function parseError(res: Response): Promise<string> {
   try {
@@ -89,7 +70,20 @@ function formatUtcDateTime(utcMs?: number): string {
   return new Date(utcMs).toLocaleString();
 }
 
-export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrderId }: Props) {
+function formatCreatedByLabel(order: Pick<PurchaseOrder, "createdByDisplayName" | "createdByEmail" | "createdByUserId">): string {
+  const name = order.createdByDisplayName?.trim();
+  if (name) return name;
+  const email = order.createdByEmail?.trim();
+  if (email) return email;
+  return order.createdByUserId;
+}
+
+export function PurchaseOrderDetailClient({
+  homes,
+  selectedHomeId,
+  selectedHomeCurrencyCode,
+  purchaseOrderId,
+}: Props) {
   const router = useRouter();
   const { setHomeBreadcrumbs } = useDashboardWayfinding();
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
@@ -102,6 +96,7 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
   const [itemId, setItemId] = useState("");
   const [ownerType, setOwnerType] = useState<"HOME" | "RESIDENT">("HOME");
   const [ownerId, setOwnerId] = useState("");
+  const [purchaseUnitType, setPurchaseUnitType] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [residentPickOpen, setResidentPickOpen] = useState(false);
   const [residentPickList, setResidentPickList] = useState<{ id: string; fullName: string }[]>([]);
@@ -122,7 +117,7 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
   const [receiveQty, setReceiveQty] = useState("1");
   const [receiveBaseUnits, setReceiveBaseUnits] = useState("1");
   const [receiveUnitPrice, setReceiveUnitPrice] = useState("");
-  const [receiveCurrencyCode, setReceiveCurrencyCode] = useState("NZD");
+  const [receiveCurrencyCode, setReceiveCurrencyCode] = useState(selectedHomeCurrencyCode);
   const [receiveNote, setReceiveNote] = useState("");
   const [isSubmittingReceive, setIsSubmittingReceive] = useState(false);
 
@@ -225,6 +220,12 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
   }, [loadItems, loadLines, loadOrders]);
 
   useEffect(() => {
+    if (!addLineModalOpen) return;
+    const it = items.find((x) => x.id === itemId);
+    if (it) setPurchaseUnitType(it.baseUnit);
+  }, [addLineModalOpen, itemId, items]);
+
+  useEffect(() => {
     if (!addLineModalOpen || ownerType !== "RESIDENT") return;
     const t = window.setTimeout(() => void fetchResidentsForPicker(residentSearch), 250);
     return () => window.clearTimeout(t);
@@ -254,10 +255,13 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
   }, [residentPickOpen, updateResidentMenuPos, residentPickList.length, residentPickLoading]);
 
   useEffect(() => {
-    if (activeOrder?.currencyCode) {
-      setReceiveCurrencyCode(activeOrder.currencyCode);
+    const fromPo = activeOrder?.currencyCode?.trim();
+    if (fromPo) {
+      setReceiveCurrencyCode(fromPo);
+    } else {
+      setReceiveCurrencyCode(selectedHomeCurrencyCode);
     }
-  }, [activeOrder?.currencyCode]);
+  }, [activeOrder?.currencyCode, selectedHomeCurrencyCode]);
 
   useEffect(() => {
     if (!(addLineModalOpen || receiveModalOpen)) return;
@@ -287,6 +291,25 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
     () => lines.reduce((sum, l) => sum + (l.totalReceivedCents ?? 0), 0),
     [lines],
   );
+
+  const receiveLineSummaries = useMemo(
+    () => new Map(lines.map((line) => [line.id, line])),
+    [lines],
+  );
+  const selectedReceiveLine = receiveLineSummaries.get(receiveLineId) ?? null;
+
+  const receiveFieldLabels = useMemo(() => {
+    if (!selectedReceiveLine) {
+      return { qty: "Qty received", baseUnits: "Base units", price: "Purchase unit price" };
+    }
+    const pu = selectedReceiveLine.purchaseUnitTypeDisplay;
+    const baseU = selectedReceiveLine.itemBaseUnit;
+    return {
+      qty: `Qty received (${pu})`,
+      baseUnits: `Base units (${baseU})`,
+      price: "Purchase unit price",
+    };
+  }, [selectedReceiveLine]);
 
   async function approve() {
     const res = await fetch(`/api/purchase-orders/${purchaseOrderId}/approve`, { method: "POST" });
@@ -340,11 +363,22 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
         setError("Select a resident from the list.");
         return;
       }
+      const put = purchaseUnitType.trim();
+      if (!put) {
+        setError("Purchase unit type is required.");
+        return;
+      }
       const resolvedOwnerId = ownerType === "HOME" ? selectedHomeId : ownerId.trim();
       const res = await fetch(`/api/purchase-orders/${purchaseOrderId}/lines`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ itemId, ownerType, ownerId: resolvedOwnerId, quantityOrderedBaseUnits: qty }),
+        body: JSON.stringify({
+          itemId,
+          ownerType,
+          ownerId: resolvedOwnerId,
+          purchaseUnitType: put,
+          quantityOrderedBaseUnits: qty,
+        }),
       });
       if (!res.ok) {
         setError(await parseError(res));
@@ -368,7 +402,7 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
     try {
       const priceCents = parsePriceToCents(receiveUnitPrice);
       if (priceCents === null) {
-        setError("Unit price must be a positive number (e.g. 12.50).");
+        setError("Purchase unit price must be a positive number (e.g. 12.50).");
         return;
       }
       const res = await fetch(`/api/purchase-orders/${purchaseOrderId}/lines/${receiveLineId}/receive`, {
@@ -437,7 +471,7 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
             <div className="flex items-center gap-3">
               <h2 className="text-xl font-semibold text-[var(--text-primary)]">{activeOrder.poNumber}</h2>
               <span
-                className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${statusPillClass(activeOrder.status)}`}
+                className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${inventoryStatusPillClass(activeOrder.status)}`}
               >
                 {activeOrder.status}
               </span>
@@ -446,7 +480,7 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
               Supplier: {activeOrder.supplierName} · Home: {selectedHomeName}
             </p>
             <p className="text-sm text-[var(--text-secondary)]">
-              Created by: {activeOrder.createdByUserId} · Created:{" "}
+              Created by: {formatCreatedByLabel(activeOrder)} · Created:{" "}
               {formatUtcDateTime(activeOrder.createdAtUtcMs)}
             </p>
           </div>
@@ -481,13 +515,14 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">
-                <th className="px-5 py-3 font-medium sm:px-6">Item</th>
-                <th className="px-5 py-3 font-medium">Owner</th>
-                <th className="px-5 py-3 font-medium">Qty ordered</th>
-                <th className="px-5 py-3 font-medium">Received</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 font-medium text-right">Received cost</th>
-                <th className="px-5 py-3 font-medium text-right sm:px-6">Actions</th>
+                <th className="px-5 py-2.5 align-middle font-medium sm:px-6">Item</th>
+                <th className="px-5 py-2.5 align-middle font-medium">Purchase unit type</th>
+                <th className="px-5 py-2.5 align-middle font-medium">Owner</th>
+                <th className="px-5 py-2.5 align-middle font-medium">Qty ordered</th>
+                <th className="px-5 py-2.5 align-middle font-medium">Received</th>
+                <th className="px-5 py-2.5 align-middle font-medium">Status</th>
+                <th className="px-5 py-2.5 align-middle font-medium text-right">Received cost</th>
+                <th className="px-5 py-2.5 align-middle font-medium text-right sm:px-6">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -495,37 +530,55 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
                 const canReceive =
                   activeOrder.status === "SENT" && line.status !== "CLOSED" && line.status !== "CANCELED";
                 return (
-                  <tr key={line.id} className="border-b border-[var(--line)]/85 align-top">
-                    <td className="px-5 py-3 font-medium text-[var(--text-primary)] sm:px-6">{line.itemName}</td>
-                    <td className="px-5 py-3 text-[var(--text-secondary)]">{line.ownerType}:{line.ownerDisplayName ?? line.ownerId}</td>
-                    <td className="px-5 py-3 text-[var(--text-secondary)]">{line.quantityOrderedBaseUnits}</td>
-                    <td className="px-5 py-3 text-[var(--text-secondary)]">{line.quantityReceivedBaseUnits}</td>
-                    <td className="px-5 py-3">
+                  <tr key={line.id} className="border-b border-[var(--line)]/85 align-middle">
+                    <td className="px-5 py-2.5 font-medium text-[var(--text-primary)] sm:px-6">{line.itemName}</td>
+                    <td className="px-5 py-2.5 text-[var(--text-secondary)]">{line.purchaseUnitTypeDisplay}</td>
+                    <td className="px-5 py-2.5 text-[var(--text-secondary)]">{line.ownerType}:{line.ownerDisplayName ?? line.ownerId}</td>
+                    <td className="px-5 py-2.5 text-[var(--text-secondary)]">{line.quantityOrderedBaseUnits}</td>
+                    <td className="px-5 py-2.5 text-[var(--text-secondary)]">{line.quantityReceivedBaseUnits}</td>
+                    <td className="px-5 py-2.5">
                       <span
-                        className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${statusPillClass(line.status)}`}
+                        className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide ${inventoryStatusPillClass(line.status)}`}
                       >
                         {line.status}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-[var(--text-secondary)]">
+                    <td className="px-5 py-2.5 text-right tabular-nums text-[var(--text-secondary)]">
                       {activeOrder.currencyCode && line.totalReceivedCents > 0
                         ? formatCents(line.totalReceivedCents, activeOrder.currencyCode)
                         : <span className="text-[var(--text-muted)]">—</span>}
                     </td>
-                    <td className="px-5 py-3 text-right sm:px-6">
-                      <div className="flex justify-end gap-2">
+                    <td className="whitespace-nowrap px-5 py-2.5 text-right align-middle sm:px-6">
+                      <div className="flex flex-wrap justify-end gap-1.5 sm:flex-nowrap">
                         {canReceive ? (
-                          <button className="village-button village-button-primary text-xs min-h-9 px-3 py-2" onClick={() => { setReceiveLineId(line.id); setReceiveModalOpen(true); }}>
-                            <PackagePlus size={16} aria-hidden />
+                          <button
+                            type="button"
+                            className="village-button village-button--compact village-button-primary"
+                            onClick={() => {
+                              setReceiveLineId(line.id);
+                              setReceiveModalOpen(true);
+                            }}
+                          >
+                            <PackagePlus size={14} aria-hidden strokeWidth={2.25} />
                             Receive
                           </button>
                         ) : null}
-                        <button className="village-button text-xs min-h-9 px-3 py-2" disabled={!canReceive} onClick={() => void closeLine(line.id)}>
-                          <CheckCircle2 size={16} aria-hidden />
+                        <button
+                          type="button"
+                          className="village-button village-button--compact"
+                          disabled={!canReceive}
+                          onClick={() => void closeLine(line.id)}
+                        >
+                          <CheckCircle2 size={14} aria-hidden strokeWidth={2.25} />
                           Close
                         </button>
-                        <button className="village-button village-button-danger text-xs min-h-9 px-3 py-2" disabled={!canReceive} onClick={() => void cancelLine(line.id)}>
-                          <Ban size={16} aria-hidden />
+                        <button
+                          type="button"
+                          className="village-button village-button--compact village-button-danger"
+                          disabled={!canReceive}
+                          onClick={() => void cancelLine(line.id)}
+                        >
+                          <Ban size={14} aria-hidden strokeWidth={2.25} />
                           Cancel
                         </button>
                       </div>
@@ -535,14 +588,14 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
               })}
               {lines.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-[var(--text-secondary)] sm:px-6">
+                  <td colSpan={8} className="px-5 py-10 text-center text-[var(--text-secondary)] sm:px-6">
                     No lines on this purchase order.
                   </td>
                 </tr>
               ) : null}
               {lines.length > 0 && poTotalReceivedCents > 0 ? (
                 <tr className="border-t-2 border-[var(--line)] bg-[color:color-mix(in_srgb,var(--bg-muted)_40%,transparent)]">
-                  <td colSpan={5} className="px-5 py-3 text-right text-sm font-semibold text-[var(--text-secondary)] sm:px-6">
+                  <td colSpan={6} className="px-5 py-3 text-right text-sm font-semibold text-[var(--text-secondary)] sm:px-6">
                     Total received
                   </td>
                   <td className="px-5 py-3 text-right tabular-nums text-sm font-bold text-[var(--text-primary)]">
@@ -582,6 +635,20 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
                         <span className="village-label">Item</span>
                         <VillageSelect value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: `${i.name} (${i.baseUnit})` }))} />
                       </label>
+                      <label className="flex max-w-2xl flex-col gap-2">
+                        <span className="village-label">Purchase unit type</span>
+                        <input
+                          className="village-input min-w-0"
+                          value={purchaseUnitType}
+                          onChange={(e) => setPurchaseUnitType(e.target.value)}
+                          placeholder="e.g. bottle, box, tablet"
+                          required
+                          autoComplete="off"
+                        />
+                        <span className="text-xs font-normal leading-snug text-[var(--text-muted)]">
+                          How the supplier expresses this quantity (defaults to this item&apos;s base unit).
+                        </span>
+                      </label>
                       <label className="flex max-w-xs flex-col gap-2">
                         <span className="village-label">Owner type</span>
                         <VillageSelect value={ownerType} onChange={(v) => { const next = v as "HOME" | "RESIDENT"; setOwnerType(next); setOwnerId(""); setResidentSearch(""); setResidentPickOpen(false); }} options={[{ value: "HOME", label: "HOME" }, { value: "RESIDENT", label: "RESIDENT" }]} />
@@ -606,7 +673,18 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
                         <input className="village-input min-w-0" value={quantity} onChange={(e) => setQuantity(e.target.value)} required inputMode="decimal" />
                       </label>
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <button type="submit" className={MODAL_PRIMARY_BTN_CLASS} disabled={isSubmittingAddLine || !itemId || (ownerType === "RESIDENT" && !ownerId.trim())}>{isSubmittingAddLine ? "Adding..." : "Add line"}</button>
+                        <button
+                          type="submit"
+                          className={MODAL_PRIMARY_BTN_CLASS}
+                          disabled={
+                            isSubmittingAddLine
+                            || !itemId
+                            || !purchaseUnitType.trim()
+                            || (ownerType === "RESIDENT" && !ownerId.trim())
+                          }
+                        >
+                          {isSubmittingAddLine ? "Adding..." : "Add line"}
+                        </button>
                         {error ? <p className="text-sm font-medium text-terracotta">{error}</p> : null}
                       </div>
                     </form>
@@ -668,9 +746,18 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
                       </div>
                     </div>
                     <form className="grid gap-5 p-5 sm:p-6" onSubmit={receiveLine}>
+                      {selectedReceiveLine ? (
+                        <p className="text-sm text-[var(--text-secondary)]">
+                          Line ordered:{" "}
+                          <span className="font-medium text-[var(--text-primary)]">
+                            {selectedReceiveLine.quantityOrderedBaseUnits}{" "}
+                            {selectedReceiveLine.purchaseUnitTypeDisplay}
+                          </span>
+                        </p>
+                      ) : null}
                       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                         <label className="flex flex-col gap-2">
-                          <span className="village-label">Qty received</span>
+                          <span className="village-label">{receiveFieldLabels.qty}</span>
                           <input
                             className="village-input min-w-0"
                             value={receiveQty}
@@ -680,7 +767,7 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
                           />
                         </label>
                         <label className="flex flex-col gap-2">
-                          <span className="village-label">Base units</span>
+                          <span className="village-label">{receiveFieldLabels.baseUnits}</span>
                           <input
                             className="village-input min-w-0"
                             value={receiveBaseUnits}
@@ -690,20 +777,18 @@ export function PurchaseOrderDetailClient({ homes, selectedHomeId, purchaseOrder
                           />
                         </label>
                         <label className="flex flex-col gap-2">
-                          <span className="village-label">Unit price</span>
-                          <div className="relative flex items-center">
-                            <span className="pointer-events-none absolute left-3 select-none text-sm text-[var(--text-muted)]">
-                              {receiveCurrencyCode}
-                            </span>
-                            <input
-                              className="village-input min-w-0 pl-12"
-                              value={receiveUnitPrice}
-                              onChange={(e) => setReceiveUnitPrice(e.target.value)}
-                              placeholder="0.00"
-                              inputMode="decimal"
-                              required
-                            />
-                          </div>
+                          <span className="village-label">{receiveFieldLabels.price}</span>
+                          <input
+                            className="village-input min-w-0 tabular-nums"
+                            value={receiveUnitPrice}
+                            onChange={(e) => setReceiveUnitPrice(e.target.value)}
+                            placeholder="e.g. 12.50"
+                            inputMode="decimal"
+                            required
+                          />
+                          <span className="text-xs leading-snug text-[var(--text-muted)]">
+                            Per purchase unit ({receiveCurrencyCode}).
+                          </span>
                         </label>
                         <label className="flex flex-col gap-2">
                           <span className="village-label">

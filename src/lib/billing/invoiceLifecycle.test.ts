@@ -7,12 +7,13 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { billingTransactions, invoiceLineItems, invoices, residentAccounts, users } from "@/db/schema";
+import { billingTransactions, invoiceLineItems, invoices, accounts, users } from "@/db/schema";
 import { closeDbConnection, getDb } from "@/db/client";
 import { ValidationError } from "@/lib/homes/errors";
 import { createHome } from "@/lib/homes/service";
 import { createResident } from "@/lib/residents/service";
 import { createWard } from "@/lib/wards/service";
+import { ensureHomeAccount } from "./homeAccounts";
 import { createDraftInvoice, finalizeInvoice, updateDraftInvoice } from "./invoiceLifecycle";
 
 const adminActor = { userId: "admin-invoice", role: "admin" as const };
@@ -47,14 +48,14 @@ function getOrCreateAccountId(
 ): string {
   const existing = db
     .select()
-    .from(residentAccounts)
-    .where(eq(residentAccounts.residentId, residentId))
+    .from(accounts)
+    .where(eq(accounts.residentId, residentId))
     .get();
   if (existing) {
     return existing.id;
   }
   const id = randomUUID();
-  db.insert(residentAccounts)
+  db.insert(accounts)
     .values({
       id,
       residentId,
@@ -93,7 +94,10 @@ describe("invoice lifecycle: finalize", () => {
       name: "Invoice Home",
       defaultCurrencyCode: "NZD",
     });
-    const ward = createWard(db, adminActor, home.id, { label: "Kea Ward" });
+    const ward = createWard(db, adminActor, home.id, {
+      label: "Kea Ward",
+      monthlyRatePerPersonMinor: 120000,
+    });
     const resident = createResident(db, adminActor, {
       homeId: home.id,
       fullName: "Resident Invoice",
@@ -110,9 +114,11 @@ describe("invoice lifecycle: finalize", () => {
       .values({
         id: invoiceId,
         accountId,
+        homeId: home.id,
+        invNo: `INV-${invoiceId.replace(/-/g, "").slice(0, 8)}`,
+        purchaseOrderId: null,
         status: "draft",
-        billingPeriod: "2026-05",
-        issuedOn: null,
+        issuedOn: "2026-05-01",
         totalMinorSnapshot: null,
         createdAtUtcMs: now,
         updatedAtUtcMs: now,
@@ -130,7 +136,6 @@ describe("invoice lifecycle: finalize", () => {
           description: "May monthly fee",
           amountMinor: 120000,
           serviceMonth: "2026-05",
-          wardIdSnapshot: ward.id,
           quantity: 1,
           createdAtUtcMs: now,
           updatedAtUtcMs: now,
@@ -142,7 +147,6 @@ describe("invoice lifecycle: finalize", () => {
           description: "Care supplies",
           amountMinor: 6500,
           serviceMonth: "2026-05",
-          wardIdSnapshot: ward.id,
           quantity: 1,
           createdAtUtcMs: now,
           updatedAtUtcMs: now,
@@ -188,7 +192,10 @@ describe("invoice lifecycle: finalize", () => {
       name: "Invoice Home",
       defaultCurrencyCode: "NZD",
     });
-    const ward = createWard(db, adminActor, home.id, { label: "Tui Ward" });
+    const ward = createWard(db, adminActor, home.id, {
+      label: "Tui Ward",
+      monthlyRatePerPersonMinor: 101000,
+    });
     const resident = createResident(db, adminActor, {
       homeId: home.id,
       fullName: "Resident Draft",
@@ -203,16 +210,13 @@ describe("invoice lifecycle: finalize", () => {
     const { invoiceId } = createDraftInvoice(db, adminActor, {
       homeId: home.id,
       accountId,
-      billingPeriod: "2026-06",
       lineItems: [
         {
           id: lineAId,
           category: "monthly_fee",
           description: "Monthly fee",
           amountMinor: 100000,
-          serviceMonth: "2026-06",
-          wardIdSnapshot: ward.id,
-        },
+          serviceMonth: "2026-06",        },
       ],
       nowUtcMs: now,
     });
@@ -227,17 +231,13 @@ describe("invoice lifecycle: finalize", () => {
           category: "monthly_fee",
           description: "Monthly fee (updated)",
           amountMinor: 101000,
-          serviceMonth: "2026-06",
-          wardIdSnapshot: ward.id,
-        },
+          serviceMonth: "2026-06",        },
         {
           id: lineBId,
           category: "care_supplies",
           description: "Gloves",
           amountMinor: 900,
-          serviceMonth: "2026-06",
-          wardIdSnapshot: ward.id,
-        },
+          serviceMonth: "2026-06",        },
       ],
       nowUtcMs: now + 100,
     });
@@ -252,6 +252,28 @@ describe("invoice lifecycle: finalize", () => {
     expect(lines.find((l) => l.id === lineAId)?.amountMinor).toBe(101000);
   });
 
+  it("creates a draft invoice for a home billing account", () => {
+    const db = getDb();
+    seedAdminUser(db, adminActor.userId);
+    const home = createHome(db, "admin", {
+      name: "Home Account Invoice",
+      defaultCurrencyCode: "NZD",
+    });
+    const now = Date.now();
+    const homeAccount = ensureHomeAccount(db, home.id);
+    const { invoiceId } = createDraftInvoice(db, adminActor, {
+      homeId: home.id,
+      accountId: homeAccount.id,
+      lineItems: [],
+      nowUtcMs: now,
+    });
+    const inv = db.select().from(invoices).where(eq(invoices.id, invoiceId)).get();
+    expect(inv).toBeDefined();
+    expect(inv?.accountId).toBe(homeAccount.id);
+    expect(inv?.homeId).toBe(home.id);
+    expect(inv?.status).toBe("draft");
+  });
+
   it("re-finalize is idempotent and does not duplicate postings", () => {
     const db = getDb();
     seedAdminUser(db, adminActor.userId);
@@ -259,7 +281,10 @@ describe("invoice lifecycle: finalize", () => {
       name: "Invoice Home",
       defaultCurrencyCode: "NZD",
     });
-    const ward = createWard(db, adminActor, home.id, { label: "Kaka Ward" });
+    const ward = createWard(db, adminActor, home.id, {
+      label: "Kaka Ward",
+      monthlyRatePerPersonMinor: 110000,
+    });
     const resident = createResident(db, adminActor, {
       homeId: home.id,
       fullName: "Resident Finalize Twice",
@@ -273,16 +298,13 @@ describe("invoice lifecycle: finalize", () => {
     const { invoiceId } = createDraftInvoice(db, adminActor, {
       homeId: home.id,
       accountId,
-      billingPeriod: "2026-07",
       lineItems: [
         {
           id: lineId,
           category: "monthly_fee",
           description: "Monthly fee",
           amountMinor: 110000,
-          serviceMonth: "2026-07",
-          wardIdSnapshot: ward.id,
-        },
+          serviceMonth: "2026-07",        },
       ],
       nowUtcMs: now,
     });
@@ -315,7 +337,10 @@ describe("invoice lifecycle: finalize", () => {
       name: "Invoice Home",
       defaultCurrencyCode: "NZD",
     });
-    const ward = createWard(db, adminActor, home.id, { label: "Kea Ward" });
+    const ward = createWard(db, adminActor, home.id, {
+      label: "Kea Ward",
+      monthlyRatePerPersonMinor: 110000,
+    });
     const resident = createResident(db, adminActor, {
       homeId: home.id,
       fullName: "Resident Locked",
@@ -328,15 +353,12 @@ describe("invoice lifecycle: finalize", () => {
     const { invoiceId } = createDraftInvoice(db, adminActor, {
       homeId: home.id,
       accountId,
-      billingPeriod: "2026-07",
       lineItems: [
         {
           category: "monthly_fee",
           description: "Monthly fee",
           amountMinor: 110000,
-          serviceMonth: "2026-07",
-          wardIdSnapshot: ward.id,
-        },
+          serviceMonth: "2026-07",        },
       ],
       nowUtcMs: now,
     });
@@ -363,7 +385,10 @@ describe("invoice lifecycle: finalize", () => {
       name: "Invoice Home",
       defaultCurrencyCode: "NZD",
     });
-    const ward = createWard(db, adminActor, home.id, { label: "Kiwi Ward" });
+    const ward = createWard(db, adminActor, home.id, {
+      label: "Kiwi Ward",
+      monthlyRatePerPersonMinor: 110000,
+    });
     const resident = createResident(db, adminActor, {
       homeId: home.id,
       fullName: "Resident Monthly",
@@ -377,15 +402,12 @@ describe("invoice lifecycle: finalize", () => {
     const first = createDraftInvoice(db, adminActor, {
       homeId: home.id,
       accountId,
-      billingPeriod: "2026-08",
       lineItems: [
         {
           category: "monthly_fee",
           description: "Monthly fee",
           amountMinor: 110000,
-          serviceMonth: "2026-08",
-          wardIdSnapshot: ward.id,
-        },
+          serviceMonth: "2026-08",        },
       ],
       nowUtcMs: now,
     });
@@ -398,15 +420,12 @@ describe("invoice lifecycle: finalize", () => {
     const second = createDraftInvoice(db, adminActor, {
       homeId: home.id,
       accountId,
-      billingPeriod: "2026-08",
       lineItems: [
         {
           category: "monthly_fee",
           description: "Duplicate monthly fee",
           amountMinor: 110000,
-          serviceMonth: "2026-08",
-          wardIdSnapshot: ward.id,
-        },
+          serviceMonth: "2026-08",        },
       ],
       nowUtcMs: now + 6000,
     });
@@ -434,7 +453,10 @@ describe("invoice lifecycle: finalize", () => {
       name: "Invoice Home",
       defaultCurrencyCode: "NZD",
     });
-    const ward = createWard(db, adminActor, home.id, { label: "Pukeko Ward" });
+    const ward = createWard(db, adminActor, home.id, {
+      label: "Pukeko Ward",
+      monthlyRatePerPersonMinor: 110000,
+    });
     const resident = createResident(db, adminActor, {
       homeId: home.id,
       fullName: "Resident Atomic",
@@ -448,15 +470,12 @@ describe("invoice lifecycle: finalize", () => {
     const existing = createDraftInvoice(db, adminActor, {
       homeId: home.id,
       accountId,
-      billingPeriod: "2026-09",
       lineItems: [
         {
           category: "monthly_fee",
           description: "Already posted month",
           amountMinor: 110000,
-          serviceMonth: "2026-09",
-          wardIdSnapshot: ward.id,
-        },
+          serviceMonth: "2026-09",        },
       ],
       nowUtcMs: now,
     });
@@ -469,22 +488,17 @@ describe("invoice lifecycle: finalize", () => {
     const target = createDraftInvoice(db, adminActor, {
       homeId: home.id,
       accountId,
-      billingPeriod: "2026-09",
       lineItems: [
         {
           category: "care_supplies",
           description: "Should roll back too",
           amountMinor: 700,
-          serviceMonth: "2026-09",
-          wardIdSnapshot: ward.id,
-        },
+          serviceMonth: "2026-09",        },
         {
           category: "monthly_fee",
           description: "Conflicting monthly fee",
           amountMinor: 110000,
-          serviceMonth: "2026-09",
-          wardIdSnapshot: ward.id,
-        },
+          serviceMonth: "2026-09",        },
       ],
       nowUtcMs: now + 6000,
     });

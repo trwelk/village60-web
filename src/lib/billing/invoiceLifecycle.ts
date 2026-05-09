@@ -1,17 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { assertActorMayAccessHome } from "@/lib/authz/homeScope";
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import {
   billingTransactions,
   invoiceLineItems,
   invoices,
-  residentAccounts,
+  accounts,
   residents,
+  wards,
 } from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/errors";
-import { parseBillingMonth } from "@/lib/billing/billingMonth";
+import { parseBillingMonth, utcDateOnlyFromMs } from "@/lib/billing/billingMonth";
+import { bumpInvNumberSequence } from "@/lib/billing/invoiceNumbers";
+import { settleFinalizedInvoicesFifo } from "@/lib/billing/invoiceSettlement";
 
 function requireBillingAdmin(
   actor: SessionActor | undefined,
@@ -21,14 +24,16 @@ function requireBillingAdmin(
   }
 }
 
-function billingPeriodToIssuedOn(billingPeriod: string | null): string | null {
-  if (!billingPeriod) {
-    return null;
+/** Keep draft invoice date when valid; otherwise derive from finalization time (UTC date). */
+function issuedOnForFinalizedInvoice(
+  invoice: typeof invoices.$inferSelect,
+  finalizedAtUtcMs: number,
+): string {
+  const trimmed = invoice.issuedOn?.trim();
+  if (trimmed && /^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
   }
-  if (!/^\d{4}-\d{2}$/.test(billingPeriod)) {
-    return null;
-  }
-  return `${billingPeriod}-01`;
+  return utcDateOnlyFromMs(finalizedAtUtcMs);
 }
 
 function normalizeServiceMonth(raw: string | null | undefined): string | null {
@@ -82,44 +87,101 @@ export type DraftInvoiceLineInput = {
   description: string;
   amountMinor: number;
   serviceMonth?: string | null;
-  wardIdSnapshot?: string | null;
 };
 
 export type InvoiceListItem = {
   id: string;
   accountId: string;
+  homeId: string | null;
+  invNo: string | null;
+  purchaseOrderId: string | null;
   status: string;
-  billingPeriod: string | null;
   issuedOn: string | null;
   totalMinorSnapshot: number | null;
   createdAtUtcMs: number;
   updatedAtUtcMs: number;
+  accountType: "resident" | "home";
 };
 
 export type InvoiceDetails = InvoiceListItem & {
+  monthlyFeeAmountMinor: number | null;
   lineItems: {
     id: string;
     category: string;
     description: string;
     amountMinor: number;
     serviceMonth: string | null;
-    wardIdSnapshot: string | null;
     quantity: number;
   }[];
 };
 
-function getInvoiceForHome(db: AppDb, homeId: string, invoiceId: string) {
+function getWardRateForAccount(
+  db: AppDb,
+  accountId: string,
+): { monthlyRatePerPersonMinor: number } {
   const row = db
     .select({
-      invoice: invoices,
-      residentHomeId: residents.homeId,
+      wardId: residents.wardId,
+      monthlyRatePerPersonMinor: wards.monthlyRatePerPersonMinor,
     })
-    .from(invoices)
-    .innerJoin(residentAccounts, eq(residentAccounts.id, invoices.accountId))
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
-    .where(eq(invoices.id, invoiceId))
+    .from(accounts)
+    .innerJoin(residents, eq(residents.id, accounts.residentId))
+    .leftJoin(wards, eq(wards.id, residents.wardId))
+    .where(and(eq(accounts.id, accountId), eq(accounts.accountType, "resident")))
     .get();
-  if (!row || row.residentHomeId !== homeId) {
+  if (!row || row.wardId == null || row.monthlyRatePerPersonMinor == null) {
+    throw new ValidationError(
+      "monthly_fee amount is fetched from the resident ward. Configure ward and monthly rate first.",
+    );
+  }
+  return { monthlyRatePerPersonMinor: row.monthlyRatePerPersonMinor };
+}
+
+function deriveDraftLineValues(
+  db: AppDb,
+  accountId: string,
+  line: DraftInvoiceLineInput,
+): {
+  category: string;
+  description: string;
+  amountMinor: number;
+  serviceMonth: string | null;
+} {
+  const category = line.category.trim();
+  const description = line.description.trim();
+  if (category === "monthly_fee") {
+    const wardRate = getWardRateForAccount(db, accountId);
+    return {
+      category,
+      description,
+      amountMinor: wardRate.monthlyRatePerPersonMinor,
+      serviceMonth: normalizeServiceMonth(line.serviceMonth),
+    };
+  }
+  return {
+    category,
+    description,
+    amountMinor: line.amountMinor,
+    serviceMonth: normalizeServiceMonth(line.serviceMonth),
+  };
+}
+
+function invoiceHomeScopePredicate(homeId: string) {
+  return or(
+    and(eq(accounts.accountType, "resident"), eq(residents.homeId, homeId)),
+    and(eq(accounts.accountType, "home"), eq(accounts.homeId, homeId)),
+  );
+}
+
+function getInvoiceForHome(db: AppDb, homeId: string, invoiceId: string) {
+  const row = db
+    .select({ invoice: invoices })
+    .from(invoices)
+    .innerJoin(accounts, eq(accounts.id, invoices.accountId))
+    .leftJoin(residents, eq(residents.id, accounts.residentId))
+    .where(and(eq(invoices.id, invoiceId), invoiceHomeScopePredicate(homeId)))
+    .get();
+  if (!row) {
     throw new NotFoundError();
   }
   return row.invoice;
@@ -127,16 +189,13 @@ function getInvoiceForHome(db: AppDb, homeId: string, invoiceId: string) {
 
 function getInvoiceForHomeTx(tx: AppDb, homeId: string, invoiceId: string) {
   const row = tx
-    .select({
-      invoice: invoices,
-      residentHomeId: residents.homeId,
-    })
+    .select({ invoice: invoices })
     .from(invoices)
-    .innerJoin(residentAccounts, eq(residentAccounts.id, invoices.accountId))
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
-    .where(eq(invoices.id, invoiceId))
+    .innerJoin(accounts, eq(accounts.id, invoices.accountId))
+    .leftJoin(residents, eq(residents.id, accounts.residentId))
+    .where(and(eq(invoices.id, invoiceId), invoiceHomeScopePredicate(homeId)))
     .get();
-  if (!row || row.residentHomeId !== homeId) {
+  if (!row) {
     throw new NotFoundError();
   }
   return row.invoice;
@@ -228,6 +287,15 @@ function finalizeInvoiceTransaction(
     throw new ValidationError("Only draft invoices can be finalized.");
   }
 
+  const accountRow = tx
+    .select({ accountType: accounts.accountType })
+    .from(accounts)
+    .where(eq(accounts.id, invoice.accountId))
+    .get();
+  if (!accountRow) {
+    throw new NotFoundError("Billing account not found.");
+  }
+
   const totalMinorSnapshot = lines.reduce((sum, line) => sum + line.amountMinor, 0);
   const postedTransactionIds: string[] = [];
   for (const line of lines) {
@@ -238,6 +306,7 @@ function finalizeInvoiceTransaction(
       .values({
         id,
         accountId: invoice.accountId,
+        accountType: accountRow.accountType,
         txnType: "charge",
         amountMinor: line.amountMinor,
         sourceKind: source.sourceKind,
@@ -252,18 +321,44 @@ function finalizeInvoiceTransaction(
   tx.update(invoices)
     .set({
       status: "finalized",
-      issuedOn: billingPeriodToIssuedOn(invoice.billingPeriod),
+      issuedOn: issuedOnForFinalizedInvoice(invoice, input.finalizedAtUtcMs),
       totalMinorSnapshot,
       updatedAtUtcMs: input.finalizedAtUtcMs,
     })
     .where(eq(invoices.id, invoice.id))
     .run();
 
+  settleFinalizedInvoicesFifo(tx, {
+    accountId: invoice.accountId,
+    nowUtcMs: input.finalizedAtUtcMs,
+  });
+
   return {
     invoiceId: invoice.id,
     totalMinorSnapshot,
     postedTransactionIds,
   };
+}
+
+/**
+ * Finalize within an existing transaction (e.g. create draft lines then post in one atomic step).
+ */
+export function finalizeInvoiceInTransaction(
+  tx: AppDb,
+  invoiceId: string,
+  input: { finalizedAtUtcMs: number; recordedByUserId: string | null },
+): {
+  invoiceId: string;
+  totalMinorSnapshot: number;
+  postedTransactionIds: string[];
+} {
+  const invoice = getInvoiceByIdTx(tx, invoiceId);
+  const lines = tx
+    .select()
+    .from(invoiceLineItems)
+    .where(eq(invoiceLineItems.invoiceId, invoice.id))
+    .all();
+  return finalizeInvoiceTransaction(tx, invoice, lines, input);
 }
 
 export function listHomeInvoices(
@@ -275,14 +370,17 @@ export function listHomeInvoices(
   assertActorMayAccessHome(db, actor, homeId);
 
   const rows = db
-    .select({ invoice: invoices, residentHomeId: residents.homeId })
+    .select({ invoice: invoices, accountType: accounts.accountType })
     .from(invoices)
-    .innerJoin(residentAccounts, eq(residentAccounts.id, invoices.accountId))
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
-    .where(eq(residents.homeId, homeId))
+    .innerJoin(accounts, eq(accounts.id, invoices.accountId))
+    .leftJoin(residents, eq(residents.id, accounts.residentId))
+    .where(invoiceHomeScopePredicate(homeId))
     .all();
   return rows
-    .map((row) => row.invoice)
+    .map((row) => ({
+      ...row.invoice,
+      accountType: row.accountType,
+    }))
     .sort((a, b) => b.createdAtUtcMs - a.createdAtUtcMs || a.id.localeCompare(b.id));
 }
 
@@ -295,6 +393,11 @@ export function getInvoiceDetails(
   requireBillingAdmin(actor);
   assertActorMayAccessHome(db, actor, homeId);
   const invoice = getInvoiceForHome(db, homeId, invoiceId);
+  const ownerRow = db
+    .select({ accountType: accounts.accountType })
+    .from(accounts)
+    .where(eq(accounts.id, invoice.accountId))
+    .get();
   const lineItems = db
     .select()
     .from(invoiceLineItems)
@@ -306,10 +409,22 @@ export function getInvoiceDetails(
       description: line.description,
       amountMinor: line.amountMinor,
       serviceMonth: line.serviceMonth,
-      wardIdSnapshot: line.wardIdSnapshot,
       quantity: line.quantity,
     }));
-  return { ...invoice, lineItems };
+  const monthlyFeeRate = db
+    .select({ monthlyRatePerPersonMinor: wards.monthlyRatePerPersonMinor })
+    .from(invoices)
+    .innerJoin(accounts, eq(accounts.id, invoices.accountId))
+    .leftJoin(residents, eq(residents.id, accounts.residentId))
+    .leftJoin(wards, eq(wards.id, residents.wardId))
+    .where(and(eq(invoices.id, invoiceId), eq(accounts.accountType, "resident")))
+    .get();
+  return {
+    ...invoice,
+    accountType: (ownerRow?.accountType ?? "resident") as "resident" | "home",
+    monthlyFeeAmountMinor: monthlyFeeRate?.monthlyRatePerPersonMinor ?? null,
+    lineItems,
+  };
 }
 
 export function createDraftInvoice(
@@ -318,8 +433,6 @@ export function createDraftInvoice(
   input: {
     homeId?: string;
     accountId: string;
-    billingPeriod?: string | null;
-    issuedOn?: string | null;
     lineItems: DraftInvoiceLineInput[];
     nowUtcMs?: number;
   },
@@ -328,40 +441,65 @@ export function createDraftInvoice(
   if (input.homeId) {
     assertActorMayAccessHome(db, actor, input.homeId);
   }
-  const account = db
-    .select({ id: residentAccounts.id, residentHomeId: residents.homeId })
-    .from(residentAccounts)
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
-    .where(eq(residentAccounts.id, input.accountId))
+  const residentAccount = db
+    .select({ id: accounts.id, residentHomeId: residents.homeId })
+    .from(accounts)
+    .innerJoin(residents, eq(residents.id, accounts.residentId))
+    .where(and(eq(accounts.id, input.accountId), eq(accounts.accountType, "resident")))
     .get();
-  if (!account || (input.homeId && account.residentHomeId !== input.homeId)) {
+
+  const homeAccount =
+    residentAccount == null
+      ? db
+          .select({ id: accounts.id, billingHomeId: accounts.homeId })
+          .from(accounts)
+          .where(and(eq(accounts.id, input.accountId), eq(accounts.accountType, "home")))
+          .get()
+      : null;
+
+  let billingHomeId: string;
+  if (residentAccount) {
+    if (input.homeId && residentAccount.residentHomeId !== input.homeId) {
+      throw new NotFoundError();
+    }
+    billingHomeId = residentAccount.residentHomeId;
+  } else if (homeAccount?.billingHomeId) {
+    if (input.homeId && homeAccount.billingHomeId !== input.homeId) {
+      throw new NotFoundError();
+    }
+    billingHomeId = homeAccount.billingHomeId;
+  } else {
     throw new NotFoundError();
   }
   const now = input.nowUtcMs ?? Date.now();
+  const issuedOn = utcDateOnlyFromMs(now);
   const invoiceId = randomUUID();
   db.transaction((tx) => {
+    const invNo = bumpInvNumberSequence(tx, billingHomeId, now);
     tx.insert(invoices)
       .values({
         id: invoiceId,
         accountId: input.accountId,
+        homeId: billingHomeId,
+        invNo,
+        purchaseOrderId: null,
         status: "draft",
-        billingPeriod: normalizeServiceMonth(input.billingPeriod),
-        issuedOn: normalizeIssuedOn(input.issuedOn),
+        issuedOn,
         totalMinorSnapshot: null,
         createdAtUtcMs: now,
         updatedAtUtcMs: now,
       })
       .run();
     for (const line of input.lineItems) {
+      const values = deriveDraftLineValues(tx, input.accountId, line);
       tx.insert(invoiceLineItems)
         .values({
           id: line.id ?? randomUUID(),
           invoiceId,
-          category: line.category.trim(),
-          description: line.description.trim(),
-          amountMinor: line.amountMinor,
-          serviceMonth: normalizeServiceMonth(line.serviceMonth),
-          wardIdSnapshot: line.wardIdSnapshot ?? null,
+          category: values.category,
+          description: values.description,
+          amountMinor: values.amountMinor,
+          serviceMonth: values.serviceMonth,
           quantity: 1,
           createdAtUtcMs: now,
           updatedAtUtcMs: now,
@@ -378,7 +516,6 @@ export function updateDraftInvoice(
   input: {
     homeId?: string;
     invoiceId: string;
-    billingPeriod?: string | null;
     issuedOn?: string | null;
     lineItems: DraftInvoiceLineInput[];
     nowUtcMs?: number;
@@ -399,10 +536,6 @@ export function updateDraftInvoice(
 
     tx.update(invoices)
       .set({
-        billingPeriod:
-          input.billingPeriod === undefined
-            ? invoice.billingPeriod
-            : normalizeServiceMonth(input.billingPeriod),
         issuedOn:
           input.issuedOn === undefined ? invoice.issuedOn : normalizeIssuedOn(input.issuedOn),
         updatedAtUtcMs: now,
@@ -421,12 +554,12 @@ export function updateDraftInvoice(
     for (const line of input.lineItems) {
       const lineId = line.id?.trim() || randomUUID();
       keepIds.add(lineId);
+      const draftValues = deriveDraftLineValues(tx, invoice.accountId, line);
       const values = {
-        category: line.category.trim(),
-        description: line.description.trim(),
-        amountMinor: line.amountMinor,
-        serviceMonth: normalizeServiceMonth(line.serviceMonth),
-        wardIdSnapshot: line.wardIdSnapshot ?? null,
+        category: draftValues.category,
+        description: draftValues.description,
+        amountMinor: draftValues.amountMinor,
+        serviceMonth: draftValues.serviceMonth,
         quantity: 1,
         updatedAtUtcMs: now,
       };
@@ -474,14 +607,7 @@ export function finalizeInvoice(
     const invoice = input.homeId
       ? getInvoiceForHomeTx(tx, input.homeId, input.invoiceId)
       : getInvoiceByIdTx(tx, input.invoiceId);
-
-    const lines = tx
-      .select()
-      .from(invoiceLineItems)
-      .where(eq(invoiceLineItems.invoiceId, invoice.id))
-      .all();
-
-    return finalizeInvoiceTransaction(tx, invoice, lines, {
+    return finalizeInvoiceInTransaction(tx, invoice.id, {
       finalizedAtUtcMs: input.finalizedAtUtcMs,
       recordedByUserId: actor.userId,
     });
@@ -500,18 +626,12 @@ export function finalizeInvoiceAsTrustedSystem(
   totalMinorSnapshot: number;
   postedTransactionIds: string[];
 } {
-  return db.transaction((tx) => {
-    const invoice = getInvoiceByIdTx(tx, input.invoiceId);
-    const lines = tx
-      .select()
-      .from(invoiceLineItems)
-      .where(eq(invoiceLineItems.invoiceId, invoice.id))
-      .all();
-    return finalizeInvoiceTransaction(tx, invoice, lines, {
+  return db.transaction((tx) =>
+    finalizeInvoiceInTransaction(tx, input.invoiceId, {
       finalizedAtUtcMs: input.finalizedAtUtcMs,
       recordedByUserId: null,
-    });
-  });
+    }),
+  );
 }
 
 export type FinalizeDraftInvoicesForBillingMonthResult = {
@@ -532,7 +652,16 @@ export function finalizeDraftInvoicesForBillingMonth(
   const drafts = db
     .select({ id: invoices.id })
     .from(invoices)
-    .where(and(eq(invoices.status, "draft"), eq(invoices.billingPeriod, billingMonth)))
+    .innerJoin(
+      invoiceLineItems,
+      and(
+        eq(invoiceLineItems.invoiceId, invoices.id),
+        eq(invoiceLineItems.category, "monthly_fee"),
+        eq(invoiceLineItems.serviceMonth, billingMonth),
+      ),
+    )
+    .where(eq(invoices.status, "draft"))
+    .groupBy(invoices.id)
     .all();
   const finalizedInvoiceIds: string[] = [];
   const conflictInvoiceIds: string[] = [];

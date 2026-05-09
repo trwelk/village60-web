@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, like, sql } from "drizzle-orm";
 import {
+  homePoNumberSeq,
   homePurchaseOrderReceiveEvents,
   inventoryBalances,
   inventoryTransactions,
@@ -12,6 +13,7 @@ import {
   residents,
   users,
 } from "@/db/schema";
+import { createPurchaseOrderCloseInvoices } from "@/lib/billing/poCloseInvoices";
 import { assertActorMayAccessHome } from "@/lib/authz/homeScope";
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import type { AppDb } from "@/lib/homes/service";
@@ -59,10 +61,20 @@ function maybeAutoClosePurchaseOrder(
     .all();
   if (lines.length === 0) return;
   if (!lines.every((l) => isTerminalLineStatus(l.status))) return;
+
+  const po = db
+    .select({ status: homePurchaseOrders.status })
+    .from(homePurchaseOrders)
+    .where(eq(homePurchaseOrders.id, purchaseOrderId))
+    .get();
+  if (!po || po.status === "CLOSED") return;
+
   db.update(homePurchaseOrders)
     .set({ status: "CLOSED", updatedAtUtcMs: nowUtcMs })
     .where(eq(homePurchaseOrders.id, purchaseOrderId))
     .run();
+
+  createPurchaseOrderCloseInvoices(db, purchaseOrderId, nowUtcMs);
 }
 
 function assertQuantityMatchesUnitClass(unitClass: InventoryUnitClass, quantity: number): void {
@@ -80,18 +92,47 @@ function assertQuantityMatchesUnitClass(unitClass: InventoryUnitClass, quantity:
   }
 }
 
-function nextPoNumber(db: AppDb, homeId: string): string {
+/** Highest numeric PO suffix for the home (`PO-` + digits), or 0 if none / unparsable. */
+function maxExistingPoNumericSuffix(db: AppDb, homeId: string): number {
   const row = db
     .select({ poNumber: homePurchaseOrders.poNumber })
     .from(homePurchaseOrders)
     .where(eq(homePurchaseOrders.homeId, homeId))
-    .orderBy(desc(homePurchaseOrders.poNumber))
+    .orderBy(desc(sql`CAST(SUBSTR(${homePurchaseOrders.poNumber}, 4) AS INTEGER)`))
     .limit(1)
     .get();
-  const last = row?.poNumber ?? "PO-00000";
-  const match = /^PO-(\d+)$/.exec(last);
-  const n = match ? Number.parseInt(match[1], 10) : 0;
-  return `PO-${String(n + 1).padStart(5, "0")}`;
+  if (!row?.poNumber) return 0;
+  const match = /^PO-(\d+)$/.exec(row.poNumber);
+  return match ? Number.parseInt(match[1], 10) : 0;
+}
+
+/**
+ * Per-home monotonic PO suffix (last assigned numeric part) in `home_po_number_seq`.
+ * Bootstraps from existing `home_purchase_orders` once per home; then O(1).
+ */
+function bumpPoNumberSequence(db: AppDb, homeId: string, nowUtcMs: number): string {
+  const hasRow = db
+    .select({ homeId: homePoNumberSeq.homeId })
+    .from(homePoNumberSeq)
+    .where(eq(homePoNumberSeq.homeId, homeId))
+    .get();
+  if (!hasRow) {
+    const lastUsed = maxExistingPoNumericSuffix(db, homeId);
+    db.insert(homePoNumberSeq)
+      .values({ homeId, lastSuffix: lastUsed, updatedAtUtcMs: nowUtcMs })
+      .onConflictDoNothing()
+      .run();
+  }
+  const bumped = db
+    .update(homePoNumberSeq)
+    .set({ lastSuffix: sql`${homePoNumberSeq.lastSuffix} + 1`, updatedAtUtcMs: nowUtcMs })
+    .where(eq(homePoNumberSeq.homeId, homeId))
+    .returning({ lastSuffix: homePoNumberSeq.lastSuffix })
+    .get();
+  if (!bumped) {
+    throw new Error("PO number sequence update failed.");
+  }
+  return `PO-${String(bumped.lastSuffix).padStart(5, "0")}`;
 }
 
 export function createHomePurchaseOrder(
@@ -112,22 +153,26 @@ export function createHomePurchaseOrder(
     .where(eq(inventorySuppliers.id, supplierId))
     .get();
   if (!supplier) throw new NotFoundError("Supplier not found.");
-  const po = {
-    id: randomUUID(),
-    homeId,
-    poNumber: nextPoNumber(db, homeId),
-    supplierId,
-    status: "DRAFT" as PoStatus,
-    approvedAtUtcMs: null,
-    approvedByUserId: null,
-    sentAtUtcMs: null,
-    sentByUserId: null,
-    createdByUserId: actor.userId,
-    createdAtUtcMs: nowUtcMs,
-    updatedAtUtcMs: nowUtcMs,
-  };
-  db.insert(homePurchaseOrders).values(po).run();
-  return po;
+
+  return db.transaction((trx) => {
+    const poNumber = bumpPoNumberSequence(trx, homeId, nowUtcMs);
+    const po = {
+      id: randomUUID(),
+      homeId,
+      poNumber,
+      supplierId,
+      status: "DRAFT" as PoStatus,
+      approvedAtUtcMs: null,
+      approvedByUserId: null,
+      sentAtUtcMs: null,
+      sentByUserId: null,
+      createdByUserId: actor.userId,
+      createdAtUtcMs: nowUtcMs,
+      updatedAtUtcMs: nowUtcMs,
+    };
+    trx.insert(homePurchaseOrders).values(po).run();
+    return po;
+  });
 }
 
 export function listHomePurchaseOrders(db: AppDb, actor: SessionActor, homeId: string) {
@@ -147,6 +192,7 @@ export function listHomePurchaseOrders(db: AppDb, actor: SessionActor, homeId: s
       sentByUserId: homePurchaseOrders.sentByUserId,
       createdByUserId: homePurchaseOrders.createdByUserId,
       createdByDisplayName: users.displayName,
+      createdByEmail: users.email,
       createdAtUtcMs: homePurchaseOrders.createdAtUtcMs,
       updatedAtUtcMs: homePurchaseOrders.updatedAtUtcMs,
       totalReceivedCents: sql<number>`COALESCE(SUM(${homePurchaseOrderReceiveEvents.unitPriceCents} * ${homePurchaseOrderReceiveEvents.qtyReceivedEvent}), 0)`,
@@ -215,6 +261,7 @@ export function addPurchaseOrderLine(
     itemId: string;
     ownerType: PoLineOwnerType;
     ownerId: string;
+    purchaseUnitType: string;
     quantityOrderedBaseUnits: number;
   },
   nowUtcMs: number,
@@ -222,6 +269,10 @@ export function addPurchaseOrderLine(
   const purchaseOrderId = required(input.purchaseOrderId, "purchaseOrderId");
   const itemId = required(input.itemId, "itemId");
   const ownerId = required(input.ownerId, "ownerId");
+  const purchaseUnitType = required(input.purchaseUnitType, "purchaseUnitType");
+  if (purchaseUnitType.length > 80) {
+    throw new ValidationError("purchaseUnitType must be at most 80 characters.");
+  }
   const po = db
     .select({
       id: homePurchaseOrders.id,
@@ -267,6 +318,7 @@ export function addPurchaseOrderLine(
     itemId,
     ownerType: input.ownerType,
     ownerId,
+    purchaseUnitType,
     quantityOrderedBaseUnits: input.quantityOrderedBaseUnits,
     quantityReceivedBaseUnits: 0,
     status: "OPEN",
@@ -379,10 +431,12 @@ export function getPurchaseOrderWithLines(
       itemId: homePurchaseOrderLines.itemId,
       ownerType: homePurchaseOrderLines.ownerType,
       ownerId: homePurchaseOrderLines.ownerId,
+      purchaseUnitType: homePurchaseOrderLines.purchaseUnitType,
       quantityOrderedBaseUnits: homePurchaseOrderLines.quantityOrderedBaseUnits,
       quantityReceivedBaseUnits: homePurchaseOrderLines.quantityReceivedBaseUnits,
       status: homePurchaseOrderLines.status,
       itemName: inventoryItems.name,
+      itemBaseUnit: inventoryItems.baseUnit,
     })
     .from(homePurchaseOrderLines)
     .innerJoin(inventoryItems, eq(inventoryItems.id, homePurchaseOrderLines.itemId))
@@ -423,6 +477,10 @@ export function getPurchaseOrderWithLines(
   );
   const lines = rawLines.map((line) => ({
     ...line,
+    purchaseUnitTypeDisplay:
+      line.purchaseUnitType.trim().length > 0
+        ? line.purchaseUnitType.trim()
+        : line.itemBaseUnit,
     ownerDisplayName:
       line.ownerType === "HOME"
         ? homeOwnerName

@@ -8,7 +8,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
-import { residentAccounts, residents } from "@/db/schema";
+import { accounts, residents } from "@/db/schema";
 import { createHome } from "@/lib/homes/service";
 import { createResident } from "./service";
 import { createWard } from "@/lib/wards/service";
@@ -78,8 +78,8 @@ describe("createResident + resident_accounts transaction", () => {
     });
     const rows = db
       .select()
-      .from(residentAccounts)
-      .where(eq(residentAccounts.residentId, r.id))
+      .from(accounts)
+      .where(eq(accounts.residentId, r.id))
       .all();
     expect(rows).toHaveLength(1);
     expect(rows[0]?.currencyCode).toBe("NZD");
@@ -126,10 +126,10 @@ describe("createResident + resident_accounts transaction", () => {
           createdAtUtcMs: now,
           updatedAtUtcMs: now,
         };
-        tx.insert(residentAccounts)
+        tx.insert(accounts)
           .values({ id: randomUUID(), ...accountBase })
           .run();
-        tx.insert(residentAccounts)
+        tx.insert(accounts)
           .values({ id: randomUUID(), ...accountBase })
           .run();
       });

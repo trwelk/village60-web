@@ -1,5 +1,5 @@
 import { getDb } from "@/db/client";
-import { homes } from "@/db/schema";
+import { homes, residents } from "@/db/schema";
 import type { HomeMonthlyPaymentLedgerRow } from "@/lib/billing/residentCharges";
 import {
   DEFAULT_PAYMENTS_LEDGER_PAGE_SIZE,
@@ -19,6 +19,7 @@ import { HomePaymentsLedgerSection } from "./HomePaymentsLedgerSection";
 type PaymentsPageProps = {
   searchParams?: Promise<{
     homeId?: string;
+    residentId?: string;
     page?: string;
     pageSize?: string;
   }>;
@@ -80,6 +81,25 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   const pageSize = parsePageSizeParam(
     typeof q.pageSize === "string" ? q.pageSize : undefined,
   );
+  const selectedResidentIdRaw =
+    typeof q.residentId === "string" ? q.residentId.trim() : "";
+  const residentOptions = selectedHomeId
+    ? db
+        .select({
+          residentId: residents.id,
+          residentFullName: residents.fullName,
+          residentStatus: residents.status,
+        })
+        .from(residents)
+        .where(eq(residents.homeId, selectedHomeId))
+        .all()
+        .sort((a, b) => a.residentFullName.localeCompare(b.residentFullName))
+    : [];
+  const selectedResidentId = residentOptions.some(
+    (r) => r.residentId === selectedResidentIdRaw,
+  )
+    ? selectedResidentIdRaw
+    : null;
   const emptyLedger: {
     rows: HomeMonthlyPaymentLedgerRow[];
     totalCount: number;
@@ -96,6 +116,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       ? listHomeMonthlyPaymentsLedger(db, actor, selectedHomeId, {
           page,
           pageSize,
+          residentId: selectedResidentId,
         })
       : emptyLedger;
 
@@ -104,6 +125,8 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       <HomePaymentsLedgerSection
         homes={homeOptions}
         selectedHomeId={selectedHomeId}
+        selectedResidentId={selectedResidentId}
+        residentOptions={residentOptions}
         defaultCurrencyCode={homeRow?.defaultCurrencyCode ?? DEFAULT_CURRENCY_CODE}
         ledger={ledger}
       />

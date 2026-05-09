@@ -39,6 +39,19 @@ const emptySummary = {
 const base = {
   homes: [{ homeId: "h1", homeName: "Home One" }],
   selectedHomeId: "h1",
+  selectedResidentId: null,
+  residentOptions: [
+    {
+      residentId: "r1",
+      residentFullName: "Unpaid U.",
+      residentStatus: "active",
+    },
+    {
+      residentId: "r2",
+      residentFullName: "Paid P.",
+      residentStatus: "active",
+    },
+  ],
   defaultCurrencyCode: "NZD" as const,
   billingMonthFrom: "2026-01",
   billingMonthTo: "2026-04",
@@ -101,6 +114,9 @@ const paymentNull = {
   residentFullName: "Unpaid U.",
   residentStatus: "active" as const,
   billingMonth: "2026-01",
+  invoiceLineDescription: "January board",
+  invoiceLineCategory: "monthly_fee",
+  invoiceStatus: "finalized",
   wardIdSnapshot: "w1",
   wardLabel: "North",
   wardLabelSnapshot: "North",
@@ -117,6 +133,9 @@ const paymentWithRecord = {
   residentFullName: "Paid P.",
   residentStatus: "active" as const,
   billingMonth: "2026-02",
+  invoiceLineDescription: "February board",
+  invoiceLineCategory: "monthly_fee",
+  invoiceStatus: "paid",
   wardIdSnapshot: "w1",
   wardLabel: "North",
   wardLabelSnapshot: "North",
@@ -188,6 +207,9 @@ describe("HomeChargesSection (18d payment status filter, client fetch)", () => {
     const table = screen.getByRole("table", { name: /monthly charge ledger/i });
     expect(within(table).getByText("2026-01")).toBeInTheDocument();
     expect(within(table).getByText("2026-02")).toBeInTheDocument();
+    expect(within(table).getAllByText("monthly_fee").length).toBeGreaterThanOrEqual(
+      1,
+    );
   });
 
   it("Unpaid only shows API-filtered rows", async () => {
@@ -249,6 +271,15 @@ describe("HomeChargesSection (18d payment status filter, client fetch)", () => {
       expect(mockFetch).toHaveBeenCalled();
     });
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("resident filter navigates with residentId and resets to all", () => {
+    render(<HomeChargesSection {...base} />);
+    fireEvent.click(screen.getByRole("combobox", { name: /resident/i }));
+    fireEvent.click(screen.getByRole("option", { name: /Paid P\./i }));
+    expect(mockPush).toHaveBeenCalledWith(
+      "/dashboard/charges?homeId=h1&residentId=r2",
+    );
   });
 });
 

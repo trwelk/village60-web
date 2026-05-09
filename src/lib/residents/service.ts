@@ -7,7 +7,7 @@ import {
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import {
   homes,
-  residentAccounts,
+  accounts,
   residentDepartureDetails,
   residents,
   users,
@@ -318,10 +318,12 @@ export function createResident(
 
   db.transaction((tx) => {
     tx.insert(residents).values(row).run();
-    tx.insert(residentAccounts)
+    tx.insert(accounts)
       .values({
         id: randomUUID(),
+        accountType: "resident",
         residentId: id,
+        homeId: null,
         currencyCode: home.defaultCurrencyCode,
         createdAtUtcMs: now,
         updatedAtUtcMs: now,

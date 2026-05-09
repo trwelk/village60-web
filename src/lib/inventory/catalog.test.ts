@@ -222,6 +222,7 @@ describe("inventory catalog", () => {
         itemId: "item-1",
         ownerType: "HOME",
         ownerId: "h1",
+        purchaseUnitType: "each",
         quantityOrderedBaseUnits: 2,
         quantityReceivedBaseUnits: 0,
         status: "OPEN",

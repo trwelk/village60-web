@@ -8,13 +8,14 @@ import {
   homes,
   invoiceLineItems,
   invoices,
-  residentAccounts,
+  accounts,
   residents,
 } from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/errors";
 import { getResident } from "@/lib/residents/service";
-import { reversePostedBillingTransactionInTx } from "./ledgerReversal";
+import { bumpInvNumberSequence } from "@/lib/billing/invoiceNumbers";
+import { utcDateOnlyFromMs } from "@/lib/billing/billingMonth";
 
 export const OTHER_CHARGE_TYPES = ["registration", "deposit"] as const;
 export type OtherChargeType = (typeof OTHER_CHARGE_TYPES)[number];
@@ -48,7 +49,11 @@ function parseIsoDate(raw: string): string {
 }
 
 function accountForResident(db: AppDb, residentId: string) {
-  const account = db.select().from(residentAccounts).where(eq(residentAccounts.residentId, residentId)).get();
+  const account = db
+    .select()
+    .from(accounts)
+    .where(and(eq(accounts.accountType, "resident"), eq(accounts.residentId, residentId)))
+    .get();
   if (!account) throw new NotFoundError("Billing account not found.");
   return account;
 }
@@ -102,6 +107,7 @@ function upsertPaymentForLineItem(
       .values({
         id: txnId,
         accountId,
+        accountType: "resident",
         txnType: "payment",
         amountMinor: -amountMinor,
         sourceKind: "payment",
@@ -131,51 +137,7 @@ function upsertPaymentForLineItem(
   if (linked.payment.amountMinor === amountMinor && linked.payment.receivedOn === paidOn) {
     return;
   }
-  const now = Date.now();
-  db.transaction((tx) => {
-    reversePostedBillingTransactionInTx(
-      tx,
-      actor,
-      {
-        accountId,
-        originalTransactionId: linked.txn.id,
-        memo: `Correct other-charge payment for line ${lineItemId}`,
-      },
-      now,
-    );
-    tx.delete(billingPayments).where(eq(billingPayments.id, linked.payment.id)).run();
-
-    const paymentId = randomUUID();
-    const txnId = randomUUID();
-    tx.insert(billingTransactions)
-      .values({
-        id: txnId,
-        accountId,
-        txnType: "payment",
-        amountMinor: -amountMinor,
-        sourceKind: "payment",
-        sourceId: paymentId,
-        memo: `other-charge:${lineItemId}`,
-        recordedByUserId: actor.userId,
-        postedAtUtcMs: Date.parse(`${paidOn}T00:00:00.000Z`),
-      })
-      .run();
-    tx.insert(billingPayments)
-      .values({
-        id: paymentId,
-        accountId,
-        amountMinor,
-        receivedOn: paidOn,
-        method: "manual",
-        externalReference: null,
-        notes: null,
-        recordedByUserId: actor.userId,
-        ledgerTransactionId: txnId,
-        createdAtUtcMs: now,
-        updatedAtUtcMs: now,
-      })
-      .run();
-  });
+  throw new ValidationError(RECORDED_OTHER_CHARGE_MESSAGE);
 }
 
 export function updateResidentOtherCharge(
@@ -202,9 +164,24 @@ export function updateResidentOtherCharge(
     throw new ValidationError("Only registration/deposit line items are editable here.");
   }
 
+  const existing = paymentForLineItem(db, row.li.id);
+
   const nextAmount = patch.amountMinor ?? row.li.amountMinor;
   if (!Number.isInteger(nextAmount) || nextAmount < 0) {
     throw new ValidationError("amountMinor must be a non-negative integer.");
+  }
+  if (existing) {
+    const paidOnChanged =
+      patch.hasPaidOnKey &&
+      patch.paidOn !== undefined &&
+      patch.paidOn !== existing.payment.receivedOn;
+    const isNoop =
+      (patch.amountMinor === undefined || patch.amountMinor === row.li.amountMinor) &&
+      (patch.received === undefined || patch.received === true) &&
+      (!patch.hasPaidOnKey || patch.paidOn === existing.payment.receivedOn);
+    if (!isNoop || paidOnChanged) {
+      throw new ValidationError(RECORDED_OTHER_CHARGE_MESSAGE);
+    }
   }
   if (patch.amountMinor !== undefined && patch.amountMinor !== row.li.amountMinor) {
     db.update(invoiceLineItems)
@@ -213,25 +190,11 @@ export function updateResidentOtherCharge(
       .run();
   }
 
-  const existing = paymentForLineItem(db, row.li.id);
   const receivedTarget =
     patch.received !== undefined ? patch.received : patch.hasPaidOnKey ? patch.paidOn !== null : Boolean(existing);
 
   if (!receivedTarget && existing) {
-    const now = Date.now();
-    db.transaction((tx) => {
-      reversePostedBillingTransactionInTx(
-        tx,
-        actor,
-        {
-          accountId: account.id,
-          originalTransactionId: existing.txn.id,
-          memo: `Unrecord payment for other charge line ${row.li.id}`,
-        },
-        now,
-      );
-      tx.delete(billingPayments).where(eq(billingPayments.id, existing.payment.id)).run();
-    });
+    throw new ValidationError(RECORDED_OTHER_CHARGE_MESSAGE);
   } else if (receivedTarget) {
     const paidOn = patch.hasPaidOnKey
       ? patch.paidOn === null
@@ -281,36 +244,40 @@ export function initializeMissingResidentOtherCharges(
     if (!home) throw new NotFoundError();
     const now = Date.now();
     const invoiceId = randomUUID();
-    db.insert(invoices)
-      .values({
-        id: invoiceId,
-        accountId: account.id,
-        status: "draft",
-        billingPeriod: null,
-        issuedOn: null,
-        totalMinorSnapshot: null,
-        createdAtUtcMs: now,
-        updatedAtUtcMs: now,
-      })
-      .run();
-    for (const type of OTHER_CHARGE_TYPES) {
-      if (existingTypes.has(type)) continue;
-      db.insert(invoiceLineItems)
+    db.transaction((tx) => {
+      const invNo = bumpInvNumberSequence(tx, homeId, now);
+      tx.insert(invoices)
         .values({
-          id: randomUUID(),
-          invoiceId,
-          category: type,
-          description: `${type} charge`,
-          amountMinor: DEFAULT_INITIAL_OTHER_CHARGE_MINOR,
-          serviceMonth: null,
-          wardIdSnapshot: null,
-          quantity: 1,
+          id: invoiceId,
+          accountId: account.id,
+          homeId,
+          invNo,
+          purchaseOrderId: null,
+          status: "draft",
+          issuedOn: utcDateOnlyFromMs(now),
+          totalMinorSnapshot: null,
           createdAtUtcMs: now,
           updatedAtUtcMs: now,
         })
         .run();
-      createdTypes.push(type);
-    }
+      for (const type of OTHER_CHARGE_TYPES) {
+        if (existingTypes.has(type)) continue;
+        tx.insert(invoiceLineItems)
+          .values({
+            id: randomUUID(),
+            invoiceId,
+            category: type,
+            description: `${type} charge`,
+            amountMinor: DEFAULT_INITIAL_OTHER_CHARGE_MINOR,
+            serviceMonth: null,
+            quantity: 1,
+            createdAtUtcMs: now,
+            updatedAtUtcMs: now,
+          })
+          .run();
+        createdTypes.push(type);
+      }
+    });
   }
 
   return {

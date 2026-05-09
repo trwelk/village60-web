@@ -10,6 +10,17 @@ import {
 } from "./errors";
 
 export function homesErrorResponse(error: unknown): NextResponse | null {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "SQLITE_CONSTRAINT_FOREIGNKEY"
+  ) {
+    return NextResponse.json(
+      { error: "Data validation failed. Refresh and sign in again, then retry." },
+      { status: 409 },
+    );
+  }
   if (error instanceof ForbiddenError) {
     return NextResponse.json({ error: error.message }, { status: 403 });
   }

@@ -3,11 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { invoiceLineItems, invoices, billingTransactions, residentAccounts, users } from "@/db/schema";
+import { invoiceLineItems, invoices, accounts, users } from "@/db/schema";
 import { closeDbConnection, getDb } from "@/db/client";
 import { createHome } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError } from "@/lib/homes/errors";
@@ -62,9 +62,11 @@ function seedFinalizedMonthlyInvoice(
     .values({
       id: invoiceId,
       accountId,
+      homeId,
+      invNo: `INV-${invoiceId.replace(/-/g, "").slice(0, 8)}`,
+      purchaseOrderId: null,
       status: "draft",
-      billingPeriod,
-      issuedOn: null,
+      issuedOn: `${billingPeriod}-01`,
       totalMinorSnapshot: null,
       createdAtUtcMs: now,
       updatedAtUtcMs: now,
@@ -79,7 +81,6 @@ function seedFinalizedMonthlyInvoice(
       description: `${billingPeriod} fee`,
       amountMinor,
       serviceMonth: billingPeriod,
-      wardIdSnapshot: wardId,
       quantity: 1,
       createdAtUtcMs: now,
       updatedAtUtcMs: now,
@@ -107,7 +108,7 @@ describe("home billing ledgers (invoice-backed)", () => {
     }
   });
 
-  it("lists monthly charge rows from finalized invoices with paid=false until charge-specific payment", () => {
+  it("lists monthly charge rows from finalized invoices with paid=false until invoice is settled", () => {
     const db = getDb();
     seedAdminUser(db, adminActor.userId);
     const home = createHome(db, "admin", {
@@ -126,9 +127,9 @@ describe("home billing ledgers (invoice-backed)", () => {
       wardId: ward.id,
     });
     const accRow = db
-      .select({ id: residentAccounts.id })
-      .from(residentAccounts)
-      .where(eq(residentAccounts.residentId, resident.id))
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(eq(accounts.residentId, resident.id))
       .get();
     if (!accRow) {
       throw new Error("expected resident account");
@@ -144,17 +145,6 @@ describe("home billing ledgers (invoice-backed)", () => {
       Date.now(),
     );
 
-    const chargeTxn = db
-      .select()
-      .from(billingTransactions)
-      .where(
-        and(eq(billingTransactions.accountId, accRow.id), eq(billingTransactions.txnType, "charge")),
-      )
-      .get();
-    if (!chargeTxn) {
-      throw new Error("expected charge txn");
-    }
-
     const ledger = listHomeMonthlyChargesLedger(db, adminActor, home.id, {
       billingMonthFrom: "2026-01",
       billingMonthTo: "2026-12",
@@ -165,7 +155,7 @@ describe("home billing ledgers (invoice-backed)", () => {
     expect(ledger.rows).toHaveLength(1);
     expect(ledger.rows[0]!.billingMonth).toBe("2026-04");
     expect(ledger.rows[0]!.paid).toBe(false);
-    expect(ledger.rows[0]!.chargeId).toBe(chargeTxn.id);
+    expect(ledger.rows[0]!.invoiceLineCategory).toBe("monthly_fee");
 
     const paidLedger = listHomeMonthlyChargesLedger(db, adminActor, home.id, {
       billingMonthFrom: "2026-01",
@@ -244,9 +234,9 @@ describe("home billing ledgers (invoice-backed)", () => {
       wardId: ward.id,
     });
     const acc1 = db
-      .select({ id: residentAccounts.id })
-      .from(residentAccounts)
-      .where(eq(residentAccounts.residentId, r1.id))
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(eq(accounts.residentId, r1.id))
       .get();
     if (!acc1) throw new Error("account");
     const ts = Date.now();

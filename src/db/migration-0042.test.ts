@@ -45,17 +45,17 @@ describe("migration 0042: ledger cutover and core billing schema", () => {
     expect(tableNames).not.toContain("resident_monthly_charges");
     expect(tableNames).not.toContain("other_charges");
 
-    expect(tableNames).toContain("resident_accounts");
+    expect(tableNames).toContain("accounts");
     expect(tableNames).toContain("billing_transactions");
     expect(tableNames).toContain("billing_payments");
     expect(tableNames).toContain("invoices");
     expect(tableNames).toContain("invoice_line_items");
 
     const uniqueResidentIdIndex = sqlite
-      .prepare("PRAGMA index_list('resident_accounts')")
+      .prepare("PRAGMA index_list('accounts')")
       .all() as { name: string; unique: 0 | 1 }[];
     expect(
-      uniqueResidentIdIndex.some((idx) => idx.name === "resident_accounts_resident_uq" && idx.unique === 1),
+      uniqueResidentIdIndex.some((idx) => idx.name === "accounts_resident_uq" && idx.unique === 1),
     ).toBe(true);
 
     const billingTxnColumns = sqlite
@@ -98,16 +98,16 @@ describe("migration 0042: ledger cutover and core billing schema", () => {
 
     sqlite
       .prepare(
-        "INSERT INTO resident_accounts (id, resident_id, currency_code, created_at_utc_ms, updated_at_utc_ms) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO accounts (id, account_type, resident_id, home_id, currency_code, created_at_utc_ms, updated_at_utc_ms) VALUES (?, ?, ?, ?, ?, ?, ?)",
       )
-      .run("a1", "r1", "NZD", 1, 1);
+      .run("a1", "resident", "r1", null, "NZD", 1, 1);
 
     expect(() =>
       sqlite
         .prepare(
-          "INSERT INTO resident_accounts (id, resident_id, currency_code, created_at_utc_ms, updated_at_utc_ms) VALUES (?, ?, ?, ?, ?)",
+          "INSERT INTO accounts (id, account_type, resident_id, home_id, currency_code, created_at_utc_ms, updated_at_utc_ms) VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
-        .run("a2", "r1", "NZD", 1, 1),
+        .run("a2", "resident", "r1", null, "NZD", 1, 1),
     ).toThrow();
 
     sqlite.close();

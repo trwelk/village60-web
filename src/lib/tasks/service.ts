@@ -7,7 +7,7 @@ import {
   homes,
   invoiceLineItems,
   invoices,
-  residentAccounts,
+  accounts,
   residents,
   tasks,
 } from "@/db/schema";
@@ -244,7 +244,7 @@ function listPaymentOverdueReminders(
   actor: SessionActor,
   asOfDateUtc: string,
 ): PaymentOverdueInboxItem[] {
-  const overdue = sql`date(${invoices.billingPeriod} || '-01', '+1 month') <= date(${asOfDateUtc})`;
+  const overdue = sql`date(coalesce(${invoiceLineItems.serviceMonth}, substr(${invoices.issuedOn}, 1, 7)) || '-01', '+1 month') <= date(${asOfDateUtc})`;
   const noLaterPayment = sql`not exists (
     select 1
     from billing_transactions p
@@ -261,12 +261,12 @@ function listPaymentOverdueReminders(
         currencyCode: homes.defaultCurrencyCode,
         residentId: residents.id,
         residentName: residents.fullName,
-        billingMonth: invoices.billingPeriod,
+        billingMonth: sql<string>`coalesce(${invoiceLineItems.serviceMonth}, substr(${invoices.issuedOn}, 1, 7))`,
         amountMinor: billingTransactions.amountMinor,
       })
       .from(billingTransactions)
-      .innerJoin(residentAccounts, eq(residentAccounts.id, billingTransactions.accountId))
-      .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
+      .innerJoin(accounts, eq(accounts.id, billingTransactions.accountId))
+      .innerJoin(residents, eq(residents.id, accounts.residentId))
       .innerJoin(homes, eq(homes.id, residents.homeId))
       .leftJoin(
         invoiceLineItems,
@@ -301,8 +301,9 @@ function listPaymentOverdueReminders(
       )
       .where(
         and(
+          eq(accounts.accountType, "resident"),
           eq(billingTransactions.txnType, "charge"),
-          isNotNull(invoices.billingPeriod),
+          isNotNull(invoices.issuedOn),
           overdue,
           noLaterPayment,
         ),
@@ -338,12 +339,12 @@ function listPaymentOverdueReminders(
       currencyCode: homes.defaultCurrencyCode,
       residentId: residents.id,
       residentName: residents.fullName,
-      billingMonth: invoices.billingPeriod,
+      billingMonth: sql<string>`coalesce(${invoiceLineItems.serviceMonth}, substr(${invoices.issuedOn}, 1, 7))`,
       amountMinor: billingTransactions.amountMinor,
     })
     .from(billingTransactions)
-    .innerJoin(residentAccounts, eq(residentAccounts.id, billingTransactions.accountId))
-    .innerJoin(residents, eq(residents.id, residentAccounts.residentId))
+    .innerJoin(accounts, eq(accounts.id, billingTransactions.accountId))
+    .innerJoin(residents, eq(residents.id, accounts.residentId))
     .innerJoin(homes, eq(homes.id, residents.homeId))
     .leftJoin(
       invoiceLineItems,
@@ -378,8 +379,9 @@ function listPaymentOverdueReminders(
     )
     .where(
       and(
+        eq(accounts.accountType, "resident"),
         eq(billingTransactions.txnType, "charge"),
-        isNotNull(invoices.billingPeriod),
+        isNotNull(invoices.issuedOn),
         overdue,
         noLaterPayment,
         inArray(residents.homeId, [...allowed]),

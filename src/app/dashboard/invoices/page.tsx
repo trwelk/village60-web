@@ -10,7 +10,11 @@ import { redirect } from "next/navigation";
 import { InvoicesDashboardClient } from "./InvoicesDashboardClient";
 
 type PageParams = {
-  searchParams?: Promise<{ homeId?: string }>;
+  searchParams?: Promise<{
+    homeId?: string;
+    residentId?: string;
+    accountType?: string;
+  }>;
 };
 
 export default async function DashboardInvoicesPage({ searchParams }: PageParams) {
@@ -39,10 +43,25 @@ export default async function DashboardInvoicesPage({ searchParams }: PageParams
     selectedHomeId = homes[0]!.homeId;
   }
 
+  const rawAccountType = typeof q.accountType === "string" ? q.accountType.trim() : "";
+  const selectedAccountType =
+    rawAccountType === "home" ? ("home" as const) : ("resident" as const);
+
+  let selectedResidentId = typeof q.residentId === "string" ? q.residentId : "";
+  if (selectedAccountType === "home") {
+    selectedResidentId = "";
+  }
+
   if (homes.length === 0) {
     return (
       <main className="flex flex-col gap-6 text-[var(--text-primary)]">
-        <InvoicesDashboardClient homes={[]} selectedHomeId="" accounts={[]} />
+        <InvoicesDashboardClient
+          homes={[]}
+          selectedHomeId=""
+          selectedAccountType="resident"
+          selectedResidentId=""
+          accounts={[]}
+        />
       </main>
     );
   }
@@ -61,12 +80,20 @@ export default async function DashboardInvoicesPage({ searchParams }: PageParams
       throw e;
     }
   }
+  if (
+    selectedAccountType === "resident" &&
+    !accounts.some((account) => account.residentId === selectedResidentId)
+  ) {
+    selectedResidentId = "";
+  }
 
   return (
     <main className="flex flex-col gap-6 text-[var(--text-primary)]">
       <InvoicesDashboardClient
         homes={homes}
         selectedHomeId={selectedHomeId}
+        selectedAccountType={selectedAccountType}
+        selectedResidentId={selectedResidentId}
         accounts={accounts}
       />
     </main>

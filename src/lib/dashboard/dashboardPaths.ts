@@ -22,12 +22,23 @@ export function isDashboardChargesPath(pathname: string): boolean {
   return pathname === "/dashboard/charges";
 }
 
-export function isDashboardOtherChargesPath(pathname: string): boolean {
-  return pathname === "/dashboard/other-charges";
+export function isDashboardHomeExpensesPath(pathname: string): boolean {
+  return pathname === "/dashboard/home-expenses";
+}
+
+export function isDashboardHomeAccountPaymentsPath(pathname: string): boolean {
+  return pathname === "/dashboard/home-payments";
 }
 
 export function isDashboardPaymentsPath(pathname: string): boolean {
   return pathname === "/dashboard/payments";
+}
+
+export function isDashboardLedgerPath(pathname: string): boolean {
+  return (
+    pathname === "/dashboard/ledger" ||
+    /\/dashboard\/homes\/[^/]+\/ledger$/.test(pathname)
+  );
 }
 
 export function isDashboardInvoicesPath(pathname: string): boolean {
@@ -37,23 +48,19 @@ export function isDashboardInvoicesPath(pathname: string): boolean {
   );
 }
 
-export function isDashboardExpenseTypesPath(pathname: string): boolean {
-  return pathname === "/dashboard/expenses/types";
-}
-
-export function isDashboardExpensesPath(pathname: string): boolean {
-  return pathname === "/dashboard/expenses";
-}
-
 export function isDashboardTasksPath(pathname: string): boolean {
   return pathname === "/dashboard/tasks";
 }
 
+/** Sibling hub segments under `/dashboard/inventory-orders/*`, not PO ids. */
+const INVENTORY_ORDERS_NON_PO_SEGMENTS = new Set(["catalog", "suppliers"]);
+
 export function isDashboardInventoryOrdersPath(pathname: string): boolean {
-  return (
-    pathname === "/dashboard/inventory-orders" ||
-    /^\/dashboard\/inventory-orders\/[^/]+$/.test(pathname)
-  );
+  if (pathname === "/dashboard/inventory-orders") return true;
+  const m = /^\/dashboard\/inventory-orders\/([^/]+)$/.exec(pathname);
+  if (!m) return false;
+  if (INVENTORY_ORDERS_NON_PO_SEGMENTS.has(m[1]!)) return false;
+  return true;
 }
 
 export function isDashboardInventoryCatalogPath(pathname: string): boolean {
@@ -98,6 +105,10 @@ export function isDashboardAnalyticsDemographicsStaffPath(
   pathname: string,
 ): boolean {
   return pathname === "/dashboard/analytics/demographics-staff";
+}
+
+export function isDashboardAnalyticsFinancialPath(pathname: string): boolean {
+  return pathname === "/dashboard/analytics/financial";
 }
 
 /**

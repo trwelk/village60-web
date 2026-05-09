@@ -10,7 +10,7 @@ import type {
 } from "@/lib/billing/residentCharges";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState, useTransition } from "react";
 
 type LedgerSlice = {
   rows: HomeMonthlyChargeLedgerRow[];
@@ -31,6 +31,12 @@ const FILTER_LOADING_SUMMARY: HomeMonthlyChargesLedgerSummary = {
 type Props = {
   homes: DashboardHomeOption[];
   selectedHomeId: string;
+  selectedResidentId: string | null;
+  residentOptions: {
+    residentId: string;
+    residentFullName: string;
+    residentStatus: string;
+  }[];
   defaultCurrencyCode: string;
   /** Inclusive range actually loaded (UTC billing months). */
   billingMonthFrom: string;
@@ -54,6 +60,8 @@ function formatMinorAsCurrency(minor: number, currencyCode: string): string {
 export function HomeChargesSection({
   homes,
   selectedHomeId,
+  selectedResidentId,
+  residentOptions,
   defaultCurrencyCode,
   billingMonthFrom,
   billingMonthTo,
@@ -65,10 +73,14 @@ export function HomeChargesSection({
   const router = useRouter();
   const [fromDraft, setFromDraft] = useState(billingMonthFrom);
   const [toDraft, setToDraft] = useState(billingMonthTo);
+  const [residentFilter, setResidentFilter] = useState<string | null>(
+    selectedResidentId,
+  );
   const [paymentFilter, setPaymentFilter] =
     useState<HomeMonthlyChargesLedgerPaymentStatusFilter>("all");
   const [filteredPage, setFilteredPage] = useState(1);
   const [clientLedger, setClientLedger] = useState<LedgerSlice | null>(null);
+  const [isApplyingRange, startApplyingRange] = useTransition();
   const [filterFetchState, setFilterFetchState] = useState<
     "idle" | "loading" | "error"
   >("idle");
@@ -76,17 +88,24 @@ export function HomeChargesSection({
   useEffect(() => {
     setFromDraft(billingMonthFrom);
     setToDraft(billingMonthTo);
-  }, [billingMonthFrom, billingMonthTo]);
+    setResidentFilter(selectedResidentId);
+  }, [billingMonthFrom, billingMonthTo, selectedResidentId]);
 
   useEffect(() => {
     setPaymentFilter("all");
     setClientLedger(null);
     setFilterFetchState("idle");
-  }, [selectedHomeId, billingMonthFrom, billingMonthTo]);
+  }, [selectedHomeId, billingMonthFrom, billingMonthTo, residentFilter]);
 
   useLayoutEffect(() => {
     setFilteredPage(1);
-  }, [paymentFilter, selectedHomeId, billingMonthFrom, billingMonthTo]);
+  }, [
+    paymentFilter,
+    selectedHomeId,
+    billingMonthFrom,
+    billingMonthTo,
+    residentFilter,
+  ]);
 
   useEffect(() => {
     if (paymentFilter === "all" || !selectedHomeId) {
@@ -105,6 +124,9 @@ export function HomeChargesSection({
         u.searchParams.set("billingMonthFrom", billingMonthFrom);
         u.searchParams.set("billingMonthTo", billingMonthTo);
         u.searchParams.set("paymentStatus", paymentFilter);
+        if (residentFilter) {
+          u.searchParams.set("residentId", residentFilter);
+        }
         u.searchParams.set("page", String(filteredPage));
         u.searchParams.set("pageSize", String(ledger.pageSize));
         const res = await fetch(u.toString(), { signal: ac.signal });
@@ -139,6 +161,7 @@ export function HomeChargesSection({
     selectedHomeId,
     billingMonthFrom,
     billingMonthTo,
+    residentFilter,
     filteredPage,
     ledger.pageSize,
   ]);
@@ -172,6 +195,13 @@ export function HomeChargesSection({
   const toIdx = Math.min(page * pageSize, totalCount);
   const canPrev = page > 1;
   const canNext = page * pageSize < totalCount;
+  const normalizedFromDraft = fromDraft.trim() || ytdBillingMonthFrom;
+  const normalizedToDraft = toDraft.trim() || ytdBillingMonthTo;
+  const hasRangeDraftChanges =
+    normalizedFromDraft !== billingMonthFrom || normalizedToDraft !== billingMonthTo;
+  const hasInvalidRange = normalizedFromDraft > normalizedToDraft;
+  const isApplyRangeDisabled =
+    !selectedHomeId || !hasRangeDraftChanges || hasInvalidRange || isApplyingRange;
 
   return (
     <>
@@ -179,7 +209,7 @@ export function HomeChargesSection({
         data-testid="charges-ledger-filters"
         className="village-card village-reveal village-reveal-delay-1 relative z-20 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-5 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6"
       >
-        <div className="grid gap-5 lg:grid-cols-[minmax(14rem,20rem)_1fr] lg:items-end">
+        <div className="grid gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(16rem,1fr)_minmax(18rem,1.1fr)_auto] lg:items-end">
           <div className="flex flex-col gap-2">
             <label htmlFor="charges-home" className="village-label">
               Home
@@ -196,7 +226,7 @@ export function HomeChargesSection({
                     billingMonthTo,
                     ytdBillingMonthFrom,
                     ytdBillingMonthTo,
-                    { page: 1 },
+                    { page: 1, residentId: null },
                   ),
                 );
               }}
@@ -206,58 +236,104 @@ export function HomeChargesSection({
               }))}
             />
           </div>
-          <fieldset>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="charges-resident" className="village-label">
+              Resident (optional)
+            </label>
+            <VillageSelect
+              id="charges-resident"
+              value={residentFilter ?? ""}
+              onChange={(id) => {
+                const nextResidentId = id === "" ? null : id;
+                setResidentFilter(nextResidentId);
+                setPaymentFilter("all");
+                if (!selectedHomeId) return;
+                router.push(
+                  buildDashboardChargesPath(
+                    selectedHomeId,
+                    billingMonthFrom,
+                    billingMonthTo,
+                    ytdBillingMonthFrom,
+                    ytdBillingMonthTo,
+                    { page: 1, residentId: nextResidentId },
+                  ),
+                );
+              }}
+              options={[
+                { value: "", label: "All residents" },
+                ...residentOptions.map((r) => ({
+                  value: r.residentId,
+                  label:
+                    r.residentStatus === "active"
+                      ? r.residentFullName
+                      : `${r.residentFullName} (Departed)`,
+                })),
+              ]}
+            />
+          </div>
+          <fieldset className="min-w-0">
             <legend className="village-label">Billing month range (UTC)</legend>
-            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-              <div className="flex flex-col gap-1">
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <label className="village-field-label" htmlFor="charges-month-from">
                   From
                 </label>
                 <input
-                  className="village-input min-w-40"
+                  className="village-input min-w-0"
                   id="charges-month-from"
                   type="month"
                   value={fromDraft}
                   onChange={(e) => setFromDraft(e.target.value)}
                 />
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <label className="village-field-label" htmlFor="charges-month-to">
                   To
                 </label>
                 <input
-                  className="village-input min-w-40"
+                  className="village-input min-w-0"
                   id="charges-month-to"
                   type="month"
                   value={toDraft}
                   onChange={(e) => setToDraft(e.target.value)}
                 />
               </div>
-              <button
-                className="village-btn-primary min-h-10"
-                type="button"
-                onClick={() => {
-                  if (!selectedHomeId) return;
-                  const from = fromDraft.trim() || ytdBillingMonthFrom;
-                  const to = toDraft.trim() || ytdBillingMonthTo;
-                  setPaymentFilter("all");
-                  router.push(
-                    buildDashboardChargesPath(
-                      selectedHomeId,
-                      from,
-                      to,
-                      ytdBillingMonthFrom,
-                      ytdBillingMonthTo,
-                      { page: 1, pageSize: ledger.pageSize },
-                    ),
-                  );
-                }}
-              >
-                Apply range
-              </button>
             </div>
           </fieldset>
+          <button
+            className="h-10 w-full rounded-xl border border-[color:color-mix(in_srgb,var(--accent-strong)_72%,transparent)] bg-[var(--accent-strong)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:border-[color:color-mix(in_srgb,var(--line-strong)_65%,transparent)] disabled:bg-[color:color-mix(in_srgb,var(--bg-muted)_84%,transparent)] disabled:text-[var(--text-muted)] lg:w-auto"
+            type="button"
+            disabled={isApplyRangeDisabled}
+            aria-busy={isApplyingRange}
+            onClick={() => {
+              if (isApplyRangeDisabled || !selectedHomeId) return;
+              startApplyingRange(() => {
+                setPaymentFilter("all");
+                router.push(
+                  buildDashboardChargesPath(
+                    selectedHomeId,
+                    normalizedFromDraft,
+                    normalizedToDraft,
+                    ytdBillingMonthFrom,
+                    ytdBillingMonthTo,
+                    {
+                      page: 1,
+                      pageSize: ledger.pageSize,
+                      residentId: residentFilter,
+                    },
+                  ),
+                );
+              });
+            }}
+          >
+            {isApplyingRange ? "Applying..." : "Apply range"}
+          </button>
         </div>
+        {hasInvalidRange ? (
+          <p className="mt-3 text-sm text-[var(--danger)]" role="alert">
+            From month must be earlier than or equal to To month.
+          </p>
+        ) : null}
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
           <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)] px-3 py-1.5 font-medium text-[var(--text-primary)]">
             {selectedHomeName}
@@ -275,35 +351,35 @@ export function HomeChargesSection({
         <div className="village-reveal village-reveal-delay-2 flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
-              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
+              <p className="font-mono text-[0.58rem] font-medium uppercase tracking-[0.16em] text-[color:color-mix(in_srgb,var(--text-muted)_88%,transparent)]">
                 Total billed
               </p>
-              <p className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
+              <p className="mt-2 text-3xl font-semibold leading-tight tracking-tight text-[var(--text-primary)] sm:text-[2.1rem]">
                 {formatMinorAsCurrency(summary.totalBilledMinor, defaultCurrencyCode)}
               </p>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
                 {summary.chargeCount} charge{summary.chargeCount === 1 ? "" : "s"}
               </p>
             </div>
-            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
-              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
+            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--danger)_38%,var(--line-strong)_62%)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
+              <p className="font-mono text-[0.58rem] font-medium uppercase tracking-[0.16em] text-[color:color-mix(in_srgb,var(--text-muted)_88%,transparent)]">
                 Unpaid balance
               </p>
-              <p className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-[var(--danger)]">
+              <p className="mt-2 text-3xl font-semibold leading-tight tracking-tight text-[var(--danger)] sm:text-[2.1rem]">
                 {formatMinorAsCurrency(summary.unpaidBalanceMinor, defaultCurrencyCode)}
               </p>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
                 {summary.unpaidCount} unpaid
               </p>
             </div>
             <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
-              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
+              <p className="font-mono text-[0.58rem] font-medium uppercase tracking-[0.16em] text-[color:color-mix(in_srgb,var(--text-muted)_88%,transparent)]">
                 Collection status
               </p>
-              <p className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
+              <p className="mt-2 text-3xl font-semibold leading-tight tracking-tight text-[var(--text-primary)] sm:text-[2.1rem]">
                 {summary.paidCount}/{summary.chargeCount}
               </p>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">charges paid</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">charges paid</p>
             </div>
           </div>
           {ledger.totalCount > 0 || paymentFilter !== "all" ? (
@@ -398,7 +474,7 @@ export function HomeChargesSection({
                             billingMonthTo,
                             ytdBillingMonthFrom,
                             ytdBillingMonthTo,
-                            { page: page - 1, pageSize },
+                            { page: page - 1, pageSize, residentId: residentFilter },
                           ),
                         );
                       } else {
@@ -421,7 +497,7 @@ export function HomeChargesSection({
                             billingMonthTo,
                             ytdBillingMonthFrom,
                             ytdBillingMonthTo,
-                            { page: page + 1, pageSize },
+                            { page: page + 1, pageSize, residentId: residentFilter },
                           ),
                         );
                       } else {
@@ -445,26 +521,29 @@ export function HomeChargesSection({
                   Resident
                 </th>
                 <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                  Status
+                  Description
                 </th>
                 <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                  Billing month
+                  Category
                 </th>
                 <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   Amount
                 </th>
                 <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                  Ward
+                  Currency
                 </th>
                 <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                   Paid
+                </th>
+                <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                  Period
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[color:color-mix(in_srgb,var(--line-subtle)_66%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_84%,transparent)]">
               {totalCount === 0 && paymentFilter === "all" ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center">
+                  <td colSpan={7} className="px-5 py-12 text-center">
                     <div className="mx-auto max-w-md rounded-2xl border border-dashed border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_74%,transparent)] px-6 py-7">
                       <p className="font-semibold text-[var(--text-primary)]">
                         No monthly charges in this range for this home.
@@ -481,7 +560,7 @@ export function HomeChargesSection({
                 paymentFilter !== "all" ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-5 py-12 text-center text-[var(--text-secondary)]"
                   >
                     Loading…
@@ -490,7 +569,7 @@ export function HomeChargesSection({
               ) : totalCount === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-5 py-12 text-center text-[var(--text-secondary)]"
                     data-testid="charges-ledger-filter-empty"
                   >
@@ -511,13 +590,15 @@ export function HomeChargesSection({
                         {row.residentFullName}
                       </Link>
                     </td>
-                    <td className="px-5 py-4 capitalize text-[var(--text-primary)]">
-                      <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)]">
-                        {row.residentStatus === "active" ? "Active" : "Departed"}
-                      </span>
+                    <td className="max-w-[min(28rem,48vw)] min-w-[8rem] px-5 py-4 text-[var(--text-primary)]">
+                      {row.invoiceLineDescription.trim() === ""
+                        ? "—"
+                        : row.invoiceLineDescription}
                     </td>
-                    <td className="px-5 py-4 font-mono text-xs tabular-nums text-[var(--text-secondary)]">
-                      {row.billingMonth}
+                    <td className="px-5 py-4">
+                      <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                        {row.invoiceLineCategory}
+                      </span>
                     </td>
                     <td className="px-5 py-4 font-semibold tabular-nums text-[var(--text-primary)]">
                       {formatMinorAsCurrency(
@@ -525,8 +606,8 @@ export function HomeChargesSection({
                         defaultCurrencyCode,
                       )}
                     </td>
-                    <td className="px-5 py-4 text-[var(--text-secondary)]">
-                      {row.wardLabel ?? "—"}
+                    <td className="px-5 py-4 font-mono text-xs uppercase tabular-nums text-[var(--text-secondary)]">
+                      {defaultCurrencyCode}
                     </td>
                     <td className="px-5 py-4">
                       <span
@@ -538,6 +619,9 @@ export function HomeChargesSection({
                       >
                         {row.paid ? "Paid" : "Unpaid"}
                       </span>
+                    </td>
+                    <td className="px-5 py-4 font-mono text-xs tabular-nums text-[var(--text-secondary)]">
+                      {row.billingMonth}
                     </td>
                   </tr>
                 ))

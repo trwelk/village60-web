@@ -4,7 +4,7 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
-import { billingTransactions, homes, homeAccounts, users } from "@/db/schema";
+import { billingTransactions, homes, accounts, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { AppDb } from "@/lib/homes/service";
 import { ForbiddenError } from "@/lib/homes/errors";
@@ -13,7 +13,6 @@ import {
   getHomeAccountStatement,
   postHomeTransaction,
 } from "./homeAccounts";
-import { reversePostedBillingTransaction } from "./ledgerReversal";
 
 function openMemoryDb(): { db: AppDb; sqlite: Database.Database } {
   const sqlite = new Database(":memory:");
@@ -77,7 +76,7 @@ describe("ensureHomeAccount", () => {
 
     expect(first.id).toBe(second.id);
 
-    const rows = db.select().from(homeAccounts).where(eq(homeAccounts.homeId, "h1")).all();
+    const rows = db.select().from(accounts).where(eq(accounts.homeId, "h1")).all();
     expect(rows).toHaveLength(1);
 
     sqlite.close();
@@ -134,7 +133,7 @@ describe("postHomeTransaction", () => {
   it("auto-creates the home account if it did not exist", () => {
     const { db, sqlite } = openMemoryDb();
 
-    const before = db.select().from(homeAccounts).where(eq(homeAccounts.homeId, "h1")).all();
+    const before = db.select().from(accounts).where(eq(accounts.homeId, "h1")).all();
     expect(before).toHaveLength(0);
 
     postHomeTransaction(db, adminActor, {
@@ -144,7 +143,7 @@ describe("postHomeTransaction", () => {
       sourceKind: "home_expense",
     });
 
-    const after = db.select().from(homeAccounts).where(eq(homeAccounts.homeId, "h1")).all();
+    const after = db.select().from(accounts).where(eq(accounts.homeId, "h1")).all();
     expect(after).toHaveLength(1);
 
     sqlite.close();
@@ -203,37 +202,6 @@ describe("getHomeAccountStatement", () => {
     expect(stmt.lines).toHaveLength(2);
     expect(stmt.lines[0]!.runningBalanceMinor).toBe(10000);
     expect(stmt.lines[1]!.runningBalanceMinor).toBe(15000);
-
-    sqlite.close();
-  });
-});
-
-describe("reversal of a home transaction", () => {
-  it("reversal row inherits accountType 'home'", () => {
-    const { db, sqlite } = openMemoryDb();
-
-    const { ledgerTransactionId, accountId } = postHomeTransaction(db, adminActor, {
-      homeId: "h1",
-      txnType: "expense",
-      amountMinor: 8000,
-      sourceKind: "home_expense",
-      sourceId: "exp-rev",
-    });
-
-    const { reversalTransactionId } = reversePostedBillingTransaction(db, adminActor, {
-      accountId,
-      originalTransactionId: ledgerTransactionId,
-    });
-
-    const reversal = db
-      .select()
-      .from(billingTransactions)
-      .where(eq(billingTransactions.id, reversalTransactionId))
-      .get();
-
-    expect(reversal!.accountType).toBe("home");
-    expect(reversal!.txnType).toBe("reversal");
-    expect(reversal!.amountMinor).toBe(-8000);
 
     sqlite.close();
   });

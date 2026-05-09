@@ -15,7 +15,6 @@ type DraftLineItemInput = {
   description: string;
   amountMinor: number;
   serviceMonth?: string | null;
-  wardIdSnapshot?: string | null;
 };
 
 export async function GET(_req: Request, { params }: RouteParams) {
@@ -88,18 +87,12 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       ...(typeof line.serviceMonth === "string" || line.serviceMonth === null
         ? { serviceMonth: line.serviceMonth as string | null }
         : {}),
-      ...(typeof line.wardIdSnapshot === "string" || line.wardIdSnapshot === null
-        ? { wardIdSnapshot: line.wardIdSnapshot as string | null }
-        : {}),
     });
   }
   try {
     updateDraftInvoice(getDb(), requireSessionActor(session), {
       homeId,
       invoiceId,
-      ...(typeof rec.billingPeriod === "string" || rec.billingPeriod === null
-        ? { billingPeriod: rec.billingPeriod as string | null }
-        : {}),
       ...(typeof rec.issuedOn === "string" || rec.issuedOn === null
         ? { issuedOn: rec.issuedOn as string | null }
         : {}),

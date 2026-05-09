@@ -1,9 +1,15 @@
 "use client";
 
 import { ResidentCombobox } from "@/components/ResidentCombobox";
+import { VillageSelect } from "@/components/VillageSelect";
 import type { ResidentBillingAccountSummary } from "@/lib/billing/paymentsLifecycle";
+import {
+  DEFAULT_INVOICE_CATEGORY_OPTIONS,
+  isMonthlyFeeCategory,
+  type InvoiceCategoryOption,
+} from "@/lib/billing/invoiceCategories";
 import { PencilLine, Plus } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   INVOICE_MODAL_CLOSE_BTN_CLASS,
@@ -24,6 +30,28 @@ async function parseError(res: Response): Promise<string> {
   return "Request failed.";
 }
 
+function buildCategoryOptions(
+  customCategoryOptions: string[],
+  selectedCategory: string,
+): InvoiceCategoryOption[] {
+  const byValue = new Map<string, InvoiceCategoryOption>();
+  for (const option of DEFAULT_INVOICE_CATEGORY_OPTIONS) {
+    byValue.set(option.value, option);
+  }
+  for (const value of customCategoryOptions) {
+    const trimmed = value.trim();
+    if (trimmed === "") continue;
+    if (!byValue.has(trimmed)) {
+      byValue.set(trimmed, { value: trimmed, label: trimmed });
+    }
+  }
+  const selected = selectedCategory.trim();
+  if (selected !== "" && !byValue.has(selected)) {
+    byValue.set(selected, { value: selected, label: selected });
+  }
+  return Array.from(byValue.values());
+}
+
 function useBodyScrollLock(open: boolean, onEscape: () => void) {
   useEffect(() => {
     if (!open) return;
@@ -40,36 +68,60 @@ function useBodyScrollLock(open: boolean, onEscape: () => void) {
   }, [open, onEscape]);
 }
 
+type HomePickerOption = { homeId: string; homeName: string };
+
 type CreateDraftInvoiceModalProps = {
   open: boolean;
   homeId: string;
+  homes: HomePickerOption[];
+  accountTypeFilter: "resident" | "home";
   accounts: ResidentBillingAccountSummary[];
   disabled?: boolean;
   onClose: () => void;
-  onCreated: (invoiceId: string) => void;
+  onCreated: (invoiceId: string, invoiceHomeId: string) => void;
 };
 
 export function CreateDraftInvoiceModal({
   open,
   homeId,
+  homes,
+  accountTypeFilter,
   accounts,
   disabled,
   onClose,
   onCreated,
 }: CreateDraftInvoiceModalProps) {
-  const [billingPeriod, setBillingPeriod] = useState("");
+  const [accountKind, setAccountKind] = useState<"resident" | "home">("resident");
   const [residentId, setResidentId] = useState<string | null>(null);
+  const [targetHomeId, setTargetHomeId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const comboboxOptions = accounts.map((a) => ({
+  const accountTypeSelectOptions = useMemo(
+    () => [
+      { value: "resident" as const, label: "Resident" },
+      { value: "home" as const, label: "Home" },
+    ],
+    [],
+  );
+
+  const residentComboboxOptions = accounts.map((a) => ({
     value: a.residentId,
     label: a.fullName,
     hint: a.status === "departed" ? "Departed" : undefined,
   }));
 
-  const accountId =
+  const homeComboboxOptions = homes.map((h) => ({
+    value: h.homeId,
+    label: h.homeName,
+  }));
+
+  const residentAccountId =
     residentId != null ? accounts.find((a) => a.residentId === residentId)?.accountId : null;
+
+  const canSubmitResident = accountKind === "resident" && residentAccountId != null;
+  const canSubmitHome =
+    accountKind === "home" && targetHomeId != null && homes.some((h) => h.homeId === targetHomeId);
 
   const closeModal = useCallback(() => {
     if (submitting) return;
@@ -82,32 +134,41 @@ export function CreateDraftInvoiceModal({
     if (!open) {
       setError(null);
       setSubmitting(false);
+      return;
     }
-  }, [open]);
+    setAccountKind(accountTypeFilter);
+    setResidentId(null);
+    setTargetHomeId(homeId);
+  }, [open, accountTypeFilter, homeId]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!accountId || submitting || disabled) return;
+    if (submitting || disabled) return;
+    if (accountKind === "resident") {
+      if (!canSubmitResident || !residentAccountId) return;
+    } else if (!canSubmitHome || !targetHomeId) {
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/homes/${homeId}/invoices`, {
+      const postHomeId = accountKind === "home" ? targetHomeId! : homeId;
+      const body =
+        accountKind === "home"
+          ? { billingAccountType: "home" as const, lineItems: [] as [] }
+          : { accountId: residentAccountId!, lineItems: [] as [] };
+      const res = await fetch(`/api/homes/${postHomeId}/invoices`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accountId,
-          billingPeriod: billingPeriod.trim() === "" ? null : billingPeriod.trim(),
-          lineItems: [],
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         setError(await parseError(res));
         return;
       }
       const data = (await res.json()) as { invoiceId: string };
-      setBillingPeriod("");
       setResidentId(null);
-      onCreated(data.invoiceId);
+      onCreated(data.invoiceId, postHomeId);
       onClose();
     } finally {
       setSubmitting(false);
@@ -146,7 +207,8 @@ export function CreateDraftInvoiceModal({
                       New invoice
                     </h2>
                     <p className="text-sm leading-6 text-ink/65">
-                      Start an empty draft. Add line items after you open the invoice.
+                      Start an empty draft. The invoice date is set automatically; add lines after you open
+                      the invoice.
                     </p>
                   </div>
                 </div>
@@ -156,34 +218,60 @@ export function CreateDraftInvoiceModal({
               </div>
             </div>
             <form id="invoice-draft-create-form" className="grid gap-5 p-5 sm:p-6" onSubmit={onSubmit}>
-              <label className="flex max-w-2xl flex-col gap-2" htmlFor="invoice-draft-create-resident">
-                <span className="village-label">Resident</span>
-                <ResidentCombobox
-                  id="invoice-draft-create-resident"
-                  value={residentId}
-                  onChange={setResidentId}
-                  options={comboboxOptions}
-                  placeholder="Search residents…"
-                  ariaLabel="Resident for new invoice"
+              <label className="flex max-w-2xl flex-col gap-2" htmlFor="invoice-draft-account-type">
+                <span className="village-label">Account type</span>
+                <VillageSelect
+                  id="invoice-draft-account-type"
+                  value={accountKind}
+                  onChange={(v) => {
+                    const next = v === "home" ? "home" : "resident";
+                    setAccountKind(next);
+                    if (next === "home") {
+                      setResidentId(null);
+                      setTargetHomeId(homeId);
+                    } else {
+                      setTargetHomeId(null);
+                    }
+                  }}
+                  options={accountTypeSelectOptions.map((o) => ({ value: o.value, label: o.label }))}
                 />
               </label>
-              <label className="flex max-w-xs flex-col gap-2" htmlFor="invoice-draft-create-period">
-                <span className="village-label">Billing period (optional)</span>
-                <input
-                  id="invoice-draft-create-period"
-                  type="month"
-                  className="village-input"
-                  value={billingPeriod}
-                  onChange={(e) => setBillingPeriod(e.target.value)}
-                />
-              </label>
+              {accountKind === "resident" ? (
+                <label className="flex max-w-2xl flex-col gap-2" htmlFor="invoice-draft-create-resident">
+                  <span className="village-label">Resident</span>
+                  <ResidentCombobox
+                    id="invoice-draft-create-resident"
+                    value={residentId}
+                    onChange={setResidentId}
+                    options={residentComboboxOptions}
+                    placeholder="Search residents…"
+                    ariaLabel="Resident for new invoice"
+                  />
+                </label>
+              ) : (
+                <label className="flex max-w-2xl flex-col gap-2" htmlFor="invoice-draft-create-home">
+                  <span className="village-label">Home</span>
+                  <ResidentCombobox
+                    id="invoice-draft-create-home"
+                    value={targetHomeId}
+                    onChange={setTargetHomeId}
+                    options={homeComboboxOptions}
+                    placeholder="Search homes…"
+                    ariaLabel="Home for new invoice"
+                  />
+                </label>
+              )}
               {error ? <p className="text-sm font-medium text-terracotta">{error}</p> : null}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <button
                   form="invoice-draft-create-form"
                   type="submit"
                   className={INVOICE_MODAL_PRIMARY_BTN_CLASS}
-                  disabled={submitting || !accountId || disabled}
+                  disabled={
+                    submitting ||
+                    disabled ||
+                    (accountKind === "resident" ? !canSubmitResident : !canSubmitHome)
+                  }
                 >
                   {submitting ? "Creating…" : "Create draft"}
                 </button>
@@ -202,7 +290,6 @@ type LineDraftSubmit = {
   description: string;
   amountMinor: number;
   serviceMonth: string | null;
-  wardIdSnapshot: string | null;
 };
 
 type CreateInvoiceLineModalProps = {
@@ -211,6 +298,7 @@ type CreateInvoiceLineModalProps = {
   invoiceId: string;
   currencyCode: string;
   invoiceStatus: string;
+  monthlyFeeAmountMinor: number | null;
   disabled?: boolean;
   onClose: () => void;
   onAdded: () => void;
@@ -222,6 +310,7 @@ export function CreateInvoiceLineModal({
   invoiceId,
   currencyCode,
   invoiceStatus,
+  monthlyFeeAmountMinor,
   disabled,
   onClose,
   onAdded,
@@ -230,8 +319,17 @@ export function CreateInvoiceLineModal({
   const [description, setDescription] = useState("");
   const [amountDollars, setAmountDollars] = useState("");
   const [serviceMonth, setServiceMonth] = useState("");
+  const [customCategoryOptions, setCustomCategoryOptions] = useState<string[]>([]);
+  const [newCategoryInput, setNewCategoryInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+
+  const categoryOptions = useMemo(
+    () => buildCategoryOptions(customCategoryOptions, category),
+    [customCategoryOptions, category],
+  );
+  const monthlyFeeSelected = isMonthlyFeeCategory(category);
 
   const closeModal = useCallback(() => {
     if (submitting) return;
@@ -248,8 +346,21 @@ export function CreateInvoiceLineModal({
       setDescription("");
       setAmountDollars("");
       setServiceMonth("");
+      setCustomCategoryOptions([]);
+      setNewCategoryInput("");
+      setShowAddCategory(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!monthlyFeeSelected) return;
+    if (monthlyFeeAmountMinor == null) {
+      setAmountDollars("");
+      return;
+    }
+    setAmountDollars((monthlyFeeAmountMinor / 100).toFixed(2));
+  }, [monthlyFeeAmountMinor, monthlyFeeSelected, open]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -262,18 +373,21 @@ export function CreateInvoiceLineModal({
       setError("Description is required.");
       return;
     }
-    if (cents === null) {
+    if (!monthlyFeeSelected && cents === null) {
       setError(`Enter a valid amount (${currencyCode}).`);
       return;
     }
-    const month =
-      category.trim().toLowerCase() === "monthly_fee"
-        ? serviceMonth.trim() || null
-        : serviceMonth.trim() === ""
-          ? null
-          : serviceMonth.trim();
+    if (monthlyFeeSelected && monthlyFeeAmountMinor == null) {
+      setError("Monthly fee is not configured for this resident ward.");
+      return;
+    }
+    const month = monthlyFeeSelected
+      ? serviceMonth.trim() || null
+      : serviceMonth.trim() === ""
+        ? null
+        : serviceMonth.trim();
 
-    if (category.trim().toLowerCase() === "monthly_fee") {
+    if (monthlyFeeSelected) {
       if (!month || !/^\d{4}-\d{2}$/.test(month)) {
         setError("monthly_fee lines need a service month (YYYY-MM).");
         return;
@@ -283,9 +397,8 @@ export function CreateInvoiceLineModal({
     const newLine: LineDraftSubmit = {
       category: category.trim(),
       description: trimmedDesc,
-      amountMinor: cents,
+      amountMinor: monthlyFeeSelected ? (monthlyFeeAmountMinor ?? 0) : (cents ?? 0),
       serviceMonth: month,
-      wardIdSnapshot: null,
     };
 
     setSubmitting(true);
@@ -298,7 +411,6 @@ export function CreateInvoiceLineModal({
       }
       const detailJson = (await detailRes.json()) as {
         invoice?: {
-          billingPeriod?: string | null;
           issuedOn?: string | null;
           lineItems?: {
             id: string;
@@ -306,7 +418,6 @@ export function CreateInvoiceLineModal({
             description: string;
             amountMinor: number;
             serviceMonth: string | null;
-            wardIdSnapshot: string | null;
           }[];
         };
       };
@@ -323,14 +434,12 @@ export function CreateInvoiceLineModal({
           description: line.description,
           amountMinor: line.amountMinor,
           serviceMonth: line.serviceMonth,
-          wardIdSnapshot: line.wardIdSnapshot,
         })),
         {
           category: newLine.category,
           description: newLine.description,
           amountMinor: newLine.amountMinor,
           serviceMonth: newLine.serviceMonth,
-          wardIdSnapshot: newLine.wardIdSnapshot,
         },
       ];
 
@@ -338,7 +447,6 @@ export function CreateInvoiceLineModal({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          billingPeriod: inv.billingPeriod ?? null,
           issuedOn: inv.issuedOn ?? null,
           lineItems,
         }),
@@ -355,6 +463,15 @@ export function CreateInvoiceLineModal({
   }
 
   const readOnlyDraft = invoiceStatus !== "draft";
+
+  function addCategoryFromInput() {
+    const next = newCategoryInput.trim();
+    if (next === "") return;
+    setCustomCategoryOptions((prev) => (prev.includes(next) ? prev : [...prev, next]));
+    setCategory(next);
+    setNewCategoryInput("");
+    setShowAddCategory(false);
+  }
 
   if (!open) return null;
 
@@ -408,15 +525,49 @@ export function CreateInvoiceLineModal({
               ) : null}
               <label className="flex max-w-2xl flex-col gap-2" htmlFor="invoice-line-category">
                 <span className="village-label">Category</span>
-                <input
-                  id="invoice-line-category"
-                  className="village-input min-w-0"
-                  placeholder="e.g. monthly_fee"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  disabled={readOnlyDraft}
-                  autoComplete="off"
-                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <select
+                    id="invoice-line-category"
+                    className="village-input min-w-0"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    disabled={readOnlyDraft}
+                  >
+                    {categoryOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="village-button border-[var(--line)] bg-transparent px-3 py-2 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    onClick={() => setShowAddCategory((prev) => !prev)}
+                    disabled={readOnlyDraft}
+                  >
+                    {showAddCategory ? "Cancel new category" : "Add category"}
+                  </button>
+                </div>
+                {showAddCategory ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      className="village-input min-w-0"
+                      placeholder="New category"
+                      value={newCategoryInput}
+                      onChange={(e) => setNewCategoryInput(e.target.value)}
+                      disabled={readOnlyDraft}
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      className="village-btn-secondary px-3 py-2 text-xs"
+                      onClick={addCategoryFromInput}
+                      disabled={readOnlyDraft || newCategoryInput.trim() === ""}
+                    >
+                      Save category
+                    </button>
+                  </div>
+                ) : null}
               </label>
               <label className="flex max-w-2xl flex-col gap-2" htmlFor="invoice-line-description">
                 <span className="village-label">Description</span>
@@ -437,11 +588,15 @@ export function CreateInvoiceLineModal({
                   <input
                     id="invoice-line-amount"
                     className="village-input min-w-0"
-                    placeholder={`e.g. 120.50 (${currencyCode})`}
+                    placeholder={
+                      monthlyFeeSelected
+                        ? `Fetched from resident ward (${currencyCode})`
+                        : `e.g. 120.50 (${currencyCode})`
+                    }
                     inputMode="decimal"
                     value={amountDollars}
                     onChange={(e) => setAmountDollars(e.target.value)}
-                    disabled={readOnlyDraft}
+                    disabled={readOnlyDraft || monthlyFeeSelected}
                     autoComplete="off"
                   />
                 </label>
@@ -460,6 +615,11 @@ export function CreateInvoiceLineModal({
               <p className="-mt-3 text-xs text-ink/60">
                 For category <span className="font-mono">monthly_fee</span>, choose a service month (YYYY-MM).
               </p>
+              {monthlyFeeSelected ? (
+                <p className="-mt-3 text-xs text-ink/60">
+                  Monthly fee amount is auto-fetched from the resident ward rate.
+                </p>
+              ) : null}
               {error ? <p className="text-sm font-medium text-terracotta">{error}</p> : null}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <button
@@ -488,12 +648,12 @@ type EditInvoiceLineModalProps = {
     description: string;
     amountMinor: number;
     serviceMonth: string | null;
-    wardIdSnapshot: string | null;
   } | null;
   homeId: string;
   invoiceId: string;
   currencyCode: string;
   invoiceStatus: string;
+  monthlyFeeAmountMinor: number | null;
   disabled?: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -506,6 +666,7 @@ export function EditInvoiceLineModal({
   invoiceId,
   currencyCode,
   invoiceStatus,
+  monthlyFeeAmountMinor,
   disabled,
   onClose,
   onSaved,
@@ -514,8 +675,17 @@ export function EditInvoiceLineModal({
   const [description, setDescription] = useState("");
   const [amountDollars, setAmountDollars] = useState("");
   const [serviceMonth, setServiceMonth] = useState("");
+  const [customCategoryOptions, setCustomCategoryOptions] = useState<string[]>([]);
+  const [newCategoryInput, setNewCategoryInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+
+  const categoryOptions = useMemo(
+    () => buildCategoryOptions(customCategoryOptions, category),
+    [customCategoryOptions, category],
+  );
+  const monthlyFeeSelected = isMonthlyFeeCategory(category);
 
   const closeModal = useCallback(() => {
     if (submitting) return;
@@ -528,6 +698,9 @@ export function EditInvoiceLineModal({
     if (!open || !line) {
       setError(null);
       setSubmitting(false);
+      setCustomCategoryOptions([]);
+      setNewCategoryInput("");
+      setShowAddCategory(false);
       return;
     }
     setCategory(line.category);
@@ -535,6 +708,16 @@ export function EditInvoiceLineModal({
     setAmountDollars(Number.isFinite(line.amountMinor / 100) ? (line.amountMinor / 100).toFixed(2) : "");
     setServiceMonth(line.serviceMonth ?? "");
   }, [open, line]);
+
+  useEffect(() => {
+    if (!open || !line) return;
+    if (!monthlyFeeSelected) return;
+    if (monthlyFeeAmountMinor == null) {
+      setAmountDollars("");
+      return;
+    }
+    setAmountDollars((monthlyFeeAmountMinor / 100).toFixed(2));
+  }, [line, monthlyFeeAmountMinor, monthlyFeeSelected, open]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -547,18 +730,21 @@ export function EditInvoiceLineModal({
       setError("Description is required.");
       return;
     }
-    if (cents === null) {
+    if (!monthlyFeeSelected && cents === null) {
       setError(`Enter a valid amount (${currencyCode}).`);
       return;
     }
-    const month =
-      category.trim().toLowerCase() === "monthly_fee"
-        ? serviceMonth.trim() || null
-        : serviceMonth.trim() === ""
-          ? null
-          : serviceMonth.trim();
+    if (monthlyFeeSelected && monthlyFeeAmountMinor == null) {
+      setError("Monthly fee is not configured for this resident ward.");
+      return;
+    }
+    const month = monthlyFeeSelected
+      ? serviceMonth.trim() || null
+      : serviceMonth.trim() === ""
+        ? null
+        : serviceMonth.trim();
 
-    if (category.trim().toLowerCase() === "monthly_fee") {
+    if (monthlyFeeSelected) {
       if (!month || !/^\d{4}-\d{2}$/.test(month)) {
         setError("monthly_fee lines need a service month (YYYY-MM).");
         return;
@@ -568,9 +754,8 @@ export function EditInvoiceLineModal({
     const updatedPayload: LineDraftSubmit = {
       category: category.trim(),
       description: trimmedDesc,
-      amountMinor: cents,
+      amountMinor: monthlyFeeSelected ? (monthlyFeeAmountMinor ?? 0) : (cents ?? 0),
       serviceMonth: month,
-      wardIdSnapshot: line.wardIdSnapshot,
     };
 
     setSubmitting(true);
@@ -583,7 +768,6 @@ export function EditInvoiceLineModal({
       }
       const detailJson = (await detailRes.json()) as {
         invoice?: {
-          billingPeriod?: string | null;
           issuedOn?: string | null;
           lineItems?: {
             id: string;
@@ -591,7 +775,6 @@ export function EditInvoiceLineModal({
             description: string;
             amountMinor: number;
             serviceMonth: string | null;
-            wardIdSnapshot: string | null;
           }[];
         };
       };
@@ -609,7 +792,6 @@ export function EditInvoiceLineModal({
               description: updatedPayload.description,
               amountMinor: updatedPayload.amountMinor,
               serviceMonth: updatedPayload.serviceMonth,
-              wardIdSnapshot: updatedPayload.wardIdSnapshot,
             }
           : {
               id: row.id,
@@ -617,7 +799,6 @@ export function EditInvoiceLineModal({
               description: row.description,
               amountMinor: row.amountMinor,
               serviceMonth: row.serviceMonth,
-              wardIdSnapshot: row.wardIdSnapshot,
             },
       );
 
@@ -625,7 +806,6 @@ export function EditInvoiceLineModal({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          billingPeriod: inv.billingPeriod ?? null,
           issuedOn: inv.issuedOn ?? null,
           lineItems,
         }),
@@ -642,6 +822,15 @@ export function EditInvoiceLineModal({
   }
 
   const readOnlyDraft = invoiceStatus !== "draft";
+
+  function addCategoryFromInput() {
+    const next = newCategoryInput.trim();
+    if (next === "") return;
+    setCustomCategoryOptions((prev) => (prev.includes(next) ? prev : [...prev, next]));
+    setCategory(next);
+    setNewCategoryInput("");
+    setShowAddCategory(false);
+  }
 
   if (!open || !line) return null;
 
@@ -695,15 +884,49 @@ export function EditInvoiceLineModal({
               ) : null}
               <label className="flex max-w-2xl flex-col gap-2" htmlFor="invoice-line-edit-category">
                 <span className="village-label">Category</span>
-                <input
-                  id="invoice-line-edit-category"
-                  className="village-input min-w-0"
-                  placeholder="e.g. monthly_fee"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  disabled={readOnlyDraft}
-                  autoComplete="off"
-                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <select
+                    id="invoice-line-edit-category"
+                    className="village-input min-w-0"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    disabled={readOnlyDraft}
+                  >
+                    {categoryOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="village-button border-[var(--line)] bg-transparent px-3 py-2 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    onClick={() => setShowAddCategory((prev) => !prev)}
+                    disabled={readOnlyDraft}
+                  >
+                    {showAddCategory ? "Cancel new category" : "Add category"}
+                  </button>
+                </div>
+                {showAddCategory ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      className="village-input min-w-0"
+                      placeholder="New category"
+                      value={newCategoryInput}
+                      onChange={(e) => setNewCategoryInput(e.target.value)}
+                      disabled={readOnlyDraft}
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      className="village-btn-secondary px-3 py-2 text-xs"
+                      onClick={addCategoryFromInput}
+                      disabled={readOnlyDraft || newCategoryInput.trim() === ""}
+                    >
+                      Save category
+                    </button>
+                  </div>
+                ) : null}
               </label>
               <label className="flex max-w-2xl flex-col gap-2" htmlFor="invoice-line-edit-description">
                 <span className="village-label">Description</span>
@@ -724,11 +947,15 @@ export function EditInvoiceLineModal({
                   <input
                     id="invoice-line-edit-amount"
                     className="village-input min-w-0"
-                    placeholder={`e.g. 120.50 (${currencyCode})`}
+                    placeholder={
+                      monthlyFeeSelected
+                        ? `Fetched from resident ward (${currencyCode})`
+                        : `e.g. 120.50 (${currencyCode})`
+                    }
                     inputMode="decimal"
                     value={amountDollars}
                     onChange={(e) => setAmountDollars(e.target.value)}
-                    disabled={readOnlyDraft}
+                    disabled={readOnlyDraft || monthlyFeeSelected}
                     autoComplete="off"
                   />
                 </label>
@@ -747,6 +974,11 @@ export function EditInvoiceLineModal({
               <p className="-mt-3 text-xs text-ink/60">
                 For category <span className="font-mono">monthly_fee</span>, choose a service month (YYYY-MM).
               </p>
+              {monthlyFeeSelected ? (
+                <p className="-mt-3 text-xs text-ink/60">
+                  Monthly fee amount is auto-fetched from the resident ward rate.
+                </p>
+              ) : null}
               {error ? <p className="text-sm font-medium text-terracotta">{error}</p> : null}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <button
