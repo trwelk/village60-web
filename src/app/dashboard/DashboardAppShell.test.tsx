@@ -97,6 +97,7 @@ describe("DashboardAppShell", () => {
       (n) => n.parentElement?.getAttribute("aria-label") === "Primary",
     );
     const rail = within(desktopNav as HTMLElement);
+    fireEvent.click(rail.getByRole("button", { name: "Admin" }));
     expect(rail.getByRole("link", { name: "Tasks" })).toHaveAttribute(
       "href",
       "/dashboard/tasks",
@@ -113,37 +114,48 @@ describe("DashboardAppShell", () => {
       </DashboardAppShell>,
     );
     const rail = screen.getByRole("complementary", { name: "Primary" });
+    const mainNav = within(rail).getByRole("navigation", {
+      name: "Main navigation",
+    });
+    fireEvent.click(within(mainNav).getByRole("button", { name: "Billing" }));
     expect(
-      within(rail).getByRole("link", { name: "Invoices" }),
+      within(mainNav).getByRole("link", { name: "Invoices" }),
     ).toHaveAttribute("href", "/dashboard/invoices");
     expect(
-      within(rail).getByRole("link", { name: "Payments" }),
-    ).toHaveAttribute("href", "/dashboard/ledger");
-    const billing = within(rail).getByRole("group", { name: "Billing" });
-    expect(
-      within(billing).getByRole("link", { name: "Resident charges" }),
+      within(mainNav).getByRole("link", { name: "Resident charges" }),
     ).toHaveAttribute("href", "/dashboard/charges");
     expect(
-      within(billing).getByRole("link", { name: "Home expenses" }),
+      within(mainNav).getByRole("link", { name: "Home charges" }),
     ).toHaveAttribute("href", "/dashboard/home-expenses");
+
+    fireEvent.click(within(mainNav).getByRole("button", { name: "Ledger" }));
     expect(
-      within(billing).getByRole("link", { name: "Resident payments" }),
-    ).toHaveAttribute("href", "/dashboard/payments");
+      within(mainNav).getByRole("link", { name: "Ledger" }),
+    ).toHaveAttribute("href", "/dashboard/ledger");
     expect(
-      within(billing).getByRole("link", { name: "Home payments" }),
+      within(mainNav).getByRole("link", { name: "Home payments" }),
     ).toHaveAttribute("href", "/dashboard/home-payments");
     expect(
-      within(rail).getByRole("link", { name: "Billing overview" }),
+      within(mainNav).getByRole("link", { name: "Resident payments" }),
+    ).toHaveAttribute("href", "/dashboard/payments");
+
+    fireEvent.click(within(mainNav).getByRole("button", { name: "Analytics" }));
+    expect(
+      within(mainNav).getByRole("link", { name: "Billing overview" }),
     ).toHaveAttribute("href", "/dashboard/analytics/financial");
     expect(
-      within(rail).getByRole("link", { name: "Leads" }),
-    ).toHaveAttribute("href", "/dashboard/leads");
-    expect(
-      within(rail).getByRole("link", { name: "Admissions" }),
+      within(mainNav).getByRole("link", { name: "Admissions" }),
     ).toHaveAttribute("href", "/dashboard/analytics/admissions-departures");
     expect(
-      within(rail).getByRole("link", { name: "Demographics" }),
+      within(mainNav).getByRole("link", { name: "Demographics" }),
     ).toHaveAttribute("href", "/dashboard/analytics/demographics-staff");
+
+    fireEvent.click(
+      within(mainNav).getByRole("button", { name: "Organization" }),
+    );
+    expect(
+      within(mainNav).getByRole("link", { name: "Leads" }),
+    ).toHaveAttribute("href", "/dashboard/leads");
   });
 
   it("care user sees Operations group with Residents, Tasks, and homes", () => {
@@ -154,12 +166,15 @@ describe("DashboardAppShell", () => {
       </DashboardAppShell>,
     );
     const rail = screen.getByRole("complementary", { name: "Primary" });
+    const mainNav = within(rail).getByRole("navigation", {
+      name: "Main navigation",
+    });
     expect(
-      within(rail).getByRole("group", { name: "Operations" }),
+      within(mainNav).getByRole("button", { name: "Admin" }),
     ).toBeInTheDocument();
-    const ops = within(rail).getByRole("group", { name: "Operations" });
+    fireEvent.click(within(mainNav).getByRole("button", { name: "Admin" }));
     expect(
-      within(ops).getByRole("link", { name: "Your homes" }),
+      within(mainNav).getByRole("link", { name: "Your homes" }),
     ).toHaveAttribute("href", "/dashboard/homes");
   });
 
@@ -279,6 +294,32 @@ describe("DashboardAppShell", () => {
       expect(
         within(rail).getByRole("button", { name: /expand navigation rail/i }),
       ).toHaveAttribute("aria-pressed", "false");
+    });
+  });
+
+  it("lg+ minimized rail shows one link per hub (8 slots for admins)", async () => {
+    pathRef.current = "/dashboard";
+    renderShell(
+      <DashboardAppShell email="a@b.c" role="admin">
+        <p>content</p>
+      </DashboardAppShell>,
+    );
+    const rail = screen.getByRole("complementary", { name: "Primary" });
+    fireEvent.click(
+      within(rail).getByRole("button", { name: /collapse navigation rail/i }),
+    );
+    await waitFor(() => {
+      expect(rail.className).toContain("w-[4.5rem]");
+      expect(
+        within(rail).getByRole("button", { name: /expand navigation rail/i }),
+      ).toHaveAttribute("aria-pressed", "false");
+      const collapsedNav = within(rail).getByRole("navigation", {
+        name: "Main navigation",
+      });
+      expect(collapsedNav.querySelectorAll("a")).toHaveLength(8);
+      expect(
+        within(collapsedNav).getByRole("link", { name: "Analytics" }),
+      ).toHaveAttribute("href", "/dashboard/analytics/occupancy");
     });
   });
 });

@@ -12,9 +12,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=.env.local src/db/migrate.ts",
     "db:reset": "tsx --env-file-if-exists=.env.local scripts/reset-db.ts",
-    "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
-    "db:demo": "tsx --env-file-if-exists=.env.local scripts/demo-seed.ts",
-    "db:schema-demo": "tsx --env-file-if-exists=.env.local scripts/schemaDemoInsert.ts",
+    "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed-db.ts",
     "db:backup": "tsx --env-file-if-exists=.env.local scripts/backup-db.ts"
   },
   "dependencies": {

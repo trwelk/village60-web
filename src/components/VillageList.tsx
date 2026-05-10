@@ -48,10 +48,14 @@ function FilterToggle({
 // VillageListPagination
 // ---------------------------------------------------------------------------
 
+/** Rows per page used when `pageSize` is omitted from pagination config. */
+export const DEFAULT_PAGE_SIZE = 10;
+
 export type VillageListPaginationConfig = {
   /** Active page (1-based). May mirror URL params or React state. */
   page: number;
-  pageSize: number;
+  /** Defaults to {@link DEFAULT_PAGE_SIZE} (10). */
+  pageSize?: number;
   totalCount: number;
   /** Previous page: e.g. `router.push` with decremented page, or `setPage(p => p - 1)`. */
   onPrevious: () => void;
@@ -78,7 +82,7 @@ type VillageListPaginationProps = VillageListPaginationConfig & {
  */
 export function VillageListPagination({
   page,
-  pageSize,
+  pageSize = DEFAULT_PAGE_SIZE,
   totalCount,
   onPrevious,
   onNext,

@@ -15,6 +15,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { AllResidentsLedgerTable } from "./AllResidentsLedgerTable";
 import { BillingLedgerPanel } from "../homes/[id]/ledger/BillingLedgerPanel";
 
 type HomeOption = {
@@ -261,7 +262,10 @@ export function LedgerDashboardClient({
                 Filtered to one resident
               </span>
             ) : (
-              <span>Select a resident below to open their statement.</span>
+              <span>
+                All resident accounts in one table. Filter to one resident above
+                for a single-account view and statement.
+              </span>
             )
           ) : (
             <span>Shows the facility operating (home) account ledger.</span>
@@ -362,27 +366,12 @@ export function LedgerDashboardClient({
           postedDateRange={{ postedFrom, postedTo }}
         />
       ) : activeHome && selectedAccountType === "resident" && residentOptions.length > 0 ? (
-        <div className="flex flex-col gap-6" data-testid="dashboard-ledger-all-residents">
-          {residentOptions.map((r) => (
-            <div key={r.residentId}>
-              <p className="mb-3 text-sm font-semibold text-[var(--text-primary)]">
-                {r.residentFullName}
-                {r.residentStatus !== "active" ? (
-                  <span className="ml-2 text-xs font-normal text-[var(--text-muted)]">
-                    (Departed)
-                  </span>
-                ) : null}
-              </p>
-              <BillingLedgerPanel
-                homeId={activeHome.homeId}
-                ledgerAccountType="resident"
-                residentId={r.residentId}
-                defaultCurrencyCode={activeHome.defaultCurrencyCode}
-                postedDateRange={{ postedFrom, postedTo }}
-              />
-            </div>
-          ))}
-        </div>
+        <AllResidentsLedgerTable
+          homeId={activeHome.homeId}
+          defaultCurrencyCode={activeHome.defaultCurrencyCode}
+          postedDateRange={{ postedFrom, postedTo }}
+          residentOptions={residentOptions}
+        />
       ) : (
         <div
           className="village-panel-card px-5 py-10 text-center text-sm text-[var(--text-secondary)] sm:px-8"

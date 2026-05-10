@@ -6,12 +6,20 @@ import {
   ClipboardList,
   ChevronRight,
 } from "lucide-react";
+import {
+  buildDashboardSnapshotSummary,
+  displayFirstNameFromEmail,
+} from "@/lib/dashboard/snapshotBriefing";
 import type { TasksDashboardSummary } from "@/lib/tasks/service";
+import { DashboardAttentionStrip } from "./DashboardAttentionStrip";
+import { DashboardBriefingLead } from "./DashboardBriefingLead";
 
 type DashboardTasksSnapshotProps = {
   summary: TasksDashboardSummary;
   occupancyPercent: number | null;
   isAdmin: boolean;
+  email?: string | null;
+  weekdayUtcLong: string;
 };
 
 function metricLinkClass(extra: string) {
@@ -33,9 +41,16 @@ export function DashboardTasksSnapshot({
   summary,
   occupancyPercent,
   isAdmin,
+  email,
+  weekdayUtcLong,
 }: DashboardTasksSnapshotProps) {
   const payAttention = summary.overduePayments > 0;
   const tasksAttention = summary.manualDueOrOverdue > 0;
+  const firstName = displayFirstNameFromEmail(email);
+  const snapshotSummaryLine = buildDashboardSnapshotSummary(summary, {
+    occupancyPercent,
+    isAdmin,
+  });
 
   return (
     <section
@@ -47,6 +62,21 @@ export function DashboardTasksSnapshot({
         aria-hidden
       />
       <div className="flex flex-col gap-6 p-5 sm:p-6">
+        <header className="flex flex-col gap-4">
+          <DashboardBriefingLead
+            firstName={firstName}
+            weekdayUtcLong={weekdayUtcLong}
+          />
+          <p className="max-w-3xl text-sm leading-relaxed text-[var(--text-secondary)]">
+            {snapshotSummaryLine}
+          </p>
+          <DashboardAttentionStrip
+            overduePayments={summary.overduePayments}
+            manualDueOrOverdue={summary.manualDueOrOverdue}
+          />
+        </header>
+
+        <div className="flex flex-col gap-6 border-t border-[color-mix(in_srgb,var(--line-subtle)_65%,transparent)] pt-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <h2
@@ -239,6 +269,7 @@ export function DashboardTasksSnapshot({
               </span>
             </span>
           </Link>
+        </div>
         </div>
       </div>
     </section>

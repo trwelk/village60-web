@@ -168,6 +168,19 @@ function groupHasActiveChild(entry: NavGroupItem, pathname: string): boolean {
   });
 }
 
+/** Flatten group items in the same order as expanded sub-nav rendering. */
+function flatLeavesForNavGroup(entry: NavGroupItem): NavGroupLeafOnly[] {
+  return entry.items.flatMap((sub) => {
+    const parent: NavGroupLeafOnly = {
+      href: sub.href,
+      label: sub.label,
+      Icon: sub.Icon,
+      isActive: sub.isActive,
+    };
+    return sub.children?.length ? [parent, ...sub.children] : [parent];
+  });
+}
+
 function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
   const homeLabel = role === "admin" ? "Retirement homes" : "Your homes";
 
@@ -448,17 +461,33 @@ function PrimaryNav({
       >
         {items.map((entry) => {
           if (entry.kind === "group") {
-            const flatLeaves = entry.items.flatMap((sub) => {
-              const parent: NavGroupLeafOnly = {
-                href: sub.href,
-                label: sub.label,
-                Icon: sub.Icon,
-                isActive: sub.isActive,
-              };
-              return sub.children?.length ? [parent, ...sub.children] : [parent];
-            });
+            const flatLeaves = flatLeavesForNavGroup(entry);
 
-            if (iconRail || navLinkLayout !== "vertical") {
+            if (navLinkLayout === "vertical" && iconRail) {
+              const first = flatLeaves[0];
+              if (!first) return null;
+              const active = groupHasActiveChild(entry, pathname);
+              const GroupIcon = entry.Icon;
+              return (
+                <Link
+                  key={entry.id}
+                  href={first.href}
+                  className={linkClass}
+                  aria-current={active ? "page" : undefined}
+                  aria-label={entry.label}
+                  title={entry.label}
+                >
+                  <GroupIcon
+                    className="shrink-0"
+                    size={20}
+                    strokeWidth={active ? 2.25 : 2}
+                    aria-hidden
+                  />
+                </Link>
+              );
+            }
+
+            if (navLinkLayout !== "vertical") {
               return (
                 <Fragment key={entry.id}>
                   {flatLeaves.map((leaf) => {
@@ -469,18 +498,14 @@ function PrimaryNav({
                         href={leaf.href}
                         className={linkClass}
                         aria-current={active ? "page" : undefined}
-                        aria-label={iconRail ? leaf.label : undefined}
-                        title={iconRail ? leaf.label : undefined}
                       >
                         <leaf.Icon
                           className="shrink-0"
-                          size={iconRail ? 20 : 18}
-                          strokeWidth={active && iconRail ? 2.25 : 2}
+                          size={18}
+                          strokeWidth={active ? 2.25 : 2}
                           aria-hidden
                         />
-                        {iconRail ? null : (
-                          <span className="min-w-0 leading-snug">{leaf.label}</span>
-                        )}
+                        <span className="min-w-0 leading-snug">{leaf.label}</span>
                       </Link>
                     );
                   })}

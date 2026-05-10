@@ -1,9 +1,8 @@
 /**
- * Remove the local SQLite file (and WAL/SHM sidecars), apply migrations, then load data.
+ * Remove the local SQLite file (and WAL/SHM sidecars), then apply migrations.
  *
  * Usage (from `web/`):
- *   npm run db:reset              # migrations + full demo dataset
- *   npm run db:reset -- --seed   # migrations + full demo dataset (same as db:seed)
+ *   npm run db:reset
  *
  * If deletion fails with EBUSY, stop the Next dev server and any other process
  * that has the DB open, then run again.
@@ -47,8 +46,6 @@ function unlinkQuiet(p: string) {
   }
 }
 
-const useSeedOnly = process.argv.includes("--seed");
-
 console.log("Removing existing database files…");
 closeDbConnection();
 for (const p of [file, `${file}-wal`, `${file}-shm`]) {
@@ -59,13 +56,5 @@ fs.mkdirSync(path.dirname(file), { recursive: true });
 
 console.log("Applying migrations…");
 execShellInherit("npm run db:migrate");
-
-if (useSeedOnly) {
-  console.log("Seeding full demo dataset…");
-  execShellInherit("npm run db:seed");
-} else {
-  console.log("Loading demo data…");
-  execShellInherit("npm run db:demo -- --force");
-}
 
 console.log("Database reset complete.");

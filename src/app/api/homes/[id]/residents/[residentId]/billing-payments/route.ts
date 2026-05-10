@@ -60,7 +60,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       ...(typeof rec.notes === "string" || rec.notes === null
         ? { notes: rec.notes as string | null }
         : {}),
-      postedAtUtcMs: postedAtUtcMs ?? receivedOnUtcMs,
+      ...(postedAtUtcMs !== undefined ? { postedAtUtcMs } : {}),
     });
     return NextResponse.json(result, { status: 201 });
   } catch (e) {

@@ -8,6 +8,7 @@ import {
 } from "@/lib/dashboard/charts";
 import { listUpcomingBirthdaysForDashboard } from "@/lib/dashboard/birthdays";
 import { listOccupancyHeatmapBoard } from "@/lib/dashboard/occupancyHeatmap";
+import { utcWeekdayLong } from "@/lib/dashboard/snapshotBriefing";
 import { getSessionOptions, type SessionData } from "@/lib/session";
 import { getTasksDashboardSummary } from "@/lib/tasks/service";
 import { and, desc, eq } from "drizzle-orm";
@@ -16,6 +17,7 @@ import { cookies } from "next/headers";
 import { OccupancyHeatmapBoardCard } from "./OccupancyHeatmapBoardCard";
 import { ResidentBirthdayBoardCard } from "./ResidentBirthdayBoardCard";
 import { DashboardTasksSnapshot } from "./DashboardTasksSnapshot";
+import { DashboardTodayBirthdaysBanner } from "./DashboardTodayBirthdaysBanner";
 
 export default async function DashboardPage() {
   const session = await getIronSession<SessionData>(
@@ -68,6 +70,10 @@ export default async function DashboardPage() {
     asOfDateUtc,
     "week",
   );
+  const birthdaysTodayUtc = birthdayBoardWeek.filter(
+    (row) => row.birthdayDate === asOfDateUtc,
+  );
+  const weekdayUtcLong = utcWeekdayLong(asOfDateUtc);
   const birthdayBoardMonth = listUpcomingBirthdaysForDashboard(
     db,
     sessionActor,
@@ -79,10 +85,13 @@ export default async function DashboardPage() {
 
   return (
     <main className="flex flex-col gap-8 text-[var(--text-primary)]">
+      <DashboardTodayBirthdaysBanner entries={birthdaysTodayUtc} />
       <DashboardTasksSnapshot
         summary={taskSummary}
         occupancyPercent={occupancyPercentAllSites}
         isAdmin={session.role === "admin"}
+        email={session.email}
+        weekdayUtcLong={weekdayUtcLong}
       />
       {occupancyBoard ? (
         <OccupancyHeatmapBoardCard board={occupancyBoard} />

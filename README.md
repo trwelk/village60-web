@@ -13,7 +13,8 @@ This Next.js app provides administrator email and password sign-in, encrypted co
 2. `cp .env.example .env.local` (on Windows, copy the file manually) and set `SESSION_PASSWORD` to a random string **at least 32 characters** long.
 3. `npm install`
 4. `npm run db:migrate` — creates the SQLite file and applies migrations.
-5. `npm run db:seed` — upserts a default **Admin** user (`admin@example.com` / `ChangeMeNow!1` unless overridden by env).
+
+When you add a seed script again, expose it via an npm script under `scripts/` (for example `db:seed`).
 
 ## Run locally
 
@@ -31,11 +32,10 @@ Open [http://localhost:3000](http://localhost:3000). You should be redirected to
 | `npm run build`   | Production build                 |
 | `npm run test`    | Vitest (password + lockout IAM)  |
 | `npm run db:migrate` | Apply SQL migrations          |
-| `npm run db:seed`    | Seed or refresh admin password |
 | `npm run db:backup`  | Copy SQLite DB to `BACKUP_DIR`, prune backups older than 7 days |
 | `npm run db:generate` | Regenerate migrations from `src/db/schema.ts` |
 
 ## Security notes
 
-- Change the seeded password before any real deployment.
+- Use strong passwords for any seeded or default accounts before any real deployment.
 - In production, serve the app over HTTPS so the session cookie’s `Secure` flag is effective (`NODE_ENV=production`).

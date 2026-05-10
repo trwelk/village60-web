@@ -332,3 +332,62 @@ export function getResidentStatement(
     lines,
   };
 }
+
+export type AllResidentLedgerLine = {
+  residentId: string;
+  residentFullName: string;
+  residentStatus: "active" | "departed";
+  accountId: string;
+  transaction: BillingTransactionRow;
+  runningBalanceMinor: number;
+};
+
+/**
+ * Returns every billing transaction for every resident account in a home,
+ * sorted chronologically (postedAtUtcMs ASC). Running balance is maintained
+ * per-resident account so each row reflects that resident's balance at that
+ * point in time.
+ */
+export function listAllResidentLedgerLines(
+  db: AppDb,
+  actor: SessionActor | undefined,
+  homeId: string,
+): AllResidentLedgerLine[] {
+  requireBillingAdmin(actor);
+  assertActorMayAccessHome(db, actor, homeId);
+
+  const rows = db
+    .select({
+      txn: billingTransactions,
+      residentId: residents.id,
+      residentFullName: residents.fullName,
+      residentStatus: residents.status,
+      accountId: accounts.id,
+    })
+    .from(billingTransactions)
+    .innerJoin(accounts, eq(accounts.id, billingTransactions.accountId))
+    .innerJoin(residents, eq(residents.id, accounts.residentId))
+    .where(
+      and(
+        eq(accounts.accountType, "resident"),
+        eq(residents.homeId, homeId),
+      ),
+    )
+    .orderBy(asc(billingTransactions.postedAtUtcMs), asc(billingTransactions.id))
+    .all();
+
+  const runningBalances = new Map<string, number>();
+  return rows.map((r) => {
+    const prev = runningBalances.get(r.accountId) ?? 0;
+    const next = prev + r.txn.amountMinor;
+    runningBalances.set(r.accountId, next);
+    return {
+      residentId: r.residentId,
+      residentFullName: r.residentFullName,
+      residentStatus: r.residentStatus as "active" | "departed",
+      accountId: r.accountId,
+      transaction: r.txn,
+      runningBalanceMinor: next,
+    };
+  });
+}
