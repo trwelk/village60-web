@@ -1,10 +1,16 @@
 "use client";
 
+import {
+  VillageList,
+  VillageListEmpty,
+  VillageListFilter,
+} from "@/components/VillageList";
+import { VillageSelect } from "@/components/VillageSelect";
 import { DEFAULT_CURRENCY_CODE } from "@/lib/homes/defaultCurrencyCode";
 import type { Home } from "@/lib/homes/service";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 type HomesAdminUIProps = {
@@ -49,6 +55,11 @@ export function HomesAdminUI({
   const [editName, setEditName] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editCurrency, setEditCurrency] = useState("");
+  const [homeSearchQuery, setHomeSearchQuery] = useState("");
+  const [homeStatusFilter, setHomeStatusFilter] = useState<
+    "all" | "active" | "archived"
+  >("all");
+  const [homeCurrencyFilter, setHomeCurrencyFilter] = useState<string>("all");
 
   const closeCreateHomeModal = useCallback(() => {
     setCreateModalOpen(false);
@@ -166,18 +177,51 @@ export function HomesAdminUI({
     router.refresh();
   }
 
-  return (
-    <main className="flex flex-col gap-8 text-ink">
-      {error && !(variant === "admin" && createModalOpen) ? (
-        <p className="village-alert-error">{error}</p>
-      ) : null}
+  const currencyOptions = useMemo(() => {
+    const codes = new Set<string>();
+    for (const h of initialHomes) {
+      codes.add(h.defaultCurrencyCode || DEFAULT_CURRENCY_CODE);
+    }
+    return [...codes].sort();
+  }, [initialHomes]);
 
-      <section className="village-card p-6 sm:p-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="village-section-title mb-0">
-            {variant === "admin" ? "All homes" : "Your homes"}
-          </h2>
-          {variant === "admin" ? (
+  const filteredHomes = useMemo(() => {
+    const q = homeSearchQuery.trim().toLowerCase();
+    return initialHomes.filter((h) => {
+      if (homeStatusFilter === "active" && h.archivedAtUtcMs != null)
+        return false;
+      if (homeStatusFilter === "archived" && h.archivedAtUtcMs == null)
+        return false;
+      if (
+        homeCurrencyFilter !== "all" &&
+        h.defaultCurrencyCode !== homeCurrencyFilter
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        h.name.toLowerCase().includes(q) ||
+        (h.address ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [initialHomes, homeSearchQuery, homeStatusFilter, homeCurrencyFilter]);
+
+  const activeDirectoryFilterCount =
+    (homeSearchQuery.trim() ? 1 : 0) +
+    (homeStatusFilter !== "all" ? 1 : 0) +
+    (homeCurrencyFilter !== "all" ? 1 : 0);
+
+  const showError = error != null && !(variant === "admin" && createModalOpen);
+  const hasPagination = initialHomes.length > 0 || totalCount > 0;
+
+  return (
+    <>
+      <VillageList
+        rootElement="div"
+        filtersCollapsible
+        activeFilterCount={activeDirectoryFilterCount}
+        toolbar={
+          variant === "admin" ? (
             <button
               type="button"
               className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
@@ -185,209 +229,254 @@ export function HomesAdminUI({
             >
               Add a home
             </button>
-          ) : null}
-        </div>
-        {initialHomes.length > 0 || totalCount > 0 ? (
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p
-              className="text-sm text-ink/70"
-              data-testid="homes-directory-range"
+          ) : undefined
+        }
+        filters={
+          <>
+            <VillageListFilter label="Scope" htmlFor="homes-directory-scope">
+              <input
+                id="homes-directory-scope"
+                readOnly
+                className="village-input min-w-[12rem] bg-[color:color-mix(in_srgb,var(--bg-muted)_55%,transparent)]"
+                value={
+                  variant === "admin"
+                    ? "All retirement homes (paginated)"
+                    : "Your assigned homes"
+                }
+              />
+            </VillageListFilter>
+            <VillageListFilter
+              label="Search"
+              htmlFor="homes-directory-search"
+              minWidth="12rem"
             >
-              {totalCount === 0
-                ? "Showing 0 of 0"
-                : (() => {
-                    const lastPage = Math.max(
-                      1,
-                      Math.ceil(totalCount / pageSize),
-                    );
-                    const outOfRange = page > lastPage;
-                    if (outOfRange) {
-                      return `No results on this page (showing 0 of ${totalCount} homes).`;
-                    }
-                    const from = (page - 1) * pageSize + 1;
-                    const to = Math.min(page * pageSize, totalCount);
-                    return `Showing ${from}–${to} of ${totalCount}`;
-                  })()}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="rounded border border-pine/25 bg-cream px-3 py-1.5 text-sm text-ink hover:bg-cream/80 disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={page <= 1}
-                onClick={() => {
-                  router.push(buildHomesListPath(page - 1, pageSize));
-                }}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                className="rounded border border-pine/25 bg-cream px-3 py-1.5 text-sm text-ink hover:bg-cream/80 disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={page * pageSize >= totalCount}
-                onClick={() => {
-                  router.push(buildHomesListPath(page + 1, pageSize));
-                }}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+              <input
+                id="homes-directory-search"
+                className="village-input"
+                value={homeSearchQuery}
+                onChange={(e) => setHomeSearchQuery(e.target.value)}
+                placeholder="Name or address"
+                autoComplete="off"
+              />
+            </VillageListFilter>
+            <VillageListFilter
+              label="Status"
+              htmlFor="homes-directory-status"
+              width="11rem"
+            >
+              <VillageSelect
+                id="homes-directory-status"
+                value={homeStatusFilter}
+                onChange={(v) =>
+                  setHomeStatusFilter(v as "all" | "active" | "archived")
+                }
+                options={[
+                  { value: "all", label: "All statuses" },
+                  { value: "active", label: "Active" },
+                  { value: "archived", label: "Archived" },
+                ]}
+              />
+            </VillageListFilter>
+            <VillageListFilter
+              label="Currency"
+              htmlFor="homes-directory-currency"
+              width="11rem"
+            >
+              <VillageSelect
+                id="homes-directory-currency"
+                value={homeCurrencyFilter}
+                onChange={setHomeCurrencyFilter}
+                options={[
+                  { value: "all", label: "All currencies" },
+                  ...currencyOptions.map((c) => ({ value: c, label: c })),
+                ]}
+              />
+            </VillageListFilter>
+          </>
+        }
+        listTitle={null}
+        error={showError ? error : null}
+        pagination={
+          hasPagination
+            ? {
+                page,
+                pageSize,
+                totalCount,
+                onPrevious: () =>
+                  router.push(buildHomesListPath(page - 1, pageSize)),
+                onNext: () =>
+                  router.push(buildHomesListPath(page + 1, pageSize)),
+              }
+            : undefined
+        }
+        paginationRangeTestId="homes-directory-range"
+      >
+        {activeDirectoryFilterCount > 0 && initialHomes.length > 0 ? (
+          <p className="text-sm text-ink/65">
+            Filters apply to the homes listed on this page only.
+          </p>
         ) : null}
-        <div className="village-table-wrap mt-5">
-          <table className="village-table">
-            <thead className="village-thead">
-              <tr>
-                <th className="village-th">Name</th>
-                <th className="village-th">Address</th>
-                <th className="village-th">Default currency</th>
-                <th className="village-th">Status</th>
-                <th className="village-th">
-                  {variant === "admin" ? "Residents / actions" : "Residents / wards"}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="village-tbody">
-              {initialHomes.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="village-td-muted py-10 text-center">
-                    {variant === "admin"
-                      ? "No homes yet. Use Add a home to create one."
-                      : "You are not assigned to any home."}
+        <table className="village-table">
+          <thead className="village-thead">
+            <tr>
+              <th className="village-th">Name</th>
+              <th className="village-th">Address</th>
+              <th className="village-th">Default currency</th>
+              <th className="village-th">Status</th>
+              <th className="village-th">
+                {variant === "admin"
+                  ? "Residents / actions"
+                  : "Residents / wards"}
+              </th>
+            </tr>
+          </thead>
+          <tbody className="village-tbody">
+            {initialHomes.length === 0 ? (
+              <VillageListEmpty
+                colSpan={5}
+                message={
+                  variant === "admin"
+                    ? "No homes yet. Use Add a home to create one."
+                    : "You are not assigned to any home."
+                }
+              />
+            ) : filteredHomes.length === 0 ? (
+              <VillageListEmpty
+                colSpan={5}
+                message="No homes match these filters."
+              />
+            ) : (
+              filteredHomes.map((h) => (
+                <tr key={h.id}>
+                  <td className="village-td font-medium">
+                    {editingId === h.id ? (
+                      <input
+                        className="village-input w-full min-w-[10rem]"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                      />
+                    ) : (
+                      h.name
+                    )}
+                  </td>
+                  <td className="village-td-muted max-w-[14rem] align-top text-sm">
+                    {editingId === h.id ? (
+                      <textarea
+                        className="village-input min-h-[4.5rem] w-full resize-y text-sm"
+                        value={editAddress}
+                        onChange={(e) => setEditAddress(e.target.value)}
+                        rows={3}
+                        autoComplete="street-address"
+                      />
+                    ) : h.address ? (
+                      <span className="whitespace-pre-wrap text-ink/85">
+                        {h.address}
+                      </span>
+                    ) : (
+                      <span className="text-ink/45">—</span>
+                    )}
+                  </td>
+                  <td className="village-td-muted">
+                    {editingId === h.id ? (
+                      <input
+                        className="village-input w-24 uppercase"
+                        value={editCurrency}
+                        onChange={(e) =>
+                          setEditCurrency(e.target.value.toUpperCase())
+                        }
+                        maxLength={3}
+                      />
+                    ) : (
+                      h.defaultCurrencyCode
+                    )}
+                  </td>
+                  <td className="village-td-muted">
+                    {h.archivedAtUtcMs != null ? "Archived" : "Active"}
+                  </td>
+                  <td className="village-td">
+                    {variant === "care" ? (
+                      <div className="flex flex-wrap gap-x-4 gap-y-2">
+                        <Link
+                          href={`/dashboard/homes/${h.id}/residents`}
+                          className="village-link"
+                        >
+                          Residents
+                        </Link>
+                        <Link
+                          href={`/dashboard/homes/${h.id}/wards`}
+                          className="village-link"
+                        >
+                          Wards
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <Link
+                          href={`/dashboard/homes/${h.id}/residents`}
+                          className="village-link"
+                        >
+                          Residents
+                        </Link>
+                        {editingId === h.id ? (
+                          <>
+                            <button
+                              type="button"
+                              className="village-btn-primary px-3 py-1.5 text-xs"
+                              onClick={() => onSaveEdit(h.id)}
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              className="village-btn-secondary px-3 py-1.5 text-xs"
+                              onClick={cancelEdit}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <Link
+                              href={`/dashboard/homes/${h.id}/wards`}
+                              className="village-link"
+                            >
+                              Wards
+                            </Link>
+                            <button
+                              type="button"
+                              className="village-link cursor-pointer border-0 bg-transparent p-0"
+                              onClick={() => startEdit(h)}
+                            >
+                              Edit
+                            </button>
+                          </>
+                        )}
+                        {h.archivedAtUtcMs != null ? (
+                          <button
+                            type="button"
+                            className="text-sm font-semibold text-pine underline decoration-terracotta/35 underline-offset-[5px] transition hover:text-terracotta"
+                            onClick={() => setArchived(h.id, false)}
+                          >
+                            Restore
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="text-sm font-semibold text-danger underline decoration-danger/35 underline-offset-4 hover:opacity-90"
+                            onClick={() => setArchived(h.id, true)}
+                          >
+                            Archive
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
-              ) : (
-                initialHomes.map((h) => (
-                  <tr key={h.id}>
-                    <td className="village-td font-medium">
-                      {editingId === h.id ? (
-                        <input
-                          className="village-input w-full min-w-[10rem]"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                        />
-                      ) : (
-                        h.name
-                      )}
-                    </td>
-                    <td className="village-td-muted max-w-[14rem] align-top text-sm">
-                      {editingId === h.id ? (
-                        <textarea
-                          className="village-input min-h-[4.5rem] w-full resize-y text-sm"
-                          value={editAddress}
-                          onChange={(e) => setEditAddress(e.target.value)}
-                          rows={3}
-                          autoComplete="street-address"
-                        />
-                      ) : h.address ? (
-                        <span className="whitespace-pre-wrap text-ink/85">
-                          {h.address}
-                        </span>
-                      ) : (
-                        <span className="text-ink/45">—</span>
-                      )}
-                    </td>
-                    <td className="village-td-muted">
-                      {editingId === h.id ? (
-                        <input
-                          className="village-input w-24 uppercase"
-                          value={editCurrency}
-                          onChange={(e) =>
-                            setEditCurrency(e.target.value.toUpperCase())
-                          }
-                          maxLength={3}
-                        />
-                      ) : (
-                        h.defaultCurrencyCode
-                      )}
-                    </td>
-                    <td className="village-td-muted">
-                      {h.archivedAtUtcMs != null ? "Archived" : "Active"}
-                    </td>
-                    <td className="village-td">
-                      {variant === "care" ? (
-                        <div className="flex flex-wrap gap-x-4 gap-y-2">
-                          <Link
-                            href={`/dashboard/homes/${h.id}/residents`}
-                            className="village-link"
-                          >
-                            Residents
-                          </Link>
-                          <Link
-                            href={`/dashboard/homes/${h.id}/wards`}
-                            className="village-link"
-                          >
-                            Wards
-                          </Link>
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                          <Link
-                            href={`/dashboard/homes/${h.id}/residents`}
-                            className="village-link"
-                          >
-                            Residents
-                          </Link>
-                          {editingId === h.id ? (
-                            <>
-                              <button
-                                type="button"
-                                className="village-btn-primary px-3 py-1.5 text-xs"
-                                onClick={() => onSaveEdit(h.id)}
-                              >
-                                Save
-                              </button>
-                              <button
-                                type="button"
-                                className="village-btn-secondary px-3 py-1.5 text-xs"
-                                onClick={cancelEdit}
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <Link
-                                href={`/dashboard/homes/${h.id}/wards`}
-                                className="village-link"
-                              >
-                                Wards
-                              </Link>
-                              <button
-                                type="button"
-                                className="village-link cursor-pointer border-0 bg-transparent p-0"
-                                onClick={() => startEdit(h)}
-                              >
-                                Edit
-                              </button>
-                            </>
-                          )}
-                          {h.archivedAtUtcMs != null ? (
-                            <button
-                              type="button"
-                              className="text-sm font-semibold text-pine underline decoration-terracotta/35 underline-offset-[5px] transition hover:text-terracotta"
-                              onClick={() => setArchived(h.id, false)}
-                            >
-                              Restore
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="text-sm font-semibold text-danger underline decoration-danger/35 underline-offset-4 hover:opacity-90"
-                              onClick={() => setArchived(h.id, true)}
-                            >
-                              Archive
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              ))
+            )}
+          </tbody>
+        </table>
+      </VillageList>
 
       {variant === "admin" && createModalOpen
         ? createPortal(
@@ -424,8 +513,8 @@ export function HomesAdminUI({
                               Add a home
                             </h2>
                             <p className="text-sm leading-6 text-ink/65">
-                              Name, ISO 4217 currency, and optional address used on public
-                              enquiry flows.
+                              Name, ISO 4217 currency, and optional address used
+                              on public enquiry flows.
                             </p>
                           </div>
                         </div>
@@ -526,6 +615,6 @@ export function HomesAdminUI({
             document.body,
           )
         : null}
-    </main>
+    </>
   );
 }

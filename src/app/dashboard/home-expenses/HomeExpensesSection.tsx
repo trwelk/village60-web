@@ -3,6 +3,7 @@
 /* Controlled URL-driven range + filtered ledger fetches mirror `HomeChargesSection.tsx`. */
 /* eslint-disable react-hooks/set-state-in-effect -- intentional sync Effects */
 
+import { VillageList, VillageListPagination } from "@/components/VillageList";
 import { VillageSelect } from "@/components/VillageSelect";
 import { buildDashboardHomeExpensesPath } from "@/lib/billing/dashboardHomeExpensesPath";
 import type {
@@ -183,10 +184,6 @@ export function HomeExpensesSection({
 
   const { rows, totalCount, page, pageSize, summary } = displayLedger;
 
-  const fromIdx = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
-  const toIdx = Math.min(page * pageSize, totalCount);
-  const canPrev = page > 1;
-  const canNext = page * pageSize < totalCount;
   const normalizedFromDraft = fromDraft.trim() || ytdBillingMonthFrom;
   const normalizedToDraft = toDraft.trim() || ytdBillingMonthTo;
   const hasRangeDraftChanges =
@@ -195,12 +192,33 @@ export function HomeExpensesSection({
   const isApplyRangeDisabled =
     !selectedHomeId || !hasRangeDraftChanges || hasInvalidRange || isApplyingRange;
 
+  const expensesActiveFilterCount = !rangeIsDefaultYtd ? 1 : 0;
+
   return (
     <>
-      <section
-        data-testid="home-expenses-filters"
-        className="village-card village-reveal village-reveal-delay-1 relative z-20 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-5 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6"
-      >
+      <VillageList
+        rootElement="div"
+        wrapBody="none"
+        listTitle={null}
+        filtersCollapsible
+        activeFilterCount={expensesActiveFilterCount}
+        toolbar={
+          <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0 flex-1" aria-hidden />
+            <button
+              type="button"
+              className="village-btn-secondary shrink-0"
+              onClick={() => router.refresh()}
+            >
+              Refresh
+            </button>
+          </div>
+        }
+        filters={
+          <div
+            className="flex w-full min-w-0 flex-[1_1_100%] flex-col gap-4"
+            data-testid="home-expenses-filters"
+          >
         <div className="grid gap-4 lg:grid-cols-[minmax(12rem,16rem)_minmax(18rem,1.1fr)_auto] lg:items-end">
           <div className="flex flex-col gap-2">
             <label htmlFor="home-expenses-home" className="village-label">
@@ -290,7 +308,7 @@ export function HomeExpensesSection({
             From month must be earlier than or equal to To month.
           </p>
         ) : null}
-        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
+        <div className="flex flex-wrap items-center gap-2 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
           <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)] px-3 py-1.5 font-medium text-[var(--text-primary)]">
             {selectedHomeName}
           </span>
@@ -302,7 +320,9 @@ export function HomeExpensesSection({
               : "(selected range, UTC)."}
           </span>
         </div>
-      </section>
+          </div>
+        }
+      >
       {selectedHomeId ? (
         <div className="village-reveal village-reveal-delay-2 flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -407,63 +427,49 @@ export function HomeExpensesSection({
                   Home expense invoices
                 </h2>
               </div>
-              <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
-                <p
-                  className="text-sm text-[var(--text-secondary)]"
-                  data-testid="home-expenses-ledger-range"
-                >
-                  {totalCount === 0
-                    ? "Showing 0 of 0"
-                    : `Showing ${fromIdx}–${toIdx} of ${totalCount}`}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="rounded border border-[color:color-mix(in_srgb,var(--line-strong)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)] disabled:cursor-not-allowed disabled:opacity-40"
-                    disabled={!canPrev}
-                    onClick={() => {
-                      if (paymentFilter === "all") {
-                        router.push(
-                          buildDashboardHomeExpensesPath(
-                            selectedHomeId,
-                            billingMonthFrom,
-                            billingMonthTo,
-                            ytdBillingMonthFrom,
-                            ytdBillingMonthTo,
-                            { page: page - 1, pageSize },
-                          ),
-                        );
-                      } else {
-                        setFilteredPage((p) => Math.max(1, p - 1));
-                      }
-                    }}
-                  >
-                    Previous
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded border border-[color:color-mix(in_srgb,var(--line-strong)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)] disabled:cursor-not-allowed disabled:opacity-40"
-                    disabled={!canNext}
-                    onClick={() => {
-                      if (paymentFilter === "all") {
-                        router.push(
-                          buildDashboardHomeExpensesPath(
-                            selectedHomeId,
-                            billingMonthFrom,
-                            billingMonthTo,
-                            ytdBillingMonthFrom,
-                            ytdBillingMonthTo,
-                            { page: page + 1, pageSize },
-                          ),
-                        );
-                      } else {
-                        setFilteredPage((p) => p + 1);
-                      }
-                    }}
-                  >
-                    Next
-                  </button>
-                </div>
+              <div className="w-full min-w-0 sm:max-w-[min(100%,28rem)] sm:self-end">
+                <VillageListPagination
+                  className="mt-0 flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                  page={page}
+                  pageSize={pageSize}
+                  totalCount={totalCount}
+                  loading={
+                    paymentFilter !== "all" && filterFetchState === "loading"
+                  }
+                  rangeTestId="home-expenses-ledger-range"
+                  onPrevious={() => {
+                    if (paymentFilter === "all") {
+                      router.push(
+                        buildDashboardHomeExpensesPath(
+                          selectedHomeId,
+                          billingMonthFrom,
+                          billingMonthTo,
+                          ytdBillingMonthFrom,
+                          ytdBillingMonthTo,
+                          { page: page - 1, pageSize },
+                        ),
+                      );
+                    } else {
+                      setFilteredPage((p) => Math.max(1, p - 1));
+                    }
+                  }}
+                  onNext={() => {
+                    if (paymentFilter === "all") {
+                      router.push(
+                        buildDashboardHomeExpensesPath(
+                          selectedHomeId,
+                          billingMonthFrom,
+                          billingMonthTo,
+                          ytdBillingMonthFrom,
+                          ytdBillingMonthTo,
+                          { page: page + 1, pageSize },
+                        ),
+                      );
+                    } else {
+                      setFilteredPage((p) => p + 1);
+                    }
+                  }}
+                />
               </div>
             </div>
             <div className="overflow-x-auto rounded-b-3xl">
@@ -595,6 +601,7 @@ export function HomeExpensesSection({
           </div>
         </div>
       ) : null}
+      </VillageList>
     </>
   );
 }

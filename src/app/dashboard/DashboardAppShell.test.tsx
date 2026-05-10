@@ -133,9 +133,6 @@ describe("DashboardAppShell", () => {
       within(billing).getByRole("link", { name: "Home payments" }),
     ).toHaveAttribute("href", "/dashboard/home-payments");
     expect(
-      within(rail).getByRole("link", { name: "Revenue" }),
-    ).toHaveAttribute("href", "/dashboard/analytics/revenue-collections");
-    expect(
       within(rail).getByRole("link", { name: "Billing overview" }),
     ).toHaveAttribute("href", "/dashboard/analytics/financial");
     expect(
@@ -175,9 +172,6 @@ describe("DashboardAppShell", () => {
     );
     const rail = screen.getByRole("complementary", { name: "Primary" });
     expect(
-      within(rail).queryByRole("link", { name: "Revenue" }),
-    ).not.toBeInTheDocument();
-    expect(
       within(rail).queryByRole("link", { name: "Billing overview" }),
     ).not.toBeInTheDocument();
   });
@@ -197,21 +191,7 @@ describe("DashboardAppShell", () => {
     ).toBeInTheDocument();
   });
 
-  it("Revenue nav is active on nested analytics revenue route", () => {
-    pathRef.current = "/dashboard/analytics/revenue-collections";
-    renderShell(
-      <DashboardAppShell email="a@b.c" role="admin">
-        <p>content</p>
-      </DashboardAppShell>,
-    );
-    const rail = screen.getByRole("complementary", { name: "Primary" });
-    const link = within(rail).getByRole("link", {
-      name: "Revenue",
-    });
-    expect(link).toHaveAttribute("aria-current", "page");
-  });
-
-  it("Revenue nav is active when on /dashboard/analytics (redirect target)", () => {
+  it("Billing overview nav is active when on /dashboard/analytics (redirect target)", () => {
     pathRef.current = "/dashboard/analytics";
     renderShell(
       <DashboardAppShell email="a@b.c" role="admin">
@@ -220,7 +200,7 @@ describe("DashboardAppShell", () => {
     );
     const rail = screen.getByRole("complementary", { name: "Primary" });
     const link = within(rail).getByRole("link", {
-      name: "Revenue",
+      name: "Billing overview",
     });
     expect(link).toHaveAttribute("aria-current", "page");
   });

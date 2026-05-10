@@ -9,9 +9,11 @@ import {
   residents,
   wards,
 } from "@/db/schema";
-import { utcBillingMonthFromMs } from "@/lib/billing/billingMonth";
+import {
+  shiftBillingMonth,
+  utcBillingMonthFromMs,
+} from "@/lib/billing/billingMonth";
 import type { AppDb } from "@/lib/homes/service";
-import { shiftBillingMonth } from "@/lib/analytics/revenueCollections";
 
 export type FinancialPreset = "6" | "12" | "ytd";
 
@@ -151,8 +153,8 @@ export function getFinancialAnalyticsSnapshot(
   );
 
   const receivedMonthClause = and(
-    gte(sql`substr(${billingPayments.receivedOn}, 1, 7)`, startMonth),
-    lte(sql`substr(${billingPayments.receivedOn}, 1, 7)`, endMonth),
+    gte(sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`, startMonth),
+    lte(sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`, endMonth),
   );
 
   const issuedMonthClause = and(
@@ -273,7 +275,7 @@ export function getFinancialAnalyticsSnapshot(
       .where(
         and(
           eq(accounts.accountType, "resident"),
-          eq(sql`substr(${billingPayments.receivedOn}, 1, 7)`, monthKey),
+          eq(sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`, monthKey),
           nonArchivedHomesClause(),
           input.homeId ? eq(residents.homeId, input.homeId) : sql`1 = 1`,
         ),
@@ -290,7 +292,7 @@ export function getFinancialAnalyticsSnapshot(
       .where(
         and(
           eq(accounts.accountType, "home"),
-          eq(sql`substr(${billingPayments.receivedOn}, 1, 7)`, monthKey),
+          eq(sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`, monthKey),
           nonArchivedHomesClause(),
           input.homeId ? eq(accounts.homeId, input.homeId) : sql`1 = 1`,
         ),
@@ -571,8 +573,8 @@ export function getExpenseAnalyticsSnapshot(
   );
 
   const receivedMonthClause = and(
-    gte(sql`substr(${billingPayments.receivedOn}, 1, 7)`, startMonth),
-    lte(sql`substr(${billingPayments.receivedOn}, 1, 7)`, endMonth),
+    gte(sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`, startMonth),
+    lte(sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`, endMonth),
   );
 
   const issuedMonthClause = and(

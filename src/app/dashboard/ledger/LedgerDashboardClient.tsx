@@ -1,5 +1,8 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- intentional sync Effects */
+
+import { VillageList } from "@/components/VillageList";
 import { VillageSelect } from "@/components/VillageSelect";
 import {
   buildDashboardLedgerPath,
@@ -123,27 +126,35 @@ export function LedgerDashboardClient({
     homes.find((home) => home.homeId === selectedHomeId)?.homeName ??
     "Selected home";
 
+  const ledgerActiveFilterCount =
+    (selectedResidentId ? 1 : 0) +
+    (postedFrom !== ytdPostedFrom || postedTo !== ytdPostedTo ? 1 : 0);
+
   return (
     <div className="flex flex-col gap-7">
-      <header className="village-reveal">
-        <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-[1.65rem]">
-          {selectedAccountType === "home"
-            ? "Home operating ledger"
-            : "Resident ledger"}
-        </h1>
-        <p className="mt-1 max-w-2xl text-sm text-[var(--text-secondary)]">
-          Posted transactions and balances. Choose{" "}
-          {selectedAccountType === "home"
-            ? "the facility operating account"
-            : "a resident account"}
-          , optionally narrow dates, then post payments from the ledger.
-        </p>
-      </header>
-
-      <section
-        data-testid="dashboard-ledger-filters"
-        className="village-card village-reveal village-reveal-delay-1 relative z-20 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-5 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6"
-      >
+      <VillageList
+        rootElement="div"
+        wrapBody="none"
+        listTitle={null}
+        filtersCollapsible
+        activeFilterCount={ledgerActiveFilterCount}
+        toolbar={
+          <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0 flex-1" aria-hidden />
+            <button
+              type="button"
+              className="village-btn-secondary shrink-0"
+              onClick={() => router.refresh()}
+            >
+              Refresh
+            </button>
+          </div>
+        }
+        filters={
+          <div
+            className="flex w-full min-w-0 flex-[1_1_100%] flex-col gap-4"
+            data-testid="dashboard-ledger-filters"
+          >
         <div
           className={
             accountTypeDraft === "resident"
@@ -239,7 +250,7 @@ export function LedgerDashboardClient({
           </button>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
+        <div className="flex flex-wrap items-center gap-3 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
           <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)] px-3 py-1.5 font-medium text-[var(--text-primary)]">
             {selectedAccountType === "home" ? "Home" : "Resident"} ·{" "}
             {selectedHomeName}
@@ -257,7 +268,7 @@ export function LedgerDashboardClient({
           )}
         </div>
 
-        <div className="mt-5 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-5">
+        <div className="border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-5">
           <div className="grid gap-4 lg:grid-cols-[minmax(18rem,1.2fr)_auto] lg:items-end">
             <fieldset className="min-w-0">
               <legend className="village-label">Posted date range (UTC)</legend>
@@ -323,16 +334,17 @@ export function LedgerDashboardClient({
           </div>
         </div>
         {hasInvalidOrder ? (
-          <p className="mt-3 text-sm text-[var(--danger)]" role="alert">
+          <p className="text-sm text-[var(--danger)]" role="alert">
             From date must be earlier than or equal to To date.
           </p>
         ) : hasRangeDraftChanges && (!fromOk || !toOk) ? (
-          <p className="mt-3 text-sm text-[var(--danger)]" role="alert">
+          <p className="text-sm text-[var(--danger)]" role="alert">
             Use complete dates (YYYY-MM-DD) for both fields.
           </p>
         ) : null}
-      </section>
-
+          </div>
+        }
+      >
       {activeHome && selectedAccountType === "home" ? (
         <BillingLedgerPanel
           homeId={activeHome.homeId}
@@ -349,6 +361,28 @@ export function LedgerDashboardClient({
           defaultCurrencyCode={activeHome.defaultCurrencyCode}
           postedDateRange={{ postedFrom, postedTo }}
         />
+      ) : activeHome && selectedAccountType === "resident" && residentOptions.length > 0 ? (
+        <div className="flex flex-col gap-6" data-testid="dashboard-ledger-all-residents">
+          {residentOptions.map((r) => (
+            <div key={r.residentId}>
+              <p className="mb-3 text-sm font-semibold text-[var(--text-primary)]">
+                {r.residentFullName}
+                {r.residentStatus !== "active" ? (
+                  <span className="ml-2 text-xs font-normal text-[var(--text-muted)]">
+                    (Departed)
+                  </span>
+                ) : null}
+              </p>
+              <BillingLedgerPanel
+                homeId={activeHome.homeId}
+                ledgerAccountType="resident"
+                residentId={r.residentId}
+                defaultCurrencyCode={activeHome.defaultCurrencyCode}
+                postedDateRange={{ postedFrom, postedTo }}
+              />
+            </div>
+          ))}
+        </div>
       ) : (
         <div
           className="village-panel-card px-5 py-10 text-center text-sm text-[var(--text-secondary)] sm:px-8"
@@ -359,6 +393,7 @@ export function LedgerDashboardClient({
             : null}
         </div>
       )}
+      </VillageList>
     </div>
   );
 }

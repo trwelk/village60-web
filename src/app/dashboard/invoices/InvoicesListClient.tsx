@@ -135,16 +135,30 @@ export function InvoicesListClient({
               {filteredInvoices.length} invoice{filteredInvoices.length === 1 ? "" : "s"}
             </p>
           </div>
-          <button
-            type="button"
-            className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
-            onClick={() => {
-              setError(null);
-              setCreateOpen(true);
-            }}
-          >
-            New invoice
-          </button>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2 sm:gap-3 sm:flex-initial sm:justify-end">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
+                onClick={() => {
+                  setError(null);
+                  setCreateOpen(true);
+                }}
+              >
+                New invoice
+              </button>
+            </div>
+            <button
+              type="button"
+              className="village-btn-secondary shrink-0"
+              onClick={() => {
+                void loadInvoices();
+                router.refresh();
+              }}
+            >
+              Refresh
+            </button>
+          </div>
         </div>
 
         {!loading && filteredInvoices.length === 0 ? (

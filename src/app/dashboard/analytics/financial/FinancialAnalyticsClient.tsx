@@ -7,6 +7,7 @@ import type {
   FinancialPreset,
 } from "@/lib/analytics/financialOverview";
 import { getVillage60ChartPalette, resolveVillage60Theme } from "@/lib/theme/village60Theme";
+import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
@@ -93,6 +94,7 @@ export function FinancialAnalyticsClient({
   const [tab, setTab] = useState<"overview" | "revenue" | "expenses">(
     "overview",
   );
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
   const presetOptions = useMemo(
     () => [
@@ -167,51 +169,105 @@ export function FinancialAnalyticsClient({
 
   const rangeTitle = `${financial.startMonth} → ${financial.endMonth}`;
 
+  const activePresetLabel =
+    presetOptions.find((o) => o.value === preset)?.label ?? preset;
+  const activeHomeLabel =
+    homeSelectOptions.find((o) => o.value === selectedHomeKey)?.label ??
+    selectedHomeKey;
+
   return (
     <div className="flex flex-col gap-8 text-[var(--text-primary)]">
       <section className="village-card village-reveal rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-5 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
-          <div className="space-y-1">
+        <div className="flex flex-col gap-5">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
             <h2 className="font-display text-xl font-semibold tracking-tight">
               Billing & revenue analytics
             </h2>
-            <p className="max-w-2xl text-sm text-[var(--text-muted)]">
-              Resident collections, home expenses (not invoice
-              totals), invoicing shown for context, and balances — scoped by UTC
-              billing months. Figures in {financial.currencyCode}.
-            </p>
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
-              {rangeTitle}
-            </p>
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-            <label className="flex min-w-[12rem] flex-col gap-2 text-sm">
-              <span className="village-label">Period</span>
-              <VillageSelect
-                value={preset}
-                onChange={onPresetChange}
-                options={presetOptions.map((o) => ({
-                  value: o.value,
-                  label: o.label,
-                }))}
-              />
-            </label>
-            <label className="flex min-w-[14rem] flex-col gap-2 text-sm">
-              <span className="village-label">Home</span>
-              <VillageSelect
-                value={selectedHomeKey}
-                onChange={onHomeChange}
-                options={homeSelectOptions}
-              />
-            </label>
             <button
               type="button"
-              className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_88%,transparent)] px-4 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[color:color-mix(in_srgb,var(--accent)_54%,transparent)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]"
-              onClick={exportCsv}
+              id="financial-analytics-filters-toggle"
+              aria-expanded={filtersOpen}
+              aria-controls="financial-analytics-filter-panel"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_85%,transparent)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)] shadow-sm transition hover:border-[color:color-mix(in_srgb,var(--accent)_45%,transparent)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]"
+              onClick={() => setFiltersOpen((open) => !open)}
             >
-              Export CSV
+              <ChevronDown
+                className={[
+                  "size-3.5 shrink-0 text-[var(--text-muted)] transition-transform duration-200",
+                  filtersOpen ? "-rotate-180" : "",
+                ].join(" ")}
+                aria-hidden
+              />
+              {filtersOpen ? "Hide filters" : "Filters"}
             </button>
           </div>
+
+          <div
+            id="financial-analytics-filter-panel"
+            role="region"
+            aria-labelledby="financial-analytics-filters-toggle"
+            className="flex flex-col gap-5"
+            hidden={!filtersOpen}
+          >
+            <div className="flex flex-col gap-5 lg:flex-row lg:flex-wrap lg:items-end lg:justify-between">
+              <div className="space-y-1">
+                <p className="max-w-2xl text-sm text-[var(--text-muted)]">
+                  Resident collections, home expenses (not invoice totals),
+                  invoicing shown for context, and balances — scoped by UTC
+                  billing months. Figures in {financial.currencyCode}.
+                </p>
+                <p className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                  {rangeTitle}
+                </p>
+              </div>
+              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+                <label className="flex min-w-[12rem] flex-col gap-2 text-sm">
+                  <span className="village-label">Period</span>
+                  <VillageSelect
+                    value={preset}
+                    onChange={onPresetChange}
+                    options={presetOptions.map((o) => ({
+                      value: o.value,
+                      label: o.label,
+                    }))}
+                  />
+                </label>
+                <label className="flex min-w-[14rem] flex-col gap-2 text-sm">
+                  <span className="village-label">Home</span>
+                  <VillageSelect
+                    value={selectedHomeKey}
+                    onChange={onHomeChange}
+                    options={homeSelectOptions}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_88%,transparent)] px-4 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[color:color-mix(in_srgb,var(--accent)_54%,transparent)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]"
+                  onClick={exportCsv}
+                >
+                  Export CSV
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {!filtersOpen ? (
+            <p className="text-sm text-[var(--text-muted)]">
+              <span className="font-medium text-[var(--text-secondary)]">
+                {activePresetLabel}
+              </span>
+              <span aria-hidden className="mx-1.5 text-[var(--line-strong)]">
+                ·
+              </span>
+              <span className="font-medium text-[var(--text-secondary)]">
+                {activeHomeLabel}
+              </span>
+              <span aria-hidden className="mx-1.5 text-[var(--line-strong)]">
+                ·
+              </span>
+              <span>{rangeTitle}</span>
+            </p>
+          ) : null}
         </div>
 
         <div
@@ -685,9 +741,12 @@ function RevenueTab({
       fill: RESIDENT_OWED_FILL,
     },
   ].filter((r) => r.amountMinor > 0);
-  const segmentData = financial.revenueBySegment.filter(
-    (r) => r.amountMinor > 0,
-  );
+  const segmentData = financial.revenueBySegment
+    .map((r) => ({
+      ...r,
+      amountMinor: Number(r.amountMinor),
+    }))
+    .filter((r) => Number.isFinite(r.amountMinor) && r.amountMinor > 0);
   const segmentTitle =
     financial.revenueSegmentKind === "ward"
       ? "Collections by ward (resident payments)"

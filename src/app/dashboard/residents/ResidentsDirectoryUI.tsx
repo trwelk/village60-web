@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  VillageList,
+  VillageListEmpty,
+  VillageListFilter,
+} from "@/components/VillageList";
 import { VillageSelect } from "@/components/VillageSelect";
 import {
   buildResidentsDirectoryQueryString,
@@ -180,56 +185,66 @@ export function ResidentsDirectoryUI({
     router.replace(`/dashboard/homes/${fixedHomeId}/residents/new`);
   }, [fixedHomeId, urlState.newResident, router]);
 
-  const from =
-    totalCount === 0
-      ? 0
-      : (urlState.page - 1) * urlState.pageSize + 1;
-  const to = Math.min(urlState.page * urlState.pageSize, totalCount);
-  const canPrev = urlState.page > 1;
-  const canNext = urlState.page * urlState.pageSize < totalCount;
+  const showToolbar =
+    fixedHomeId != null || (role === "admin" && urlState.homeId !== "");
+
+  const activeFilterCount =
+    (urlState.homeId && !fixedHomeId ? 1 : 0) +
+    (urlState.query.trim() ? 1 : 0) +
+    (urlState.status !== "active" ? 1 : 0) +
+    (urlState.wardId ? 1 : 0);
 
   return (
-    <>
-    <main className="flex flex-col gap-8 text-ink">
-      {fixedHomeId || (role === "admin" && urlState.homeId) ? (
-        <header className="flex flex-wrap items-center justify-end gap-3">
-          {fixedHomeId ? (
-            <>
-              <Link
-                href={`/dashboard/homes/${fixedHomeId}/residents/departed`}
-                className="village-btn-secondary"
-              >
-                Departed residents
-              </Link>
-              <Link
-                href={`/dashboard/homes/${fixedHomeId}/residents/new`}
-                className="village-btn-primary inline-flex items-center justify-center"
-              >
-                Add resident
-              </Link>
-            </>
-          ) : role === "admin" && urlState.homeId ? (
-            <Link
-              href={`/dashboard/homes/${urlState.homeId}/residents/new`}
-              className="village-btn-primary inline-flex items-center justify-center"
-            >
-              Add resident
-            </Link>
-          ) : null}
-        </header>
-      ) : null}
-
-      <section className="village-card p-6 sm:p-8">
-        <h2 className="village-section-title">Filters</h2>
-        <div className="mt-5 flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
+    <VillageList
+      toolbar={
+        <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-3">
+            {showToolbar ? (
+              fixedHomeId ? (
+                <>
+                  <Link
+                    href={`/dashboard/homes/${fixedHomeId}/residents/departed`}
+                    className="village-btn-secondary"
+                  >
+                    Departed residents
+                  </Link>
+                  <Link
+                    href={`/dashboard/homes/${fixedHomeId}/residents/new`}
+                    className="village-btn-primary inline-flex items-center justify-center"
+                  >
+                    Add resident
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href={`/dashboard/homes/${urlState.homeId}/residents/new`}
+                  className="village-btn-primary inline-flex items-center justify-center"
+                >
+                  Add resident
+                </Link>
+              )
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="village-btn-secondary shrink-0"
+            onClick={() => {
+              void fetchResidents();
+              router.refresh();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+      }
+      filters={
+        <>
           {!fixedHomeId && role === "admin" ? (
-            <div className="flex min-w-[12rem] flex-1 flex-col gap-1.5 text-sm">
-              <label
-                className="village-field-label"
-                htmlFor="residents-directory-home"
-              >
-                Home
-              </label>
+            <VillageListFilter
+              label="Home"
+              htmlFor="residents-directory-home"
+              minWidth="12rem"
+            >
               <VillageSelect
                 id="residents-directory-home"
                 value={urlState.homeId}
@@ -241,11 +256,14 @@ export function ResidentsDirectoryUI({
                   ...homes.map((h) => ({ value: h.id, label: h.name })),
                 ]}
               />
-            </div>
+            </VillageListFilter>
           ) : null}
-          <label className="flex min-w-[10rem] flex-1 flex-col gap-1.5 text-sm">
-            <span className="village-field-label">Name search</span>
+          <VillageListFilter
+            label="Name search"
+            htmlFor="residents-directory-query"
+          >
             <input
+              id="residents-directory-query"
               className="village-input"
               value={urlState.query}
               onChange={(e) => {
@@ -254,14 +272,12 @@ export function ResidentsDirectoryUI({
               placeholder="Partial name"
               autoComplete="off"
             />
-          </label>
-          <div className="flex w-full flex-col gap-1.5 text-sm sm:w-44">
-            <label
-              className="village-field-label"
-              htmlFor="residents-directory-status"
-            >
-              Status
-            </label>
+          </VillageListFilter>
+          <VillageListFilter
+            label="Status"
+            htmlFor="residents-directory-status"
+            width="11rem"
+          >
             <VillageSelect
               id="residents-directory-status"
               value={urlState.status}
@@ -277,15 +293,12 @@ export function ResidentsDirectoryUI({
                 { value: "all", label: "All" },
               ]}
             />
-          </div>
+          </VillageListFilter>
           {effectiveHomeId ? (
-            <div className="flex min-w-[10rem] flex-1 flex-col gap-1.5 text-sm">
-              <label
-                className="village-field-label"
-                htmlFor="residents-directory-ward"
-              >
-                Ward
-              </label>
+            <VillageListFilter
+              label="Ward"
+              htmlFor="residents-directory-ward"
+            >
               <VillageSelect
                 id="residents-directory-ward"
                 value={urlState.wardId}
@@ -295,116 +308,73 @@ export function ResidentsDirectoryUI({
                   ...wards.map((w) => ({ value: w.id, label: w.label })),
                 ]}
               />
-            </div>
+            </VillageListFilter>
           ) : null}
-          <button
-            type="button"
-            className="village-btn-secondary"
-            onClick={() => {
-              void fetchResidents();
-              router.refresh();
-            }}
-          >
-            Refresh
-          </button>
-        </div>
-      </section>
-
-      {error ? <p className="village-alert-error">{error}</p> : null}
-
-      <section aria-busy={loading}>
-        <h2 className="village-section-title">
-          {loading ? "Loading…" : "Directory"}
-        </h2>
-        {!loading && residents ? (
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p
-              className="text-sm text-ink/70"
-              data-testid="residents-directory-range"
-            >
-              {totalCount === 0
-                ? "Showing 0 of 0"
-                : `Showing ${from}–${to} of ${totalCount}`}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="rounded border border-pine/25 bg-cream px-3 py-1.5 text-sm text-ink hover:bg-cream/80 disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={!canPrev || loading}
-                aria-label="Previous page of residents"
-                onClick={() => navigate({ page: urlState.page - 1 })}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                className="rounded border border-pine/25 bg-cream px-3 py-1.5 text-sm text-ink hover:bg-cream/80 disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={!canNext || loading}
-                aria-label="Next page of residents"
-                onClick={() => navigate({ page: urlState.page + 1 })}
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        ) : null}
-        <div className="village-table-wrap mt-4">
-          <table
-            className="village-table"
-            aria-label="Residents directory"
-          >
-            <thead className="village-thead">
-              <tr>
-                <th className="village-th">Name</th>
-                <th className="village-th">Home</th>
-                <th className="village-th">DOB</th>
-                <th className="village-th">Status</th>
-                <th className="village-th">Detail</th>
-              </tr>
-            </thead>
-            <tbody className="village-tbody">
-              {!loading &&
-              residents &&
-              residents.length === 0 &&
-              totalCount === 0 ? (
-                <tr>
-                  <td colSpan={5} className="village-td-muted py-10 text-center">
-                    No residents match these filters.
-                  </td>
-                </tr>
-              ) : null}
-              {!loading && residents && residents.length === 0 && totalCount > 0 ? (
-                <tr>
-                  <td colSpan={5} className="village-td-muted py-10 text-center">
-                    No residents on this page. Try another page.
-                  </td>
-                </tr>
-              ) : null}
-              {residents?.map((r) => (
-                <tr key={r.id}>
-                  <td className="village-td font-medium">{r.fullName}</td>
-                  <td className="village-td-muted">
-                    {homeNameById[r.homeId] ?? r.homeId}
-                  </td>
-                  <td className="village-td-muted">{r.dob}</td>
-                  <td className="village-td-muted">
-                    {r.status === "active" ? "Active" : "Departed"}
-                  </td>
-                  <td className="village-td">
-                    <Link
-                      href={`/dashboard/homes/${r.homeId}/residents/${r.id}`}
-                      className="village-link"
-                    >
-                      Open
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </main>
-    </>
+        </>
+      }
+      filtersCollapsible
+      activeFilterCount={activeFilterCount}
+      listTitle={null}
+      loading={loading}
+      error={error}
+      pagination={
+        residents != null
+          ? {
+              page: urlState.page,
+              pageSize: urlState.pageSize,
+              totalCount,
+              onPrevious: () => navigate({ page: urlState.page - 1 }),
+              onNext: () => navigate({ page: urlState.page + 1 }),
+            }
+          : undefined
+      }
+      paginationRangeTestId="residents-directory-range"
+    >
+      <table className="village-table" aria-label="Residents directory">
+        <thead className="village-thead">
+          <tr>
+            <th className="village-th">Name</th>
+            <th className="village-th">Home</th>
+            <th className="village-th">DOB</th>
+            <th className="village-th">Status</th>
+            <th className="village-th">Detail</th>
+          </tr>
+        </thead>
+        <tbody className="village-tbody">
+          {!loading && residents && residents.length === 0 && totalCount === 0 ? (
+            <VillageListEmpty
+              colSpan={5}
+              message="No residents match these filters."
+            />
+          ) : null}
+          {!loading && residents && residents.length === 0 && totalCount > 0 ? (
+            <VillageListEmpty
+              colSpan={5}
+              message="No residents on this page. Try another page."
+            />
+          ) : null}
+          {residents?.map((r) => (
+            <tr key={r.id}>
+              <td className="village-td font-medium">{r.fullName}</td>
+              <td className="village-td-muted">
+                {homeNameById[r.homeId] ?? r.homeId}
+              </td>
+              <td className="village-td-muted">{r.dob}</td>
+              <td className="village-td-muted">
+                {r.status === "active" ? "Active" : "Departed"}
+              </td>
+              <td className="village-td">
+                <Link
+                  href={`/dashboard/homes/${r.homeId}/residents/${r.id}`}
+                  className="village-link"
+                >
+                  Open
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </VillageList>
   );
 }

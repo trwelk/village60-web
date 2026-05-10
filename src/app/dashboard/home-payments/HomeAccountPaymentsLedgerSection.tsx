@@ -1,5 +1,8 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect -- intentional sync Effects */
+
+import { VillageList, VillageListPagination } from "@/components/VillageList";
 import { VillageSelect } from "@/components/VillageSelect";
 import { buildDashboardHomePaymentsPath } from "@/lib/billing/dashboardHomePaymentsPath";
 import type { HomeAccountPaymentLedgerRow } from "@/lib/billing/homeAccounts";
@@ -96,15 +99,9 @@ export function HomeAccountPaymentsLedgerSection({
     );
   }
 
-  const from = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, totalCount);
-  const canPrev = page > 1;
-  const canNext = page * pageSize < totalCount;
   const selectedHomeName =
     homes.find((home) => home.homeId === selectedHomeId)?.homeName ?? "Selected home";
   const visibleAmountMinor = rows.reduce((sum, row) => sum + row.amountMinor, 0);
-  const rangeText =
-    totalCount === 0 ? "Showing 0 of 0" : `Showing ${from}–${to} of ${totalCount}`;
   const hasFilterChanges = homeDraft !== selectedHomeId;
   const isApplyDisabled = !homeDraft || !hasFilterChanges || isApplyingFilters;
 
@@ -152,11 +149,36 @@ export function HomeAccountPaymentsLedgerSection({
 
   return (
     <>
-      <section
-        data-testid="home-payments-ledger-filters"
-        className="village-card village-reveal village-reveal-delay-1 relative z-20 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-5 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6"
-      >
-        <div className="grid gap-4 lg:grid-cols-[minmax(14rem,20rem)_auto_auto] lg:items-end">
+      <VillageList
+        rootElement="div"
+        wrapBody="none"
+        listTitle={null}
+        filtersCollapsible
+        toolbar={
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              className="h-10 shrink-0 rounded-xl border border-[color:color-mix(in_srgb,var(--accent-strong)_72%,transparent)] bg-[var(--accent-strong)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:border-[color:color-mix(in_srgb,var(--line-strong)_65%,transparent)] disabled:bg-[color:color-mix(in_srgb,var(--bg-muted)_84%,transparent)] disabled:text-[var(--text-muted)]"
+              onClick={() => setPaymentModalOpen(true)}
+              disabled={!selectedHomeId}
+            >
+              Create payment
+            </button>
+            <button
+              type="button"
+              className="village-btn-secondary shrink-0"
+              onClick={() => router.refresh()}
+            >
+              Refresh
+            </button>
+          </div>
+        }
+        filters={
+          <div
+            className="flex w-full min-w-0 flex-[1_1_100%] flex-col gap-4"
+            data-testid="home-payments-ledger-filters"
+          >
+        <div className="grid gap-4 lg:grid-cols-[minmax(14rem,20rem)_auto] lg:items-end">
           <div className="flex min-w-0 w-full flex-col gap-2">
             <label htmlFor="home-payments-ledger-home" className="village-label">
               Home
@@ -185,20 +207,11 @@ export function HomeAccountPaymentsLedgerSection({
           >
             {isApplyingFilters ? "Applying..." : "Apply"}
           </button>
-          <button
-            type="button"
-            className="h-10 w-full rounded-xl border border-[color:color-mix(in_srgb,var(--accent-strong)_72%,transparent)] bg-[var(--accent-strong)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:border-[color:color-mix(in_srgb,var(--line-strong)_65%,transparent)] disabled:bg-[color:color-mix(in_srgb,var(--bg-muted)_84%,transparent)] disabled:text-[var(--text-muted)] lg:w-auto"
-            onClick={() => setPaymentModalOpen(true)}
-            disabled={!selectedHomeId}
-          >
-            Create payment
-          </button>
         </div>
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
+        <div className="flex flex-wrap items-center gap-3 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
           <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)] px-3 py-1.5 font-medium text-[var(--text-primary)]">
             {selectedHomeName}
           </span>
-          <span data-testid="home-payments-ledger-range">{rangeText}</span>
           {selectedHomeId ? (
             <Link
               href={`/dashboard/homes/${encodeURIComponent(selectedHomeId)}/ledger`}
@@ -208,8 +221,9 @@ export function HomeAccountPaymentsLedgerSection({
             </Link>
           ) : null}
         </div>
-      </section>
-
+          </div>
+        }
+      >
       {selectedHomeId ? (
         <div className="village-reveal village-reveal-delay-2 flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -248,36 +262,27 @@ export function HomeAccountPaymentsLedgerSection({
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_78%,transparent)] p-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="px-1 text-sm font-semibold text-[var(--text-primary)]">
+          <div>
+            <p className="mb-3 text-sm font-semibold text-[var(--text-primary)]">
               Home account payments
             </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="village-btn-secondary px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={!canPrev}
-                onClick={() => {
-                  router.push(
-                    buildDashboardHomePaymentsPath(selectedHomeId, page - 1, pageSize),
-                  );
-                }}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                className="village-btn-secondary px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-40"
-                disabled={!canNext}
-                onClick={() => {
-                  router.push(
-                    buildDashboardHomePaymentsPath(selectedHomeId, page + 1, pageSize),
-                  );
-                }}
-              >
-                Next
-              </button>
-            </div>
+            <VillageListPagination
+              className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              rangeTestId="home-payments-ledger-range"
+              onPrevious={() => {
+                router.push(
+                  buildDashboardHomePaymentsPath(selectedHomeId, page - 1, pageSize),
+                );
+              }}
+              onNext={() => {
+                router.push(
+                  buildDashboardHomePaymentsPath(selectedHomeId, page + 1, pageSize),
+                );
+              }}
+            />
           </div>
 
           <div className="overflow-hidden rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] shadow-[0_20px_58px_-34px_color-mix(in_srgb,var(--accent)_34%,transparent)]">
@@ -290,7 +295,6 @@ export function HomeAccountPaymentsLedgerSection({
                   Home operating account receipts
                 </h2>
               </div>
-              <p className="text-sm text-[var(--text-secondary)]">{rangeText}</p>
             </div>
             <div className="overflow-x-auto">
               <table
@@ -388,6 +392,7 @@ export function HomeAccountPaymentsLedgerSection({
           </div>
         </div>
       ) : null}
+      </VillageList>
       {paymentModalOpen
         ? createPortal(
             <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 pb-[env(safe-area-inset-bottom,0px)] sm:items-center sm:p-6 sm:pb-6">

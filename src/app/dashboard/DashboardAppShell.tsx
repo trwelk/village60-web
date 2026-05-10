@@ -10,7 +10,6 @@ import {
   isDashboardAnalyticsDemographicsStaffPath,
   isDashboardAnalyticsOccupancyPath,
   isDashboardAnalyticsFinancialPath,
-  isDashboardAnalyticsRevenueCollectionsPath,
   isDashboardChargesPath,
   isDashboardHomeExpensesPath,
   isDashboardHomesPath,
@@ -44,7 +43,6 @@ import {
   Inbox,
   Landmark,
   LayoutDashboard,
-  LineChart,
   PackageSearch,
   PanelLeft,
   PanelLeftClose,
@@ -216,12 +214,6 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
                 label: "Occupancy",
                 Icon: Building2,
                 isActive: isDashboardAnalyticsOccupancyPath,
-              },
-              {
-                href: "/dashboard/analytics/revenue-collections",
-                label: "Revenue",
-                Icon: LineChart,
-                isActive: isDashboardAnalyticsRevenueCollectionsPath,
               },
               {
                 href: "/dashboard/analytics/financial",

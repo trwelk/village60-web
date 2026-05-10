@@ -10,6 +10,10 @@ import { DEFAULT_CURRENCY_CODE } from "@/lib/homes/defaultCurrencyCode";
 import { eq } from "drizzle-orm";
 import { FinancialAnalyticsClient } from "./FinancialAnalyticsClient";
 
+/** Analytics reads SQLite via better-sqlite3 and uses `Date.now()` for ranges — always compute on request. */
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 type PageProps = {
   searchParams?: Promise<{ home?: string; preset?: string }>;
 };

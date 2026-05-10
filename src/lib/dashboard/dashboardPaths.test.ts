@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   isDashboardAnalyticsAdmissionsDeparturesPath,
   isDashboardAnalyticsDemographicsStaffPath,
+  isDashboardAnalyticsFinancialPath,
   isDashboardAnalyticsPath,
-  isDashboardAnalyticsRevenueCollectionsPath,
   isDashboardAccountPath,
   isDashboardHomesPath,
   isDashboardInventoryOrdersPath,
@@ -27,7 +27,7 @@ describe("isDashboardAnalyticsPath", () => {
 
   it("matches nested analytics routes", () => {
     expect(
-      isDashboardAnalyticsPath("/dashboard/analytics/revenue-collections"),
+      isDashboardAnalyticsPath("/dashboard/analytics/financial"),
     ).toBe(true);
     expect(
       isDashboardAnalyticsPath("/dashboard/analytics/admissions-departures"),
@@ -40,17 +40,15 @@ describe("isDashboardAnalyticsPath", () => {
 });
 
 describe("analytics subsection paths", () => {
-  it("isDashboardAnalyticsRevenueCollectionsPath", () => {
+  it("isDashboardAnalyticsFinancialPath matches index and financial", () => {
     expect(
-      isDashboardAnalyticsRevenueCollectionsPath(
-        "/dashboard/analytics/revenue-collections",
-      ),
+      isDashboardAnalyticsFinancialPath("/dashboard/analytics/financial"),
     ).toBe(true);
     expect(
-      isDashboardAnalyticsRevenueCollectionsPath("/dashboard/analytics"),
+      isDashboardAnalyticsFinancialPath("/dashboard/analytics"),
     ).toBe(true);
     expect(
-      isDashboardAnalyticsRevenueCollectionsPath(
+      isDashboardAnalyticsFinancialPath(
         "/dashboard/analytics/admissions-departures",
       ),
     ).toBe(false);
@@ -64,7 +62,7 @@ describe("analytics subsection paths", () => {
     ).toBe(true);
     expect(
       isDashboardAnalyticsAdmissionsDeparturesPath(
-        "/dashboard/analytics/revenue-collections",
+        "/dashboard/analytics/financial",
       ),
     ).toBe(false);
   });

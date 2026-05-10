@@ -47,7 +47,7 @@ describe("TasksSection", () => {
     expect(screen.getByRole("heading", { name: "Call pharmacy" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Complete" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /delete task/i })).toBeInTheDocument();
   });
 
   it("renders a payment overdue reminder with a billing link and no task actions", () => {

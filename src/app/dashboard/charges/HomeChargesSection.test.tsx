@@ -306,7 +306,7 @@ describe("HomeChargesSection (22c pagination)", () => {
     expect(screen.getByTestId("charges-ledger-range")).toHaveTextContent(
       "Showing 1–25 of 40",
     );
-    expect(screen.getByRole("button", { name: /^Previous$/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /^Next$/i })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /next page/i })).not.toBeDisabled();
   });
 });

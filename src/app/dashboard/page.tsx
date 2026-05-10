@@ -84,14 +84,14 @@ export default async function DashboardPage() {
         occupancyPercent={occupancyPercentAllSites}
         isAdmin={session.role === "admin"}
       />
+      {occupancyBoard ? (
+        <OccupancyHeatmapBoardCard board={occupancyBoard} />
+      ) : null}
       <ResidentBirthdayBoardCard
         week={birthdayBoardWeek}
         month={birthdayBoardMonth}
         asOfLabel={birthdayBoardAsOfLabel}
       />
-      {occupancyBoard ? (
-        <OccupancyHeatmapBoardCard board={occupancyBoard} />
-      ) : null}
       {lastSignIn ? (
         <LocalTime
           utcMs={lastSignIn.occurredAtUtcMs}

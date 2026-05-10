@@ -7,6 +7,7 @@ import type {
   TaskListItem,
   TaskPriority,
 } from "@/lib/tasks/service";
+import { VillageList, VillageListFilter } from "@/components/VillageList";
 import { VillageSelect } from "@/components/VillageSelect";
 import {
   Cake,
@@ -285,134 +286,134 @@ export function TasksSection({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <section
-        className="village-reveal village-reveal-delay-2 space-y-4"
-        aria-labelledby="tasks-inbox-heading"
-      >
-        <div className="village-panel-card overflow-hidden p-0">
-          <div
-            className="h-1 bg-gradient-to-r from-[var(--accent)] via-[var(--highlight)] to-[var(--partner-green)]"
-            aria-hidden
-          />
-          <div className="p-5 sm:p-6">
-            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex min-w-0 gap-3">
-                <span
-                  className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--accent)_14%,var(--bg-elevated))] text-[var(--accent-strong)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_65%,transparent)]"
-                  aria-hidden
+    <>
+      <VillageList
+        toolbar={
+          <>
+            <div className="flex min-w-0 flex-1 flex-wrap items-start gap-3">
+              <span
+                className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--accent)_14%,var(--bg-elevated))] text-[var(--accent-strong)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_65%,transparent)]"
+                aria-hidden
+              >
+                <Inbox className="h-5 w-5" strokeWidth={2} />
+              </span>
+              <div className="min-w-0">
+                <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                  Inbox controls
+                </p>
+                <h2
+                  id="tasks-inbox-heading"
+                  className="font-display text-lg font-normal tracking-tight text-[var(--text-primary)] sm:text-xl"
                 >
-                  <Inbox className="h-5 w-5" strokeWidth={2} />
-                </span>
-                <div className="min-w-0">
-                  <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                    Inbox controls
-                  </p>
-                  <h2
-                    id="tasks-inbox-heading"
-                    className="font-display text-lg font-normal tracking-tight text-[var(--text-primary)] sm:text-xl"
-                  >
-                    Prioritise what needs attention
-                  </h2>
-                  <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
-                    Filter open items by home and type. Manual tasks can be edited,
-                    completed, or removed; reminders open their destination.
-                  </p>
-                </div>
-              </div>
-              <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">
-                <button
-                  type="button"
-                  className="village-btn-primary inline-flex min-h-10 items-center justify-center gap-1.5 self-stretch px-4 text-sm sm:self-auto"
-                  onClick={openCreateTaskModal}
-                >
-                  <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
-                  New manual task
-                </button>
-                <p className="text-center text-xs font-medium tabular-nums text-[var(--text-muted)] sm:text-right">
-                  <span className="rounded-full bg-[color-mix(in_srgb,var(--partner-green)_12%,var(--bg-elevated))] px-2.5 py-1 ring-1 ring-[color-mix(in_srgb,var(--partner-green)_22%,transparent)]">
-                    {tasks.length} {tasks.length === 1 ? "item" : "items"} shown
-                  </span>
+                  Prioritise what needs attention
+                </h2>
+                <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
+                  Filter open items by home and type. Manual tasks can be edited,
+                  completed, or removed; reminders open their destination.
                 </p>
               </div>
             </div>
-            <div className="flex flex-col gap-4 rounded-xl border border-[color:color-mix(in_srgb,var(--line-subtle)_70%,transparent)] bg-[color-mix(in_srgb,var(--bg-elevated)_55%,transparent)] p-4 sm:flex-row sm:flex-wrap sm:items-end">
-              <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <label htmlFor="inbox-status" className="village-label">
-              Status
-            </label>
-            <VillageSelect
-              id="inbox-status"
-              className="w-full"
-              value={query.status}
-              onChange={(v) => {
-                if (v !== "open" && v !== "completed") {
-                  return;
-                }
-                navigateInbox({ ...query, status: v });
-              }}
-              options={[
-                { value: "open", label: "Open" },
-                { value: "completed", label: "Completed (manual only)" },
-              ]}
-            />
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <label htmlFor="inbox-home" className="village-label">
-              Home
-            </label>
-            <VillageSelect
-              id="inbox-home"
-              className="w-full"
-              value={query.homeId ?? ""}
-              onChange={(v) => {
-                navigateInbox({
-                  ...query,
-                  homeId: v === "" ? null : v,
-                });
-              }}
-              options={[
-                { value: "", label: "All accessible homes" },
-                ...homes.map((home) => ({
-                  value: home.id,
-                  label: home.name,
-                })),
-              ]}
-            />
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
-            <label htmlFor="inbox-type" className="village-label">
-              Type
-            </label>
-            <VillageSelect
-              id="inbox-type"
-              className="w-full"
-              value={query.inboxType}
-              onChange={(v) => {
-                if (
-                  v === "all" ||
-                  v === "manual" ||
-                  v === "payment_overdue" ||
-                  v === "birthday"
-                ) {
+            <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">
+              <button
+                type="button"
+                className="village-btn-primary inline-flex min-h-10 items-center justify-center gap-1.5 self-stretch px-4 text-sm sm:self-auto"
+                onClick={openCreateTaskModal}
+              >
+                <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+                New manual task
+              </button>
+              <p className="text-center text-xs font-medium tabular-nums text-[var(--text-muted)] sm:text-right">
+                <span className="rounded-full bg-[color-mix(in_srgb,var(--partner-green)_12%,var(--bg-elevated))] px-2.5 py-1 ring-1 ring-[color-mix(in_srgb,var(--partner-green)_22%,transparent)]">
+                  {tasks.length} {tasks.length === 1 ? "item" : "items"} shown
+                </span>
+              </p>
+            </div>
+          </>
+        }
+        filters={
+          <>
+            <VillageListFilter
+              label="Status"
+              htmlFor="inbox-status"
+              width="11rem"
+            >
+              <VillageSelect
+                id="inbox-status"
+                className="w-full"
+                value={query.status}
+                onChange={(v) => {
+                  if (v !== "open" && v !== "completed") {
+                    return;
+                  }
+                  navigateInbox({ ...query, status: v });
+                }}
+                options={[
+                  { value: "open", label: "Open" },
+                  { value: "completed", label: "Completed (manual only)" },
+                ]}
+              />
+            </VillageListFilter>
+            <VillageListFilter label="Home" htmlFor="inbox-home">
+              <VillageSelect
+                id="inbox-home"
+                className="w-full"
+                value={query.homeId ?? ""}
+                onChange={(v) => {
                   navigateInbox({
                     ...query,
-                    inboxType: v,
+                    homeId: v === "" ? null : v,
                   });
-                }
-              }}
-              options={[
-                { value: "all", label: "All" },
-                { value: "manual", label: "Manual tasks" },
-                { value: "payment_overdue", label: "Payment overdue" },
-                { value: "birthday", label: "Birthdays" },
-              ]}
-            />
-              </div>
-            </div>
-          </div>
-        </div>
-
+                }}
+                options={[
+                  { value: "", label: "All accessible homes" },
+                  ...homes.map((home) => ({
+                    value: home.id,
+                    label: home.name,
+                  })),
+                ]}
+              />
+            </VillageListFilter>
+            <VillageListFilter
+              label="Type"
+              htmlFor="inbox-type"
+              minWidth="12rem"
+            >
+              <VillageSelect
+                id="inbox-type"
+                className="w-full"
+                value={query.inboxType}
+                onChange={(v) => {
+                  if (
+                    v === "all" ||
+                    v === "manual" ||
+                    v === "payment_overdue" ||
+                    v === "birthday"
+                  ) {
+                    navigateInbox({
+                      ...query,
+                      inboxType: v,
+                    });
+                  }
+                }}
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "manual", label: "Manual tasks" },
+                  { value: "payment_overdue", label: "Payment overdue" },
+                  { value: "birthday", label: "Birthdays" },
+                ]}
+              />
+            </VillageListFilter>
+          </>
+        }
+        error={error && !createModalOpen ? error : null}
+        listTitle=""
+        wrapBody="none"
+        rootElement="div"
+      >
+        <div
+          className="village-reveal village-reveal-delay-2 mt-4 flex flex-col gap-4"
+          aria-labelledby="tasks-inbox-heading"
+        >
         {tasks.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[color-mix(in_srgb,var(--accent)_28%,var(--line-subtle))] bg-[color-mix(in_srgb,var(--accent)_4%,var(--bg-elevated))] px-6 py-12 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--partner-green)_16%,var(--bg-elevated))] text-[var(--success)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_70%,transparent)]">
@@ -691,7 +692,8 @@ export function TasksSection({
             );
           })
           : null}
-      </section>
+        </div>
+      </VillageList>
 
       {createModalOpen
         ? createPortal(
@@ -865,6 +867,6 @@ export function TasksSection({
             document.body,
           )
         : null}
-    </div>
+    </>
   );
 }

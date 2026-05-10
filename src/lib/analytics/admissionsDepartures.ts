@@ -1,8 +1,10 @@
 import { and, count, eq, gte, like, lt } from "drizzle-orm";
 import { residentDepartureDetails, residents } from "@/db/schema";
-import { utcBillingMonthFromMs } from "@/lib/billing/billingMonth";
+import {
+  shiftBillingMonth,
+  utcBillingMonthFromMs,
+} from "@/lib/billing/billingMonth";
 import type { AppDb } from "@/lib/homes/service";
-import { shiftBillingMonth } from "@/lib/analytics/revenueCollections";
 
 /** Inclusive start, exclusive end (ms) for the UTC calendar month `YYYY-MM`. */
 export function utcMonthRangeExclusiveEnd(monthKey: string): {

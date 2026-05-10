@@ -854,10 +854,12 @@ body {
   color: var(--success);
 }
 
+/* ── Ward occupancy legend swatches ── */
+
 .village-occ-legend {
-  width: 0.8rem;
-  height: 0.8rem;
-  border-radius: 0.2rem;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 0.15rem;
   border: 1px solid color-mix(in srgb, var(--line-strong) 60%, transparent);
 }
 
@@ -886,23 +888,214 @@ body {
   background: color-mix(in srgb, var(--bg-muted) 40%, var(--bg-elevated) 60%);
 }
 
-.village-occ-unassigned-fill {
-  border-color: color-mix(in srgb, var(--line-subtle) 80%, transparent);
-  background: color-mix(in srgb, var(--bg-muted) 60%, var(--bg-elevated) 40%);
+/* ── Compact occupancy board ── */
+
+.village-occ-board {
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 70%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-elevated) 96%, transparent),
+      color-mix(in srgb, var(--bg-muted) 28%, var(--bg-elevated) 72%)
+    );
+  box-shadow: var(--shadow-sm);
 }
 
-.village-occ-bar-track {
-  margin-top: 0.5rem;
-  height: 0.4rem;
-  width: 100%;
+.village-occ-board-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem 1.25rem 0.75rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line-subtle) 55%, transparent);
+}
+
+.village-occ-board-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem 1.5rem;
+}
+
+.village-occ-legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.85rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.village-occ-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.village-occ-home-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.village-occ-home-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line-subtle) 40%, transparent);
+  transition: background 120ms ease;
+}
+
+.village-occ-home-row:last-child {
+  border-bottom: none;
+}
+
+.village-occ-home-row:hover {
+  background: color-mix(in srgb, var(--bg-muted) 30%, transparent);
+}
+
+.village-occ-home-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 11rem;
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .village-occ-home-header {
+    min-width: 14rem;
+    width: 14rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .village-occ-home-header {
+    min-width: 16rem;
+    width: 16rem;
+  }
+}
+
+.village-occ-home-name {
+  font-family: var(--font-village-display);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
   overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--line-subtle) 70%, transparent);
+  text-overflow: ellipsis;
+  max-width: 10rem;
+  line-height: 1.3;
 }
 
-.village-occ-bar-fill {
-  height: 100%;
-  border-radius: inherit;
+@media (min-width: 768px) {
+  .village-occ-home-name {
+    max-width: 12rem;
+  }
+}
+
+.village-occ-home-summary {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.village-occ-home-summary--muted {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.village-occ-notice {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.village-occ-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Interactive ward pills ── */
+
+.village-occ-pill {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding: 0.28rem 0.55rem;
+  border-radius: 0.45rem;
+  border: 1px solid transparent;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  text-decoration: none;
+  transition: all 140ms ease;
+  cursor: pointer;
+  min-width: 0;
+}
+
+a.village-occ-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -6px color-mix(in srgb, var(--text-primary) 18%, transparent);
+}
+
+a.village-occ-pill:focus-visible {
+  box-shadow: var(--ring-focus);
+}
+
+.village-occ-pill-label {
+  font-weight: 650;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.village-occ-pill-sub {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.village-occ-pill-green {
+  border-color: color-mix(in srgb, var(--success) 28%, transparent);
+  background: color-mix(in srgb, var(--success) 8%, var(--bg-elevated) 92%);
+}
+
+.village-occ-pill-amber {
+  border-color: color-mix(in srgb, var(--warning) 32%, transparent);
+  background: color-mix(in srgb, var(--warning) 10%, var(--bg-elevated) 90%);
+}
+
+.village-occ-pill-red {
+  border-color: color-mix(in srgb, var(--danger) 28%, transparent);
+  background: color-mix(in srgb, var(--danger) 9%, var(--bg-elevated) 91%);
+}
+
+.village-occ-pill-over {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: color-mix(in srgb, var(--danger) 15%, var(--bg-elevated) 85%);
+}
+
+.village-occ-pill-neutral {
+  border-color: color-mix(in srgb, var(--line-strong) 36%, transparent);
+  background: color-mix(in srgb, var(--bg-muted) 35%, var(--bg-elevated) 65%);
+}
+
+.village-occ-pill-unassigned {
+  border-color: color-mix(in srgb, var(--line-subtle) 65%, transparent);
+  background: color-mix(in srgb, var(--bg-muted) 45%, var(--bg-elevated) 55%);
+  border-style: dashed;
+  cursor: default;
 }
 
 .village-dashboard-shell-rail {
@@ -1154,6 +1347,17 @@ body {
   from {
     opacity: 0;
     transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes village-filter-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
   }
   to {
     opacity: 1;

@@ -1,5 +1,6 @@
 "use client";
 
+import { VillageList, VillageListFilter } from "@/components/VillageList";
 import { VillageSelect } from "@/components/VillageSelect";
 import { PencilLine, Plus, Save, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -72,17 +73,38 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
   const [createDraft, setCreateDraft] = useState<Draft>(defaultDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Draft>(defaultDraft);
+  const [categoryFilterId, setCategoryFilterId] = useState("");
+  const [catalogSearch, setCatalogSearch] = useState("");
 
   const activeHome = useMemo(
     () => homes.find((h) => h.homeId === selectedHomeId) ?? null,
     [homes, selectedHomeId],
   );
 
+  const filteredItems = useMemo(() => {
+    const q = catalogSearch.trim().toLowerCase();
+    return items.filter((item) => {
+      if (categoryFilterId && item.categoryId !== categoryFilterId)
+        return false;
+      if (!q) return true;
+      return (
+        item.name.toLowerCase().includes(q) ||
+        item.categoryName.toLowerCase().includes(q)
+      );
+    });
+  }, [items, categoryFilterId, catalogSearch]);
+
+  const activeFilterCount =
+    (categoryFilterId ? 1 : 0) + (catalogSearch.trim() ? 1 : 0);
+
   const loadCategories = useCallback(async () => {
     if (!selectedHomeId) return;
-    const res = await fetch(`/api/homes/${selectedHomeId}/inventory-item-categories`, {
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `/api/homes/${selectedHomeId}/inventory-item-categories`,
+      {
+        cache: "no-store",
+      },
+    );
     if (!res.ok) {
       setError(await parseError(res));
       return;
@@ -126,6 +148,8 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
     void loadCategories();
     void loadItems();
     setEditingId(null);
+    setCategoryFilterId("");
+    setCatalogSearch("");
   }, [loadCategories, loadItems]);
 
   const closeCreateItemModal = useCallback(() => {
@@ -166,11 +190,14 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/homes/${selectedHomeId}/inventory-item-categories`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: newCategoryName }),
-      });
+      const res = await fetch(
+        `/api/homes/${selectedHomeId}/inventory-item-categories`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: newCategoryName }),
+        },
+      );
       if (!res.ok) {
         setError(await parseError(res));
         return;
@@ -212,11 +239,14 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/homes/${selectedHomeId}/inventory-items/${itemId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(editDraft),
-      });
+      const res = await fetch(
+        `/api/homes/${selectedHomeId}/inventory-items/${itemId}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(editDraft),
+        },
+      );
       if (!res.ok) {
         setError(await parseError(res));
         return;
@@ -233,9 +263,12 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/homes/${selectedHomeId}/inventory-items/${itemId}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `/api/homes/${selectedHomeId}/inventory-items/${itemId}`,
+        {
+          method: "DELETE",
+        },
+      );
       if (!res.ok) {
         setError(await parseError(res));
         return;
@@ -248,198 +281,299 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
   }
 
   if (homes.length === 0) {
-    return <div className="village-card p-8">You do not have access to any homes.</div>;
+    return (
+      <div className="village-card p-8">
+        You do not have access to any homes.
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="village-card relative overflow-hidden p-5 sm:p-6">
-        <div className="pointer-events-none absolute right-0 top-0 h-28 w-56 bg-[radial-gradient(circle_at_center,color-mix(in_srgb,var(--accent)_19%,transparent),transparent_58%)]" />
-        <div className="grid gap-5 md:grid-cols-[minmax(15rem,22rem),1fr]">
-          <label className="flex flex-col gap-2 text-sm">
-            <span className="village-field-label">Home</span>
-            <VillageSelect
-              value={selectedHomeId}
-              onChange={(nextId) =>
-                router.push(
-                  `/dashboard/inventory-orders/catalog?homeId=${encodeURIComponent(nextId)}`,
-                )
-              }
-              options={homes.map((h) => ({ value: h.homeId, label: h.homeName }))}
-            />
-          </label>
-          <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_52%,transparent)] bg-[linear-gradient(130deg,color-mix(in_srgb,var(--bg-muted)_86%,var(--bg-elevated)_14%),color-mix(in_srgb,var(--highlight)_12%,var(--bg-muted)_88%))] p-4">
-            <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
-              Selected home
-            </p>
-            <p className="mt-1 text-xl font-semibold text-[var(--text-primary)]">
-              {activeHome?.homeName ?? "Unknown home"}
-            </p>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              Manage item categories, stock item names, base units, and quantity class for this location.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {error && !createModalOpen ? (
-        <p className="village-alert-error">{error}</p>
-      ) : null}
-
-      <section className="village-card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4 sm:px-6">
-          <h2 className="text-lg font-semibold">Catalog list</h2>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {loading ? (
-              <p className="text-sm text-[var(--text-secondary)]">Loading items...</p>
-            ) : null}
+      <VillageList
+        rootElement="div"
+        wrapBody="none"
+        listTitle={null}
+        filtersCollapsible
+        activeFilterCount={activeFilterCount}
+        error={error && !createModalOpen ? error : null}
+        toolbar={
+          <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
+                onClick={openCreateItemModal}
+              >
+                Add an item
+              </button>
+            </div>
             <button
               type="button"
-              className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
-              onClick={openCreateItemModal}
+              className="village-btn-secondary shrink-0"
+              onClick={() => {
+                void loadCategories();
+                void loadItems();
+              }}
             >
-              Add an item
+              Refresh
             </button>
           </div>
-        </div>
-        {!loading && items.length === 0 ? (
-          <div className="px-5 py-10 text-center sm:px-6">
-            <p className="text-base font-medium text-[var(--text-primary)]">
-              No items yet for this home.
-            </p>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Use <span className="font-semibold text-[var(--text-primary)]">Add an item</span> to create
-              the first catalog row and bootstrap ordering and stock operations.
-            </p>
+        }
+        filters={
+          <>
+            {homes.length > 1 ? (
+              <VillageListFilter
+                label="Home"
+                htmlFor="catalog-home"
+                minWidth="12rem"
+              >
+                <VillageSelect
+                  id="catalog-home"
+                  value={selectedHomeId}
+                  onChange={(nextId) =>
+                    router.push(
+                      `/dashboard/inventory-orders/catalog?homeId=${encodeURIComponent(nextId)}`,
+                    )
+                  }
+                  options={homes.map((h) => ({
+                    value: h.homeId,
+                    label: h.homeName,
+                  }))}
+                />
+              </VillageListFilter>
+            ) : (
+              <VillageListFilter label="Home" htmlFor="catalog-home-ro">
+                <input
+                  id="catalog-home-ro"
+                  readOnly
+                  className="village-input bg-[color:color-mix(in_srgb,var(--bg-muted)_55%,transparent)]"
+                  value={activeHome?.homeName ?? ""}
+                />
+              </VillageListFilter>
+            )}
+            <VillageListFilter
+              label="Category"
+              htmlFor="catalog-category"
+              minWidth="12rem"
+            >
+              <VillageSelect
+                id="catalog-category"
+                value={categoryFilterId}
+                onChange={setCategoryFilterId}
+                options={[
+                  { value: "", label: "All categories" },
+                  ...categories.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+              />
+            </VillageListFilter>
+            <VillageListFilter
+              label="Item search"
+              htmlFor="catalog-search"
+              minWidth="12rem"
+            >
+              <input
+                id="catalog-search"
+                className="village-input"
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                placeholder="Name or category"
+                autoComplete="off"
+              />
+            </VillageListFilter>
+          </>
+        }
+      >
+        <section className="village-card overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4 sm:px-6">
+            <div>
+              <h2 className="text-lg font-semibold">Catalog list</h2>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {loading && items.length === 0
+                  ? "Loading items…"
+                  : `${filteredItems.length} item${filteredItems.length === 1 ? "" : "s"} shown`}
+                {items.length > 0 && items.length !== filteredItems.length ? (
+                  <span className="text-[var(--text-muted)]">
+                    {" "}
+                    ({items.length} in catalog)
+                  </span>
+                ) : null}
+              </p>
+            </div>
           </div>
-        ) : null}
-        {items.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">
-                  <th className="px-5 py-3 font-medium sm:px-6">Category</th>
-                  <th className="px-5 py-3 font-medium sm:px-6">Item</th>
-                  <th className="px-5 py-3 font-medium">Base unit</th>
-                  <th className="px-5 py-3 font-medium">Unit class</th>
-                  <th className="px-5 py-3 font-medium text-right sm:px-6">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => {
-                  const isEditing = editingId === item.id;
-                  return (
-                    <tr key={item.id} className="border-b border-[var(--line)]/85 align-top">
-                      <td className="px-5 py-3 sm:px-6">
-                        {isEditing ? (
-                          <VillageSelect
-                            value={editDraft.categoryId}
-                            onChange={(categoryId) =>
-                              setEditDraft((d) => ({ ...d, categoryId }))
-                            }
-                            options={categories.map((c) => ({
-                              value: c.id,
-                              label: c.name,
-                            }))}
-                          />
-                        ) : (
-                          <span className="text-[var(--text-secondary)]">{item.categoryName}</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3 sm:px-6">
-                        {isEditing ? (
-                          <input
-                            className="village-input"
-                            value={editDraft.name}
-                            onChange={(e) =>
-                              setEditDraft((d) => ({ ...d, name: e.target.value }))
-                            }
-                          />
-                        ) : (
-                          <span className="font-medium text-[var(--text-primary)]">{item.name}</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3">
-                        {isEditing ? (
-                          <input
-                            className="village-input"
-                            value={editDraft.baseUnit}
-                            onChange={(e) =>
-                              setEditDraft((d) => ({ ...d, baseUnit: e.target.value }))
-                            }
-                          />
-                        ) : (
-                          <span className="text-[var(--text-secondary)]">{item.baseUnit}</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3">
-                        {isEditing ? (
-                          <VillageSelect
-                            value={editDraft.unitClass}
-                            onChange={(unitClass) =>
-                              setEditDraft((d) => ({
-                                ...d,
-                                unitClass: unitClass as "countable" | "measurable",
-                              }))
-                            }
-                            options={[
-                              { value: "countable", label: "countable" },
-                              { value: "measurable", label: "measurable" },
-                            ]}
-                          />
-                        ) : (
-                          <span className="rounded-full border border-[var(--line)] px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-[var(--text-secondary)]">
-                            {item.unitClass}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3 sm:px-6">
-                        <div className="flex justify-end gap-2">
+          {!loading && items.length === 0 ? (
+            <div className="px-5 py-10 text-center sm:px-6">
+              <p className="text-base font-medium text-[var(--text-primary)]">
+                No items yet for this home.
+              </p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                Use{" "}
+                <span className="font-semibold text-[var(--text-primary)]">
+                  Add an item
+                </span>{" "}
+                to create the first catalog row and bootstrap ordering and stock
+                operations.
+              </p>
+            </div>
+          ) : null}
+          {!loading && items.length > 0 && filteredItems.length === 0 ? (
+            <div className="px-5 py-10 text-center sm:px-6">
+              <p className="text-base font-medium text-[var(--text-primary)]">
+                No items match these filters.
+              </p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                Clear category or search to see all {items.length} catalog item
+                {items.length === 1 ? "" : "s"}.
+              </p>
+            </div>
+          ) : null}
+          {items.length > 0 && filteredItems.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">
+                    <th className="px-5 py-3 font-medium sm:px-6">Category</th>
+                    <th className="px-5 py-3 font-medium sm:px-6">Item</th>
+                    <th className="px-5 py-3 font-medium">Base unit</th>
+                    <th className="px-5 py-3 font-medium">Unit class</th>
+                    <th className="px-5 py-3 font-medium text-right sm:px-6">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredItems.map((item) => {
+                    const isEditing = editingId === item.id;
+                    return (
+                      <tr
+                        key={item.id}
+                        className="border-b border-[var(--line)]/85 align-top"
+                      >
+                        <td className="px-5 py-3 sm:px-6">
                           {isEditing ? (
-                            <>
-                              <button
-                                className="village-button inline-flex items-center gap-1.5"
-                                onClick={() => void saveItem(item.id)}
-                              >
-                                <Save size={15} aria-hidden />
-                                Save
-                              </button>
-                              <button
-                                className="village-button inline-flex items-center gap-1.5 border-[var(--line)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                                onClick={() => setEditingId(null)}
-                              >
-                                <X size={15} aria-hidden />
-                                Cancel
-                              </button>
-                            </>
+                            <VillageSelect
+                              value={editDraft.categoryId}
+                              onChange={(categoryId) =>
+                                setEditDraft((d) => ({ ...d, categoryId }))
+                              }
+                              options={categories.map((c) => ({
+                                value: c.id,
+                                label: c.name,
+                              }))}
+                            />
                           ) : (
-                            <>
-                              <button
-                                className="village-button inline-flex items-center gap-1.5 border-[var(--line)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                                onClick={() => startEdit(item)}
-                              >
-                                <PencilLine size={15} aria-hidden />
-                                Edit
-                              </button>
-                              <button
-                                className="village-button inline-flex items-center gap-1.5 border-[var(--line)] bg-transparent text-[color:color-mix(in_srgb,var(--danger,#b3261e)_80%,var(--text-primary)_20%)]"
-                                onClick={() => void deleteItem(item.id)}
-                              >
-                                <Trash2 size={15} aria-hidden />
-                                Delete
-                              </button>
-                            </>
+                            <span className="text-[var(--text-secondary)]">
+                              {item.categoryName}
+                            </span>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </section>
+                        </td>
+                        <td className="px-5 py-3 sm:px-6">
+                          {isEditing ? (
+                            <input
+                              className="village-input"
+                              value={editDraft.name}
+                              onChange={(e) =>
+                                setEditDraft((d) => ({
+                                  ...d,
+                                  name: e.target.value,
+                                }))
+                              }
+                            />
+                          ) : (
+                            <span className="font-medium text-[var(--text-primary)]">
+                              {item.name}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          {isEditing ? (
+                            <input
+                              className="village-input"
+                              value={editDraft.baseUnit}
+                              onChange={(e) =>
+                                setEditDraft((d) => ({
+                                  ...d,
+                                  baseUnit: e.target.value,
+                                }))
+                              }
+                            />
+                          ) : (
+                            <span className="text-[var(--text-secondary)]">
+                              {item.baseUnit}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          {isEditing ? (
+                            <VillageSelect
+                              value={editDraft.unitClass}
+                              onChange={(unitClass) =>
+                                setEditDraft((d) => ({
+                                  ...d,
+                                  unitClass: unitClass as
+                                    | "countable"
+                                    | "measurable",
+                                }))
+                              }
+                              options={[
+                                { value: "countable", label: "countable" },
+                                { value: "measurable", label: "measurable" },
+                              ]}
+                            />
+                          ) : (
+                            <span className="rounded-full border border-[var(--line)] px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-[var(--text-secondary)]">
+                              {item.unitClass}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 sm:px-6">
+                          <div className="flex justify-end gap-2">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  className="village-button inline-flex items-center gap-1.5"
+                                  onClick={() => void saveItem(item.id)}
+                                >
+                                  <Save size={15} aria-hidden />
+                                  Save
+                                </button>
+                                <button
+                                  className="village-button inline-flex items-center gap-1.5 border-[var(--line)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                  onClick={() => setEditingId(null)}
+                                >
+                                  <X size={15} aria-hidden />
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  className="village-button inline-flex items-center gap-1.5 border-[var(--line)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                  onClick={() => startEdit(item)}
+                                >
+                                  <PencilLine size={15} aria-hidden />
+                                  Edit
+                                </button>
+                                <button
+                                  className="village-button inline-flex items-center gap-1.5 border-[var(--line)] bg-transparent text-[color:color-mix(in_srgb,var(--danger,#b3261e)_80%,var(--text-primary)_20%)]"
+                                  onClick={() => void deleteItem(item.id)}
+                                >
+                                  <Trash2 size={15} aria-hidden />
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
+      </VillageList>
 
       {createModalOpen
         ? createPortal(
@@ -476,13 +610,17 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
                               Add an item
                             </h2>
                             <p className="text-sm leading-6 text-ink/65">
-                              Categories, naming, base units, and quantity class for this home catalog.
+                              Categories, naming, base units, and quantity class
+                              for this home catalog.
                             </p>
                           </div>
                         </div>
                         <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-start">
                           <div className="rounded-2xl border border-pine/10 bg-cream/72 px-4 py-3 text-sm text-ink/65 shadow-sm">
-                            <span className="font-semibold text-pine-2">{items.length}</span> catalog item
+                            <span className="font-semibold text-pine-2">
+                              {items.length}
+                            </span>{" "}
+                            catalog item
                             {items.length === 1 ? "" : "s"}
                           </div>
                           <button
@@ -505,7 +643,9 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
                           htmlFor="catalog-create-category-name"
                           className="flex min-w-[12rem] flex-1 flex-col gap-2"
                         >
-                          <span className="village-label">New category name</span>
+                          <span className="village-label">
+                            New category name
+                          </span>
                           <input
                             id="catalog-create-category-name"
                             className="village-input min-w-0"
@@ -533,8 +673,13 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
                         <VillageSelect
                           id="catalog-create-category"
                           value={createDraft.categoryId}
-                          onChange={(categoryId) => setCreateDraft((d) => ({ ...d, categoryId }))}
-                          options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                          onChange={(categoryId) =>
+                            setCreateDraft((d) => ({ ...d, categoryId }))
+                          }
+                          options={categories.map((c) => ({
+                            value: c.id,
+                            label: c.name,
+                          }))}
                         />
                       </label>
                       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
@@ -548,7 +693,12 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
                             className="village-input min-w-0"
                             placeholder="Shown on POs and inventory"
                             value={createDraft.name}
-                            onChange={(e) => setCreateDraft((d) => ({ ...d, name: e.target.value }))}
+                            onChange={(e) =>
+                              setCreateDraft((d) => ({
+                                ...d,
+                                name: e.target.value,
+                              }))
+                            }
                             required
                             autoComplete="off"
                           />
@@ -563,7 +713,12 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
                             className="village-input min-w-0"
                             placeholder="e.g. bottle, tab, ml"
                             value={createDraft.baseUnit}
-                            onChange={(e) => setCreateDraft((d) => ({ ...d, baseUnit: e.target.value }))}
+                            onChange={(e) =>
+                              setCreateDraft((d) => ({
+                                ...d,
+                                baseUnit: e.target.value,
+                              }))
+                            }
                             required
                             autoComplete="off"
                           />
@@ -580,7 +735,9 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
                           onChange={(unitClass) =>
                             setCreateDraft((d) => ({
                               ...d,
-                              unitClass: unitClass as "countable" | "measurable",
+                              unitClass: unitClass as
+                                | "countable"
+                                | "measurable",
                             }))
                           }
                           options={[
@@ -599,7 +756,9 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
                           {submitting ? "Creating…" : "Create"}
                         </button>
                         {error ? (
-                          <p className="text-sm font-medium text-terracotta">{error}</p>
+                          <p className="text-sm font-medium text-terracotta">
+                            {error}
+                          </p>
                         ) : null}
                       </div>
                     </form>

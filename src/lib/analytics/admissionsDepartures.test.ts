@@ -20,7 +20,7 @@ import {
   stayDaysBetweenAdmissionAndDeparture,
   utcMonthRangeExclusiveEnd,
 } from "./admissionsDepartures";
-import { shiftBillingMonth } from "./revenueCollections";
+import { shiftBillingMonth } from "@/lib/billing/billingMonth";
 
 const adminActor = { userId: "admin-actor", role: "admin" as const };
 

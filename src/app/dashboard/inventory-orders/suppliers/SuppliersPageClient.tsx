@@ -1,6 +1,14 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { VillageList, VillageListFilter } from "@/components/VillageList";
+import { VillageSelect } from "@/components/VillageSelect";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 const MODAL_PRIMARY_BTN_CLASS =
@@ -45,6 +53,12 @@ async function parseError(res: Response): Promise<string> {
   return "Request failed.";
 }
 
+const CONTACT_FILTER_OPTIONS = [
+  { value: "all", label: "All contacts" },
+  { value: "phone", label: "Has phone" },
+  { value: "email", label: "Has email" },
+] as const;
+
 export function SuppliersPageClient({ canManageSuppliers }: Props) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
@@ -52,6 +66,9 @@ export function SuppliersPageClient({ canManageSuppliers }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState<SupplierDraft>(defaultDraft);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [contactFilter, setContactFilter] =
+    useState<(typeof CONTACT_FILTER_OPTIONS)[number]["value"]>("all");
 
   const loadSuppliers = useCallback(async () => {
     if (!canManageSuppliers) return;
@@ -73,6 +90,24 @@ export function SuppliersPageClient({ canManageSuppliers }: Props) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- mount fetch updates list/loading like catalog client
     void loadSuppliers();
   }, [loadSuppliers]);
+
+  const filteredSuppliers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return suppliers.filter((s) => {
+      if (contactFilter === "phone" && !(s.phone && s.phone.trim()))
+        return false;
+      if (contactFilter === "email" && !(s.email && s.email.trim()))
+        return false;
+      if (!q) return true;
+      const hay = [s.name, s.address ?? "", s.email ?? "", s.phone ?? ""]
+        .join("\n")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [suppliers, searchQuery, contactFilter]);
+
+  const activeFilterCount =
+    (searchQuery.trim() ? 1 : 0) + (contactFilter !== "all" ? 1 : 0);
 
   const closeCreateModal = useCallback(() => {
     setCreateOpen(false);
@@ -116,81 +151,171 @@ export function SuppliersPageClient({ canManageSuppliers }: Props) {
   }
 
   if (!canManageSuppliers) {
-    return <div className="village-card p-8">You do not have access to any homes.</div>;
+    return (
+      <div className="village-card p-8">
+        You do not have access to any homes.
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-6">
-      {error && !createOpen ? <p className="village-alert-error">{error}</p> : null}
-
-      <section className="village-card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4 sm:px-6">
-          <div>
-            <h2 className="text-lg font-semibold">Suppliers list</h2>
-            <p className="text-sm text-[var(--text-secondary)]">
-              {suppliers.length} supplier{suppliers.length === 1 ? "" : "s"}
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {loading ? (
-              <p className="text-sm text-[var(--text-secondary)]">Loading suppliers...</p>
-            ) : null}
+      <VillageList
+        rootElement="div"
+        wrapBody="none"
+        listTitle={null}
+        filtersCollapsible
+        activeFilterCount={activeFilterCount}
+        error={error && !createOpen ? error : null}
+        toolbar={
+          <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
+                onClick={() => {
+                  setError(null);
+                  setCreateOpen(true);
+                }}
+              >
+                Add a supplier
+              </button>
+            </div>
             <button
               type="button"
-              className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
-              onClick={() => {
-                setError(null);
-                setCreateOpen(true);
-              }}
+              className="village-btn-secondary shrink-0"
+              onClick={() => void loadSuppliers()}
             >
-              Add a supplier
+              Refresh
             </button>
           </div>
-        </div>
-        {!loading && suppliers.length === 0 ? (
-          <div className="px-5 py-10 text-center sm:px-6">
-            <p className="text-base font-medium text-[var(--text-primary)]">
-              No suppliers yet.
-            </p>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Use <span className="font-semibold text-[var(--text-primary)]">Add a supplier</span> to
-              capture ordering contacts.
-            </p>
+        }
+        filters={
+          <>
+            <VillageListFilter label="Home" htmlFor="suppliers-global-scope">
+              <input
+                id="suppliers-global-scope"
+                readOnly
+                className="village-input bg-[color:color-mix(in_srgb,var(--bg-muted)_55%,transparent)]"
+                value="All homes (shared suppliers)"
+              />
+            </VillageListFilter>
+            <VillageListFilter
+              label="Search"
+              htmlFor="suppliers-search"
+              minWidth="12rem"
+            >
+              <input
+                id="suppliers-search"
+                className="village-input"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Name, address, phone, or email"
+                autoComplete="off"
+              />
+            </VillageListFilter>
+            <VillageListFilter
+              label="Contacts"
+              htmlFor="suppliers-contact"
+              width="11rem"
+            >
+              <VillageSelect
+                id="suppliers-contact"
+                value={contactFilter}
+                onChange={(v) =>
+                  setContactFilter(
+                    v as (typeof CONTACT_FILTER_OPTIONS)[number]["value"],
+                  )
+                }
+                options={[...CONTACT_FILTER_OPTIONS]}
+              />
+            </VillageListFilter>
+          </>
+        }
+      >
+        <section className="village-card overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4 sm:px-6">
+            <div>
+              <h2 className="text-lg font-semibold">Suppliers list</h2>
+              <p className="text-sm text-[var(--text-secondary)]">
+                {loading && suppliers.length === 0
+                  ? "Loading suppliers…"
+                  : `${filteredSuppliers.length} supplier${filteredSuppliers.length === 1 ? "" : "s"} shown`}
+                {suppliers.length > 0 &&
+                suppliers.length !== filteredSuppliers.length ? (
+                  <span className="text-[var(--text-muted)]">
+                    {" "}
+                    ({suppliers.length} total)
+                  </span>
+                ) : null}
+              </p>
+            </div>
           </div>
-        ) : null}
-        {suppliers.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">
-                  <th className="px-5 py-3 font-medium sm:px-6">Supplier name</th>
-                  <th className="px-5 py-3 font-medium">Address</th>
-                  <th className="px-5 py-3 font-medium">Phone</th>
-                  <th className="px-5 py-3 font-medium sm:px-6">Email</th>
-                </tr>
-              </thead>
-              <tbody>
-                {suppliers.map((supplier) => (
-                  <tr key={supplier.id} className="border-b border-[var(--line)]/85 align-top">
-                    <td className="px-5 py-3 font-medium text-[var(--text-primary)] sm:px-6">
-                      {supplier.name}
-                    </td>
-                    <td className="px-5 py-3 text-[var(--text-secondary)]">
-                      {supplier.address ?? "—"}
-                    </td>
-                    <td className="px-5 py-3 text-[var(--text-secondary)]">
-                      {supplier.phone ?? "—"}
-                    </td>
-                    <td className="px-5 py-3 text-[var(--text-secondary)] sm:px-6">
-                      {supplier.email ?? "—"}
-                    </td>
+          {!loading && suppliers.length === 0 ? (
+            <div className="px-5 py-10 text-center sm:px-6">
+              <p className="text-base font-medium text-[var(--text-primary)]">
+                No suppliers yet.
+              </p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                Use{" "}
+                <span className="font-semibold text-[var(--text-primary)]">
+                  Add a supplier
+                </span>{" "}
+                to capture ordering contacts.
+              </p>
+            </div>
+          ) : null}
+          {!loading &&
+          suppliers.length > 0 &&
+          filteredSuppliers.length === 0 ? (
+            <div className="px-5 py-10 text-center sm:px-6">
+              <p className="text-base font-medium text-[var(--text-primary)]">
+                No suppliers match these filters.
+              </p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                Clear search or widen the contact filter.
+              </p>
+            </div>
+          ) : null}
+          {filteredSuppliers.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">
+                    <th className="px-5 py-3 font-medium sm:px-6">
+                      Supplier name
+                    </th>
+                    <th className="px-5 py-3 font-medium">Address</th>
+                    <th className="px-5 py-3 font-medium">Phone</th>
+                    <th className="px-5 py-3 font-medium sm:px-6">Email</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </section>
+                </thead>
+                <tbody>
+                  {filteredSuppliers.map((supplier) => (
+                    <tr
+                      key={supplier.id}
+                      className="border-b border-[var(--line)]/85 align-top"
+                    >
+                      <td className="px-5 py-3 font-medium text-[var(--text-primary)] sm:px-6">
+                        {supplier.name}
+                      </td>
+                      <td className="px-5 py-3 text-[var(--text-secondary)]">
+                        {supplier.address ?? "—"}
+                      </td>
+                      <td className="px-5 py-3 text-[var(--text-secondary)]">
+                        {supplier.phone ?? "—"}
+                      </td>
+                      <td className="px-5 py-3 text-[var(--text-secondary)] sm:px-6">
+                        {supplier.email ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
+      </VillageList>
 
       {createOpen
         ? createPortal(
@@ -226,14 +351,16 @@ export function SuppliersPageClient({ canManageSuppliers }: Props) {
                               Add a supplier
                             </h2>
                             <p className="text-sm leading-6 text-ink/65">
-                              Name, address, phone, and email for purchase orders and follow-up across
-                              homes.
+                              Name, address, phone, and email for purchase
+                              orders and follow-up across homes.
                             </p>
                           </div>
                         </div>
                         <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-start">
                           <div className="rounded-2xl border border-pine/10 bg-cream/72 px-4 py-3 text-sm text-ink/65 shadow-sm">
-                            <span className="font-semibold text-pine-2">{suppliers.length}</span>{" "}
+                            <span className="font-semibold text-pine-2">
+                              {suppliers.length}
+                            </span>{" "}
                             supplier
                             {suppliers.length === 1 ? "" : "s"}
                           </div>
@@ -262,7 +389,9 @@ export function SuppliersPageClient({ canManageSuppliers }: Props) {
                           className="village-input min-w-0"
                           placeholder="Legal or trading name"
                           value={draft.name}
-                          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                          onChange={(e) =>
+                            setDraft((d) => ({ ...d, name: e.target.value }))
+                          }
                           required
                           autoComplete="organization"
                         />
@@ -277,7 +406,9 @@ export function SuppliersPageClient({ canManageSuppliers }: Props) {
                           className="village-input min-h-24 min-w-0 resize-y"
                           placeholder="Street, city, postcode"
                           value={draft.address}
-                          onChange={(e) => setDraft((d) => ({ ...d, address: e.target.value }))}
+                          onChange={(e) =>
+                            setDraft((d) => ({ ...d, address: e.target.value }))
+                          }
                           autoComplete="street-address"
                         />
                       </label>
@@ -292,7 +423,9 @@ export function SuppliersPageClient({ canManageSuppliers }: Props) {
                             className="village-input min-w-0"
                             placeholder="Contacts for ordering"
                             value={draft.phone}
-                            onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
+                            onChange={(e) =>
+                              setDraft((d) => ({ ...d, phone: e.target.value }))
+                            }
                             autoComplete="tel"
                           />
                         </label>
@@ -307,7 +440,9 @@ export function SuppliersPageClient({ canManageSuppliers }: Props) {
                             className="village-input min-w-0"
                             placeholder="Billing or PO inbox"
                             value={draft.email}
-                            onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
+                            onChange={(e) =>
+                              setDraft((d) => ({ ...d, email: e.target.value }))
+                            }
                             autoComplete="email"
                           />
                         </label>
@@ -322,7 +457,9 @@ export function SuppliersPageClient({ canManageSuppliers }: Props) {
                           {submitting ? "Creating…" : "Create"}
                         </button>
                         {error ? (
-                          <p className="text-sm font-medium text-terracotta">{error}</p>
+                          <p className="text-sm font-medium text-terracotta">
+                            {error}
+                          </p>
                         ) : null}
                       </div>
                     </form>

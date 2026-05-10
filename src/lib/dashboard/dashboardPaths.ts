@@ -86,15 +86,6 @@ export function isDashboardAnalyticsPath(pathname: string): boolean {
   );
 }
 
-export function isDashboardAnalyticsRevenueCollectionsPath(
-  pathname: string,
-): boolean {
-  return (
-    pathname === "/dashboard/analytics/revenue-collections" ||
-    pathname === "/dashboard/analytics"
-  );
-}
-
 export function isDashboardAnalyticsAdmissionsDeparturesPath(
   pathname: string,
 ): boolean {
@@ -114,7 +105,10 @@ export function isDashboardAnalyticsOccupancyPath(
 }
 
 export function isDashboardAnalyticsFinancialPath(pathname: string): boolean {
-  return pathname === "/dashboard/analytics/financial";
+  return (
+    pathname === "/dashboard/analytics/financial" ||
+    pathname === "/dashboard/analytics"
+  );
 }
 
 /**

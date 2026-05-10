@@ -17,6 +17,17 @@ export function utcBillingMonthFromMs(atUtcMs: number): string {
   return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}`;
 }
 
+/** Move `YYYY-MM` by `deltaMonths` (UTC calendar months). */
+export function shiftBillingMonth(ym: string, deltaMonths: number): string {
+  const [yStr, mStr] = ym.split("-");
+  const y = Number(yStr);
+  const m = Number(mStr);
+  const idx = y * 12 + (m - 1) + deltaMonths;
+  const ny = Math.floor(idx / 12);
+  const nm = idx - ny * 12 + 1;
+  return `${String(ny).padStart(4, "0")}-${String(nm).padStart(2, "0")}`;
+}
+
 /** Calendar year-to-date in UTC billing months: January of that year through the month of `atUtcMs`. */
 export function utcYearToDateBillingMonthRange(atUtcMs: number): {
   billingMonthFrom: string;
