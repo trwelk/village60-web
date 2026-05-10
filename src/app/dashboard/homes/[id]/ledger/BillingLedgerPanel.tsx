@@ -62,6 +62,16 @@ const LEDGER_TXN_TYPE_FILTER_OPTIONS: ReadonlyArray<
   ["adjustment", "Adjustments"],
 ];
 
+function txnTypeBadgeClass(txnType: string): string {
+  if (txnType === "charge")
+    return "rounded-xl border border-[color:color-mix(in_srgb,var(--warning)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_12%,var(--bg-elevated)_88%)] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[color:color-mix(in_srgb,var(--warning)_95%,var(--text-primary)_5%)]";
+  if (txnType === "payment")
+    return "rounded-xl border border-[color:color-mix(in_srgb,var(--success)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_12%,var(--bg-elevated)_88%)] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[color:color-mix(in_srgb,var(--success)_90%,var(--text-primary)_10%)]";
+  if (txnType === "adjustment")
+    return "rounded-xl border border-[color:color-mix(in_srgb,var(--accent)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_10%,var(--bg-elevated)_90%)] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--accent-strong)]";
+  return "rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]";
+}
+
 function formatMinorAsCurrency(minor: number, currencyCode: string): string {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
@@ -601,7 +611,7 @@ export function BillingLedgerPanel({
                             {new Date(t.postedAtUtcMs).toLocaleString()}
                           </td>
                           <td className="px-5 py-4">
-                            <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+                            <span className={txnTypeBadgeClass(t.txnType)}>
                               {t.txnType}
                             </span>
                           </td>
@@ -618,10 +628,26 @@ export function BillingLedgerPanel({
                           <td className="px-5 py-4 align-top text-xs text-[var(--text-muted)]">
                             {t.recordedByUserId ? `${t.recordedByUserId.slice(0, 8)}…` : "—"}
                           </td>
-                          <td className="px-5 py-4 text-right tabular-nums font-semibold text-[var(--text-primary)]">
+                          <td
+                            className={
+                              t.amountMinor > 0
+                                ? "px-5 py-4 text-right tabular-nums font-semibold text-[var(--danger)]"
+                                : t.amountMinor < 0
+                                  ? "px-5 py-4 text-right tabular-nums font-semibold text-[var(--success)]"
+                                  : "px-5 py-4 text-right tabular-nums font-semibold text-[var(--text-primary)]"
+                            }
+                          >
                             {formatMinorAsCurrency(t.amountMinor, defaultCurrencyCode)}
                           </td>
-                          <td className="px-5 py-4 text-right tabular-nums font-medium text-[var(--text-primary)]">
+                          <td
+                            className={
+                              bal > 0
+                                ? "px-5 py-4 text-right tabular-nums font-medium text-[var(--danger)]"
+                                : bal < 0
+                                  ? "px-5 py-4 text-right tabular-nums font-medium text-[var(--success)]"
+                                  : "px-5 py-4 text-right tabular-nums font-medium text-[var(--text-primary)]"
+                            }
+                          >
                             {formatMinorAsCurrency(bal, defaultCurrencyCode)}
                           </td>
                         </tr>

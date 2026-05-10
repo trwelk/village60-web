@@ -12,7 +12,7 @@
    * Theme palette — must match web/src/lib/theme/village60Theme.ts (edit the TS file, not here).
    */
   --bg-canvas: #ffffff;
-  --bg-soft: #f4f4f6;
+  --bg-soft: #ecedf0;
   --bg-elevated: #fafafb;
   --bg-muted: #f4f4f6;
 
@@ -727,6 +727,32 @@ body {
   padding: 1rem;
 }
 
+/*
+ * High-level page section container. Renders as a crisp white panel on the
+ * recessed --bg-soft canvas, giving the grey-background / white-card
+ * separation pattern used across list and detail pages.
+ * Apply padding with utility classes: p-5, p-6, sm:p-8, etc.
+ */
+.village-region {
+  border-radius: var(--radius-xl);
+  background: var(--bg-canvas);
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 70%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 90%, transparent),
+    0 2px 6px -2px color-mix(in srgb, var(--text-primary) 7%, transparent);
+}
+
+/*
+ * Simplified card surface for use *inside* a .village-region, where the
+ * region already provides the white panel context. Removes radial gradients
+ * and heavy shadows, keeps border + radius for visual grouping.
+ */
+.village-card--flat {
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 60%, transparent);
+  background: color-mix(in srgb, var(--bg-muted) 55%, var(--bg-canvas) 45%);
+}
+
 .village-checkbox {
   appearance: none;
   height: 1rem;
@@ -1181,7 +1207,7 @@ a.village-occ-pill:focus-visible {
 }
 
 .village-dashboard-main {
-  background: transparent;
+  background: var(--bg-soft);
 }
 
 .village-app-bg {

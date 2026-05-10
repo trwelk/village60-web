@@ -40,6 +40,17 @@ function formatMethodLabel(raw: string): string {
   return raw;
 }
 
+function methodBadgeClass(raw: string): string {
+  const m = raw.trim().toLowerCase();
+  if (m === "transfer")
+    return "rounded-full border border-[color:color-mix(in_srgb,var(--accent)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_10%,var(--bg-elevated)_90%)] px-2.5 py-1 text-xs font-semibold text-[var(--accent-strong)]";
+  if (m === "cash")
+    return "rounded-full border border-[color:color-mix(in_srgb,var(--success)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_12%,var(--bg-elevated)_88%)] px-2.5 py-1 text-xs font-semibold text-[color:color-mix(in_srgb,var(--success)_90%,var(--text-primary)_10%)]";
+  if (m === "card")
+    return "rounded-full border border-[color:color-mix(in_srgb,var(--warning)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,var(--bg-elevated)_90%)] px-2.5 py-1 text-xs font-semibold text-[color:color-mix(in_srgb,var(--warning)_90%,var(--text-primary)_10%)]";
+  return "rounded-full border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)]";
+}
+
 async function parseError(res: Response): Promise<string> {
   try {
     const data: unknown = await res.json();
@@ -369,8 +380,8 @@ export function HomeAccountPaymentsLedgerSection({
                         <td className="px-5 py-4 font-semibold tabular-nums text-[var(--text-primary)]">
                           {formatMinorAsCurrency(row.amountMinor, defaultCurrencyCode)}
                         </td>
-                        <td className="px-5 py-4 capitalize text-[var(--text-primary)]">
-                          <span className="rounded-full border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)]">
+                        <td className="px-5 py-4 text-[var(--text-primary)]">
+                          <span className={methodBadgeClass(row.method)}>
                             {formatMethodLabel(row.method)}
                           </span>
                         </td>

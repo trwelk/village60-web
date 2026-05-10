@@ -49,7 +49,7 @@ export const village60ThemeDescriptor: ThemeDescriptor = {
     "--terracotta-bright": "--highlight",
     "--sage": "--chart-categorical-5",
     "--warning": "#D97706",
-    "--bg-soft": "#F4F4F6",
+    "--bg-soft": "#ECEDF0",
     "--partner-green": "#6366F1",
     "--card-accent-strip": "#0D9488",
     "--ring-focus": "0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent)",

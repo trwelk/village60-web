@@ -361,7 +361,15 @@ export function ResidentsDirectoryUI({
               </td>
               <td className="village-td-muted">{r.dob}</td>
               <td className="village-td-muted">
-                {r.status === "active" ? "Active" : "Departed"}
+                {r.status === "active" ? (
+                  <span className="inline-flex items-center rounded-full bg-success-muted px-2 py-0.5 text-xs font-semibold text-success">
+                    Active
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-[color-mix(in_srgb,var(--text-muted)_14%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--text-secondary)]">
+                    Departed
+                  </span>
+                )}
               </td>
               <td className="village-td">
                 <Link

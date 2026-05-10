@@ -527,38 +527,54 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
                           )}
                         </td>
                         <td className="px-5 py-3 sm:px-6">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex flex-wrap justify-end gap-1.5">
                             {isEditing ? (
                               <>
                                 <button
-                                  className="village-button inline-flex items-center gap-1.5"
+                                  type="button"
+                                  className="village-button village-button-primary village-button--compact inline-flex items-center gap-1"
                                   onClick={() => void saveItem(item.id)}
+                                  disabled={submitting}
                                 >
-                                  <Save size={15} aria-hidden />
+                                  <Save size={14} className="shrink-0" aria-hidden />
                                   Save
                                 </button>
                                 <button
-                                  className="village-button inline-flex items-center gap-1.5 border-[var(--line)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                  type="button"
+                                  className="village-button village-button--compact inline-flex items-center gap-1"
                                   onClick={() => setEditingId(null)}
+                                  disabled={submitting}
                                 >
-                                  <X size={15} aria-hidden />
+                                  <X size={14} className="shrink-0" aria-hidden />
                                   Cancel
                                 </button>
                               </>
                             ) : (
                               <>
                                 <button
-                                  className="village-button inline-flex items-center gap-1.5 border-[var(--line)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                  type="button"
+                                  className="village-button village-button--compact inline-flex items-center gap-1"
                                   onClick={() => startEdit(item)}
+                                  disabled={submitting}
                                 >
-                                  <PencilLine size={15} aria-hidden />
+                                  <PencilLine
+                                    size={14}
+                                    className="shrink-0"
+                                    aria-hidden
+                                  />
                                   Edit
                                 </button>
                                 <button
-                                  className="village-button inline-flex items-center gap-1.5 border-[var(--line)] bg-transparent text-[color:color-mix(in_srgb,var(--danger,#b3261e)_80%,var(--text-primary)_20%)]"
+                                  type="button"
+                                  className="village-button village-button-danger village-button--compact inline-flex items-center gap-1"
                                   onClick={() => void deleteItem(item.id)}
+                                  disabled={submitting}
                                 >
-                                  <Trash2 size={15} aria-hidden />
+                                  <Trash2
+                                    size={14}
+                                    className="shrink-0"
+                                    aria-hidden
+                                  />
                                   Delete
                                 </button>
                               </>

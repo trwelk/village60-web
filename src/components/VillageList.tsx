@@ -118,7 +118,7 @@ export function VillageListPagination({
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          className="rounded border border-pine/25 bg-cream px-3 py-1.5 text-sm text-ink hover:bg-cream/80 disabled:cursor-not-allowed disabled:opacity-40"
+          className="village-button"
           disabled={!canPrev || loading}
           aria-label="Previous page"
           onClick={onPrevious}
@@ -127,7 +127,7 @@ export function VillageListPagination({
         </button>
         <button
           type="button"
-          className="rounded border border-pine/25 bg-cream px-3 py-1.5 text-sm text-ink hover:bg-cream/80 disabled:cursor-not-allowed disabled:opacity-40"
+          className="village-button"
           disabled={!canNext || loading}
           aria-label="Next page"
           onClick={onNext}
@@ -226,7 +226,7 @@ export function VillageList({
   const showFilterCollapsible = filters != null && filtersCollapsible;
 
   return (
-    <Root className="flex flex-col gap-6 text-ink">
+    <Root className="flex flex-col gap-5 text-ink">
       {/* Toolbar row: toggle + page-level actions */}
       {(toolbar != null || showFilterCollapsible) ? (
         <header className="flex flex-wrap items-center gap-3">
@@ -255,7 +255,7 @@ export function VillageList({
           id="village-filter-panel"
           className="animate-[village-filter-in_120ms_ease-out] will-change-[opacity,transform]"
         >
-          <section className="village-card p-5 sm:p-6">
+          <section className="village-region p-5 sm:p-6">
             <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
               {filters}
             </div>
@@ -263,9 +263,9 @@ export function VillageList({
         </div>
       ) : null}
 
-      {/* Always-visible filters card (legacy/non-collapsible) */}
+      {/* Always-visible filters card (non-collapsible) */}
       {showFilterInline ? (
-        <section className="village-card p-6 sm:p-8">
+        <section className="village-region p-5 sm:p-6">
           <h2 className="village-section-title">Filters</h2>
           <div className="mt-5 flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
             {filters}
@@ -277,7 +277,7 @@ export function VillageList({
       {error ? <p className="village-alert-error">{error}</p> : null}
 
       {/* List / table section */}
-      <section aria-busy={loading}>
+      <section aria-busy={loading} className="village-region p-5 sm:p-6">
         {loading ? (
           <h2 className="village-section-title">Loading&hellip;</h2>
         ) : listTitle ? (

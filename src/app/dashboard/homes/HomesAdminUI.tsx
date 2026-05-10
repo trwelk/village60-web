@@ -224,7 +224,7 @@ export function HomesAdminUI({
           variant === "admin" ? (
             <button
               type="button"
-              className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
+              className="village-button village-button-primary shrink-0"
               onClick={openCreateHomeModal}
             >
               Add a home
@@ -391,7 +391,15 @@ export function HomesAdminUI({
                     )}
                   </td>
                   <td className="village-td-muted">
-                    {h.archivedAtUtcMs != null ? "Archived" : "Active"}
+                    {h.archivedAtUtcMs != null ? (
+                      <span className="inline-flex items-center rounded-full bg-[color-mix(in_srgb,var(--text-muted)_14%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--text-secondary)]">
+                        Archived
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-success-muted px-2 py-0.5 text-xs font-semibold text-success">
+                        Active
+                      </span>
+                    )}
                   </td>
                   <td className="village-td">
                     {variant === "care" ? (
@@ -421,14 +429,14 @@ export function HomesAdminUI({
                           <>
                             <button
                               type="button"
-                              className="village-btn-primary px-3 py-1.5 text-xs"
+                              className="village-button village-button-primary village-button--compact"
                               onClick={() => onSaveEdit(h.id)}
                             >
                               Save
                             </button>
                             <button
                               type="button"
-                              className="village-btn-secondary px-3 py-1.5 text-xs"
+                              className="village-button village-button--compact"
                               onClick={cancelEdit}
                             >
                               Cancel
@@ -444,7 +452,7 @@ export function HomesAdminUI({
                             </Link>
                             <button
                               type="button"
-                              className="village-link cursor-pointer border-0 bg-transparent p-0"
+                              className="village-link-subtle cursor-pointer border-0 bg-transparent p-0"
                               onClick={() => startEdit(h)}
                             >
                               Edit
@@ -454,7 +462,7 @@ export function HomesAdminUI({
                         {h.archivedAtUtcMs != null ? (
                           <button
                             type="button"
-                            className="text-sm font-semibold text-pine underline decoration-terracotta/35 underline-offset-[5px] transition hover:text-terracotta"
+                            className="village-button village-button--compact"
                             onClick={() => setArchived(h.id, false)}
                           >
                             Restore
@@ -462,7 +470,7 @@ export function HomesAdminUI({
                         ) : (
                           <button
                             type="button"
-                            className="text-sm font-semibold text-danger underline decoration-danger/35 underline-offset-4 hover:opacity-90"
+                            className="village-button village-button-danger village-button--compact"
                             onClick={() => setArchived(h.id, true)}
                           >
                             Archive
