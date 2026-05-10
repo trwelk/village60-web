@@ -20,7 +20,8 @@ type BillingTransactionRow = typeof billingTransactionsTable.$inferSelect;
 export type RecordPaymentInput = {
   accountId: string;
   amountMinor: number;
-  receivedOn: string;
+  /** UTC milliseconds — calendar receipt instant (typically midnight UTC of the banking date). */
+  receivedOnUtcMs: number;
   method: string;
   externalReference?: string | null;
   notes?: string | null;
@@ -63,8 +64,12 @@ function validatePaymentInput(input: RecordPaymentInput): void {
   if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
     throw new ValidationError("amountMinor must be a positive integer.");
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.receivedOn)) {
-    throw new ValidationError("receivedOn must be YYYY-MM-DD.");
+  if (
+    !Number.isInteger(input.receivedOnUtcMs) ||
+    input.receivedOnUtcMs <= 0 ||
+    input.receivedOnUtcMs > 4_101_913_167_000
+  ) {
+    throw new ValidationError("receivedOnUtcMs must be a positive integer timestamp.");
   }
   if (!Number.isInteger(input.postedAtUtcMs) || input.postedAtUtcMs <= 0) {
     throw new ValidationError("postedAtUtcMs must be a positive integer timestamp.");
@@ -107,7 +112,7 @@ export function recordPaymentForResident(
     homeId: string;
     residentId: string;
     amountMinor: number;
-    receivedOn: string;
+    receivedOnUtcMs: number;
     method: string;
     externalReference?: string | null;
     notes?: string | null;
@@ -124,7 +129,7 @@ export function recordPaymentForResident(
   return recordPayment(db, actor, {
     accountId,
     amountMinor: input.amountMinor,
-    receivedOn: input.receivedOn,
+    receivedOnUtcMs: input.receivedOnUtcMs,
     method: input.method,
     externalReference: input.externalReference,
     notes: input.notes,
@@ -143,7 +148,7 @@ export function recordPaymentForHome(
   input: {
     homeId: string;
     amountMinor: number;
-    receivedOn: string;
+    receivedOnUtcMs: number;
     method: string;
     externalReference?: string | null;
     notes?: string | null;
@@ -156,7 +161,7 @@ export function recordPaymentForHome(
   return recordPayment(db, actor, {
     accountId: account.id,
     amountMinor: input.amountMinor,
-    receivedOn: input.receivedOn,
+    receivedOnUtcMs: input.receivedOnUtcMs,
     method: input.method,
     externalReference: input.externalReference,
     notes: input.notes,
@@ -269,13 +274,12 @@ export function recordPayment(
         id: paymentId,
         accountId: input.accountId,
         amountMinor: input.amountMinor,
-        receivedOn: input.receivedOn,
+        receivedOn: input.receivedOnUtcMs,
         method: input.method.trim(),
         externalReference: normalizeText(input.externalReference),
         notes: normalizeText(input.notes),
         recordedByUserId: actor.userId,
         ledgerTransactionId,
-        createdAtUtcMs: now,
         updatedAtUtcMs: now,
       })
       .run();

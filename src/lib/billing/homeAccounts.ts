@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/errors";
+import { utcCalendarDateIsoFromUtcMs } from "@/lib/billing/receivedOnUtcMs";
 
 function requireBillingAdmin(
   actor: SessionActor | undefined,
@@ -235,7 +236,7 @@ export function listHomeAccountPaymentsLedger(
     .innerJoin(accounts, eq(accounts.id, billingPayments.accountId))
     .leftJoin(users, eq(users.id, billingPayments.recordedByUserId))
     .where(and(eq(accounts.accountType, "home"), eq(accounts.homeId, homeId)))
-    .orderBy(desc(billingPayments.receivedOn), desc(billingPayments.createdAtUtcMs))
+    .orderBy(desc(billingPayments.receivedOn))
     .all()
     .filter((r) => !r.txn.memo?.startsWith("other-charge:"))
     .map((r) => {
@@ -251,10 +252,12 @@ export function listHomeAccountPaymentsLedger(
       return {
         paymentId: r.p.id,
         chargeId: chargeId ?? r.txn.id,
-        billingMonth: invoice?.issuedOn?.slice(0, 7) ?? r.p.receivedOn.slice(0, 7),
+        billingMonth:
+          invoice?.issuedOn?.slice(0, 7) ??
+          utcCalendarDateIsoFromUtcMs(r.p.receivedOn).slice(0, 7),
         amountMinorSnapshot: charge?.amountMinor,
         amountMinor: r.p.amountMinor,
-        paidOn: r.p.receivedOn,
+        paidOn: utcCalendarDateIsoFromUtcMs(r.p.receivedOn),
         method: r.p.method,
         externalReference: r.p.externalReference ?? null,
         notes: r.p.notes,

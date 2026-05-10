@@ -10,7 +10,19 @@ import {
   YAxis,
 } from "recharts";
 import type { MonthEndCensusChartDatum } from "@/lib/dashboard/charts";
+import { resolveVillage60Theme } from "@/lib/theme/village60Theme";
 import { getHomeChartColor } from "../../homeChartColors";
+
+const CENSUS_CHART_CHROME = (() => {
+  const c = resolveVillage60Theme().core;
+  return {
+    grid: c["--line-subtle"],
+    axisLine: c["--line-strong"],
+    tickStrong: c["--text-primary"],
+    tickMuted: c["--text-secondary"],
+    fallbackSwatch: c["--chart-neutral"],
+  };
+})();
 
 type MonthEndCensusChartProps = {
   data: MonthEndCensusChartDatum[];
@@ -62,7 +74,7 @@ export function MonthEndCensusTooltip({
               <span
                 aria-hidden
                 className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: entry.color ?? "#64748b" }}
+                style={{ backgroundColor: entry.color ?? CENSUS_CHART_CHROME.fallbackSwatch }}
               />
               <span>{entry.name}</span>
             </span>
@@ -111,21 +123,21 @@ export function MonthEndCensusChart({ data }: MonthEndCensusChartProps) {
             data={rows}
             margin={{ top: 10, right: 12, left: 0, bottom: 18 }}
           >
-            <CartesianGrid stroke="#d9d1c3" vertical={false} />
+            <CartesianGrid stroke={CENSUS_CHART_CHROME.grid} vertical={false} />
             <XAxis
               dataKey="monthLabel"
               interval={0}
               tickLine={false}
-              axisLine={{ stroke: "#b2aa9b" }}
-              tick={{ fill: "#345246", fontSize: 12 }}
+              axisLine={{ stroke: CENSUS_CHART_CHROME.axisLine }}
+              tick={{ fill: CENSUS_CHART_CHROME.tickStrong, fontSize: 12 }}
               tickMargin={8}
             />
             <YAxis
               allowDecimals={false}
               domain={[0, yAxisMax]}
               tickLine={false}
-              axisLine={{ stroke: "#b2aa9b" }}
-              tick={{ fill: "#5d5a53", fontSize: 12 }}
+              axisLine={{ stroke: CENSUS_CHART_CHROME.axisLine }}
+              tick={{ fill: CENSUS_CHART_CHROME.tickMuted, fontSize: 12 }}
               width={36}
             />
             <Tooltip content={<MonthEndCensusTooltip />} cursor={false} />

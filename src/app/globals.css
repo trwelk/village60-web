@@ -8,44 +8,44 @@
   --font-geist-mono:
     "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
 
-  --bg-canvas: #f7f4ee;
-  --bg-soft: #eee7dd;
-  --bg-elevated: #fffcf6;
-  --bg-muted: #e9dfd2;
+  /*
+   * Theme palette — must match web/src/lib/theme/village60Theme.ts (edit the TS file, not here).
+   */
+  --bg-canvas: #ffffff;
+  --bg-soft: #f4f4f6;
+  --bg-elevated: #fafafb;
+  --bg-muted: #f4f4f6;
 
-  --text-primary: #1e1915;
-  --text-secondary: #51483f;
-  --text-muted: #756b61;
+  --text-primary: #0f0f12;
+  --text-secondary: #5c5c66;
+  --text-muted: #8e8e98;
 
-  --line-subtle: #dfd3c3;
-  --line-strong: #c4b6a5;
+  --line-subtle: #e4e4e8;
+  --line-strong: #c8c8d0;
 
-  --accent: #c96543;
-  --accent-strong: #a84f35;
-  --highlight: #d9895f;
+  --accent: #6a3de8;
+  --accent-strong: #5429c9;
+  --highlight: #8b5cf6;
 
-  --partner-green: #788c5d;
+  --partner-green: #6366f1;
   --partner-green-muted: color-mix(
     in srgb,
     var(--partner-green) 22%,
     var(--bg-elevated) 78%
   );
-  --success: color-mix(in srgb, var(--partner-green) 54%, #1f3a29 46%);
-  --warning: #b67a3d;
-  --danger: #b85c4a;
-  --chart-categorical-1: #c96442;
-  --chart-categorical-2: #b45435;
-  --chart-categorical-3: #8c6a4b;
-  --chart-categorical-4: #d5a16d;
-  --chart-categorical-5: color-mix(
-    in srgb,
-    var(--partner-green) 62%,
-    var(--bg-muted) 38%
-  );
-  --chart-categorical-6: #a67c52;
-  --chart-positive: var(--success);
-  --chart-negative: #b85c4a;
-  --chart-neutral: #8c7e70;
+  --success: #0d9f6e;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --chart-categorical-1: #6a3de8;
+  --chart-categorical-2: #5b21b6;
+  --chart-categorical-3: #0d9488;
+  --chart-categorical-4: #7c6f9e;
+  --chart-categorical-5: #94a3b8;
+  --chart-categorical-6: #c4b5fd;
+  --chart-positive: #0d9f6e;
+  --chart-negative: #dc2626;
+  --chart-neutral: #64748b;
+  --card-accent-strip: #0d9488;
 
   --radius-sm: 0.75rem;
   --radius-md: 1rem;
@@ -55,13 +55,7 @@
   --shadow-sm: 0 8px 18px -14px color-mix(in srgb, var(--text-primary) 28%, transparent);
   --shadow-md: 0 18px 38px -22px color-mix(in srgb, var(--text-primary) 24%, transparent);
   --shadow-lg: 0 28px 64px -30px color-mix(in srgb, var(--text-primary) 26%, transparent);
-  /* Terracotta-forward focus with a partner-green undertone */
-  --ring-focus: 0 0 0 3px
-    color-mix(
-      in srgb,
-      color-mix(in srgb, var(--accent) 68%, var(--partner-green) 32%) 32%,
-      transparent
-    );
+  --ring-focus: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
   --atmosphere-partner: color-mix(in srgb, var(--partner-green) 14%, transparent);
   --atmosphere-partner-deep: color-mix(in srgb, var(--partner-green) 11%, transparent);
 

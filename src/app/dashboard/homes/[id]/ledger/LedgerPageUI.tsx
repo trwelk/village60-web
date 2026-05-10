@@ -105,6 +105,7 @@ export function LedgerPageUI({
         {selectedResidentId ? (
           <BillingLedgerPanel
             homeId={homeId}
+            ledgerAccountType="resident"
             residentId={selectedResidentId}
             defaultCurrencyCode={defaultCurrencyCode}
           />

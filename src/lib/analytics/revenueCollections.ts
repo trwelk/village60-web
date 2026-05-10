@@ -7,7 +7,7 @@ import {
   accounts,
   residents,
 } from "@/db/schema";
-import { utcBillingMonthFromMs } from "@/lib/billing/billingMonth";
+import { utcBillingMonthFromMs, utcDateOnlyFromMs } from "@/lib/billing/billingMonth";
 import type { AppDb } from "@/lib/homes/service";
 
 /** Move `YYYY-MM` by `deltaMonths` (UTC calendar months). */
@@ -85,7 +85,9 @@ export function sumCollectedForBillingMonth(
       total: sql<number>`ifnull(sum(${billingPayments.amountMinor}), 0)`,
     })
     .from(billingPayments)
-    .where(sql`substr(${billingPayments.receivedOn}, 1, 7) = ${billingMonth}`)
+    .where(
+      sql`strftime('%Y-%m', CAST(${billingPayments.receivedOn} AS REAL) / 1000, 'unixepoch') = ${billingMonth}`,
+    )
     .get();
   return Number(row?.total ?? 0);
 }
@@ -190,17 +192,25 @@ export function listTwelveMonthBilledVsCollected(
 
   const collectedAgg = db
     .select({
-      monthKey: sql<string>`substr(${billingPayments.receivedOn}, 1, 7)`,
+      monthKey: sql<string>`strftime('%Y-%m', CAST(${billingPayments.receivedOn} AS REAL) / 1000, 'unixepoch')`,
       collectedMinor: sql<number>`ifnull(sum(${billingPayments.amountMinor}), 0)`,
     })
     .from(billingPayments)
     .where(
       and(
-        gte(sql`substr(${billingPayments.receivedOn}, 1, 7)`, startMonth),
-        lte(sql`substr(${billingPayments.receivedOn}, 1, 7)`, endMonth),
+        gte(
+          sql`strftime('%Y-%m', CAST(${billingPayments.receivedOn} AS REAL) / 1000, 'unixepoch')`,
+          startMonth,
+        ),
+        lte(
+          sql`strftime('%Y-%m', CAST(${billingPayments.receivedOn} AS REAL) / 1000, 'unixepoch')`,
+          endMonth,
+        ),
       ),
     )
-    .groupBy(sql`substr(${billingPayments.receivedOn}, 1, 7)`)
+    .groupBy(
+      sql`strftime('%Y-%m', CAST(${billingPayments.receivedOn} AS REAL) / 1000, 'unixepoch')`,
+    )
     .all();
 
   const byMonth = new Map(
@@ -308,7 +318,10 @@ export function listPaymentLagByHome(db: AppDb): PaymentLagByHomeDatum[] {
         best = row;
       }
     }
-    const lag = paymentLagDaysFromMonthEnd(best.billingMonth, p.receivedOn);
+    const lag = paymentLagDaysFromMonthEnd(
+      best.billingMonth,
+      utcDateOnlyFromMs(p.receivedOn),
+    );
     const acc = lagValuesByHome.get(p.homeId) ?? [];
     acc.push(lag);
     lagValuesByHome.set(p.homeId, acc);

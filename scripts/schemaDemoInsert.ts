@@ -17,6 +17,7 @@
 
 import { sql } from "drizzle-orm";
 import { closeDbConnection, getDb } from "@/db/client";
+import { calendarDateIsoToUtcMs } from "@/lib/billing/receivedOnUtcMs";
 import {
   accounts,
   appSettings,
@@ -578,13 +579,12 @@ async function main(): Promise<void> {
       id: payId,
       accountId,
       amountMinor: totalFinal,
-      receivedOn: issuedFinal,
+      receivedOn: calendarDateIsoToUtcMs(issuedFinal),
       method: i % 2 === 0 ? "bank_transfer" : "cash",
       externalReference: i % 2 === 0 ? `CEFT-${20260200 + i}` : null,
       notes: i === 0 ? "Settled via family standing order." : null,
       recordedByUserId: userRows[i % HOMES_N]!.id,
       ledgerTransactionId: payLedgerId,
-      createdAtUtcMs: stampFinal + 5000,
       updatedAtUtcMs: stampFinal + 5000,
     });
   }
@@ -750,13 +750,12 @@ async function main(): Promise<void> {
       id: payH,
       accountId: accIdHome,
       amountMinor: paymentAmountRecorded,
-      receivedOn: issuedOp,
+      receivedOn: calendarDateIsoToUtcMs(issuedOp),
       method: i % 2 === 0 ? "bank_transfer" : "cheque",
       externalReference: i % 2 === 0 ? (`OP-CHQ-${issuedOp.replace(/-/g, "")}` + i) : null,
       notes: "Home account invoice settlement",
       recordedByUserId: userRows[1]!.id,
       ledgerTransactionId: ledgerH,
-      createdAtUtcMs: posted + 9000,
       updatedAtUtcMs: posted + 9000,
     });
   }

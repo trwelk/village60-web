@@ -773,10 +773,11 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
               ? 0.92
               : 0.55 + ((mi + hi) % 5) * 0.08;
         const payMinor = Math.max(5000, Math.floor(totalSnap * payPortion));
-        const receivedOn =
+        const receivedOnDay =
           ym < billingMonth
             ? `${ym}-${String(Math.min(22 + (mi % 7), 28)).padStart(2, "0")}`
             : dateOnlyFromUtcMs(daysAgo(ts, 1 + mi));
+        const receivedOnUtcMs = utcMsFromIsoDate(receivedOnDay);
         const paymentId = randomUUID();
         const paymentTxnId = randomUUID();
         tx.insert(billingTransactions)
@@ -790,7 +791,7 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
             sourceId: paymentId,
             memo: mi % 3 === 0 ? "Standing order instalment" : "Family transfer",
             recordedByUserId: adminUserId,
-            postedAtUtcMs: utcMsFromIsoDate(receivedOn),
+            postedAtUtcMs: receivedOnUtcMs,
           })
           .run();
         tx.insert(billingPayments)
@@ -798,7 +799,7 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
             id: paymentId,
             accountId,
             amountMinor: payMinor,
-            receivedOn,
+            receivedOn: receivedOnUtcMs,
             method: receiptMethodsCycle[(mi + hi) % receiptMethodsCycle.length]!,
             externalReference:
               receiptMethodsCycle[(mi + hi) % receiptMethodsCycle.length] ===
@@ -808,8 +809,7 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
             notes: `Seeded receipt — ${ym}`,
             recordedByUserId: adminUserId,
             ledgerTransactionId: paymentTxnId,
-            createdAtUtcMs: utcMsFromIsoDate(receivedOn),
-            updatedAtUtcMs: utcMsFromIsoDate(receivedOn),
+            updatedAtUtcMs: receivedOnUtcMs,
           })
           .run();
       }
@@ -875,13 +875,12 @@ export async function runFullApplicationSeed(db: AppDb): Promise<FullSeedCredent
             id: paymentId,
             accountId: homeAcct,
             amountMinor: payAmt,
-            receivedOn: recv,
+            receivedOn: utcMsFromIsoDate(recv),
             method: miOffset % 2 === 0 ? "bank_transfer" : "cheque",
             externalReference: `HOME-LEVY-${home.name}-${ym}`,
             notes: "Seeded home operating receipt",
             recordedByUserId: adminUserId,
             ledgerTransactionId: paymentTxnId,
-            createdAtUtcMs: utcMsFromIsoDate(recv),
             updatedAtUtcMs: utcMsFromIsoDate(recv),
           })
           .run();

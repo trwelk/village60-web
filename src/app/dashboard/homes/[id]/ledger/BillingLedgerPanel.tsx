@@ -12,7 +12,7 @@ import {
 import { createPortal } from "react-dom";
 
 const MODAL_PRIMARY_BTN_CLASS =
-  "inline-flex items-center justify-center rounded-full border border-[color-mix(in_srgb,#c2410c_78%,transparent)] bg-gradient-to-br from-[#fdba74] to-[#ea580c] px-5 py-2.5 text-sm font-bold text-[var(--bg-elevated)] shadow-[inset_0_1px_0_color-mix(in_srgb,#fef3c7_45%,transparent),0_12px_24px_-16px_color-mix(in_srgb,#c2410c_78%,transparent)] transition-all duration-150 ease-out hover:-translate-y-px hover:saturate-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:saturate-100 min-h-10";
+  "inline-flex items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--accent-strong)_78%,transparent)] bg-gradient-to-br from-[color:color-mix(in_srgb,var(--accent)_72%,var(--highlight)_28%)] to-[var(--accent-strong)] px-5 py-2.5 text-sm font-bold text-[var(--bg-elevated)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--highlight)_45%,transparent),0_12px_24px_-16px_color-mix(in_srgb,var(--accent-strong)_78%,transparent)] transition-all duration-150 ease-out hover:-translate-y-px hover:saturate-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:saturate-100 min-h-10";
 const MODAL_CLOSE_BTN_CLASS =
   "rounded-lg border border-transparent px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color:color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)] sm:py-2.5";
 
@@ -23,9 +23,12 @@ export type LedgerPanelPostedDateRange = {
   postedTo: string;
 };
 
+type LedgerAccountKind = "resident" | "home";
+
 type Props = {
   homeId: string;
-  residentId: string;
+  ledgerAccountType: LedgerAccountKind;
+  residentId: string | null;
   defaultCurrencyCode: string;
   /** When set, only rows whose posted timestamp falls within these UTC days are shown. */
   postedDateRange?: LedgerPanelPostedDateRange | undefined;
@@ -136,14 +139,20 @@ type StatementData = NonNullable<ReturnType<typeof parseStatement>>;
 
 async function loadBillingStatement(
   homeId: string,
-  residentId: string,
+  ledgerAccountType: LedgerAccountKind,
+  residentId: string | null,
 ): Promise<
   | { ok: true; data: StatementData }
   | { ok: false; errorMessage: string }
 > {
-  const res = await fetch(
-    `/api/homes/${homeId}/residents/${residentId}/billing-statement`,
-  );
+  if (ledgerAccountType === "resident" && !residentId) {
+    return { ok: false, errorMessage: "Resident account not selected." };
+  }
+  const url =
+    ledgerAccountType === "home"
+      ? `/api/homes/${homeId}/home-billing-statement`
+      : `/api/homes/${homeId}/residents/${residentId}/billing-statement`;
+  const res = await fetch(url);
   if (!res.ok) {
     return { ok: false, errorMessage: await parseError(res) };
   }
@@ -180,6 +189,7 @@ function txnMatchesSearch(t: LedgerTxn, q: string): boolean {
 
 export function BillingLedgerPanel({
   homeId,
+  ledgerAccountType,
   residentId,
   defaultCurrencyCode,
   postedDateRange,
@@ -207,7 +217,7 @@ export function BillingLedgerPanel({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void loadBillingStatement(homeId, residentId).then((result) => {
+    void loadBillingStatement(homeId, ledgerAccountType, residentId).then((result) => {
       if (cancelled) return;
       if (result.ok) {
         setStatement(result.data);
@@ -221,7 +231,7 @@ export function BillingLedgerPanel({
     return () => {
       cancelled = true;
     };
-  }, [homeId, residentId]);
+  }, [homeId, ledgerAccountType, residentId]);
 
   useLayoutEffect(() => {
     setPage(1);
@@ -238,12 +248,12 @@ export function BillingLedgerPanel({
     setTxnTypeFilter("all");
     setSearchDraft("");
     setSearchApplied("");
-  }, [homeId, residentId]);
+  }, [homeId, ledgerAccountType, residentId]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await loadBillingStatement(homeId, residentId);
+    const result = await loadBillingStatement(homeId, ledgerAccountType, residentId);
     if (result.ok) {
       setStatement(result.data);
       setError(null);
@@ -252,7 +262,7 @@ export function BillingLedgerPanel({
       setError(result.errorMessage);
     }
     setLoading(false);
-  }, [homeId, residentId]);
+  }, [homeId, ledgerAccountType, residentId]);
 
   useEffect(() => {
     if (!paymentModalOpen) return;
@@ -337,22 +347,27 @@ export function BillingLedgerPanel({
       setFormError("Received date must be YYYY-MM-DD.");
       return;
     }
+    if (ledgerAccountType === "resident" && !residentId) {
+      setFormError("Resident account not selected.");
+      return;
+    }
 
     setSubmitting(true);
-    const res = await fetch(
-      `/api/homes/${homeId}/residents/${residentId}/billing-payments`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amountMinor,
-          receivedOn: receivedOn.trim(),
-          method,
-          externalReference: externalRef.trim() === "" ? null : externalRef.trim(),
-          notes: notes.trim() === "" ? null : notes.trim(),
-        }),
-      },
-    );
+    const url =
+      ledgerAccountType === "home"
+        ? `/api/homes/${homeId}/billing-payments`
+        : `/api/homes/${homeId}/residents/${residentId}/billing-payments`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amountMinor,
+        receivedOn: receivedOn.trim(),
+        method,
+        externalReference: externalRef.trim() === "" ? null : externalRef.trim(),
+        notes: notes.trim() === "" ? null : notes.trim(),
+      }),
+    });
     setSubmitting(false);
     if (!res.ok) {
       setFormError(await parseError(res));
@@ -508,7 +523,7 @@ export function BillingLedgerPanel({
 
               <div className="overflow-x-auto">
                 <table
-                  aria-label="Resident billing ledger"
+                  aria-label="Billing ledger"
                   className="min-w-full border-collapse text-left text-sm"
                 >
                   <thead>
@@ -669,7 +684,9 @@ export function BillingLedgerPanel({
                             Record payment
                           </h2>
                           <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                            Add a posted payment transaction to this resident ledger.
+                            {ledgerAccountType === "home"
+                              ? "Add a posted payment to the facility operating account."
+                              : "Add a posted payment transaction to this resident ledger."}
                           </p>
                         </div>
                         <button

@@ -96,22 +96,35 @@ export function InvoiceDetailClient({
     if (n) return n;
     return invoice.status === "draft" ? "Draft invoice" : "Invoice";
   }, [invoice]);
-  const selectedResidentId = useMemo(() => {
-    if (!invoice) return null;
-    return accounts.find((a) => a.accountId === invoice.accountId)?.residentId ?? null;
-  }, [accounts, invoice]);
   const ledgerHref = useMemo(() => {
+    if (!invoice) {
+      return "/dashboard/ledger";
+    }
     const atMs = Date.now();
     const ytd = utcYearToDatePostedDateRange(atMs);
+    const scopeHomeId = invoice.homeId ?? homeId;
+    const accountType = invoice.accountType ?? "resident";
+    if (accountType === "home") {
+      return buildDashboardLedgerPath(
+        scopeHomeId,
+        ytd.postedFrom,
+        ytd.postedTo,
+        ytd.postedFrom,
+        ytd.postedTo,
+        { accountType: "home" },
+      );
+    }
+    const residentId =
+      accounts.find((a) => a.accountId === invoice.accountId)?.residentId ?? null;
     return buildDashboardLedgerPath(
-      homeId,
+      scopeHomeId,
       ytd.postedFrom,
       ytd.postedTo,
       ytd.postedFrom,
       ytd.postedTo,
-      { residentId: selectedResidentId },
+      { accountType: "resident", residentId },
     );
-  }, [homeId, selectedResidentId]);
+  }, [accounts, homeId, invoice]);
 
   const load = useCallback(async () => {
     setLoading(true);

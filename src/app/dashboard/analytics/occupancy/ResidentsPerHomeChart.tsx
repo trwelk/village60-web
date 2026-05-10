@@ -9,7 +9,16 @@ import {
   Tooltip,
 } from "recharts";
 import type { ResidentsPerHomeChartDatum } from "@/lib/dashboard/charts";
+import { resolveVillage60Theme } from "@/lib/theme/village60Theme";
 import { getHomeChartColor } from "../../homeChartColors";
+
+const RESIDENTS_PIE_CHROME = (() => {
+  const c = resolveVillage60Theme().core;
+  return {
+    legendText: c["--text-primary"],
+    sliceStroke: c["--bg-elevated"],
+  };
+})();
 
 type ResidentsPerHomeChartProps = {
   data: ResidentsPerHomeChartDatum[];
@@ -91,7 +100,7 @@ export function ResidentsPerHomeChart({ data }: ResidentsPerHomeChartProps) {
               verticalAlign="bottom"
               iconType="circle"
               iconSize={8}
-              wrapperStyle={{ fontSize: 12, color: "#345246" }}
+              wrapperStyle={{ fontSize: 12, color: RESIDENTS_PIE_CHROME.legendText }}
             />
             <Pie
               data={data}
@@ -102,7 +111,7 @@ export function ResidentsPerHomeChart({ data }: ResidentsPerHomeChartProps) {
               innerRadius={0}
               outerRadius="58%"
               paddingAngle={1}
-              stroke="#faf7f1"
+              stroke={RESIDENTS_PIE_CHROME.sliceStroke}
               strokeWidth={1}
               isAnimationActive={false}
             >

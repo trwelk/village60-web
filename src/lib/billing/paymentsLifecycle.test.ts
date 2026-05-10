@@ -23,6 +23,7 @@ import { createWard } from "@/lib/wards/service";
 import { ForbiddenError } from "@/lib/homes/errors";
 import { createUser } from "@/lib/users/service";
 import { finalizeInvoice } from "./invoiceLifecycle";
+import { calendarDateIsoToUtcMs } from "./receivedOnUtcMs";
 import {
   getResidentBillingStatement,
   getResidentStatement,
@@ -152,7 +153,7 @@ describe("payments lifecycle + statement", () => {
     const result = recordPayment(db, adminActor, {
       accountId,
       amountMinor: 150000,
-      receivedOn: "2026-05-07",
+      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-05-07"),
       method: "bank_transfer",
       externalReference: "BNK-REF-991",
       notes: "Family payment",
@@ -165,6 +166,7 @@ describe("payments lifecycle + statement", () => {
     expect(payment?.method).toBe("bank_transfer");
     expect(payment?.externalReference).toBe("BNK-REF-991");
     expect(payment?.ledgerTransactionId).toBe(result.ledgerTransactionId);
+    expect(payment?.receivedOn).toBe(calendarDateIsoToUtcMs("2026-05-07"));
 
     const txn = db
       .select()
@@ -190,7 +192,7 @@ describe("payments lifecycle + statement", () => {
     const result = recordPaymentForHome(db, adminActor, {
       homeId: home.id,
       amountMinor: 42000,
-      receivedOn: "2026-06-15",
+      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-06-15"),
       method: "transfer",
       notes: "Operating credit",
       postedAtUtcMs,
@@ -275,7 +277,7 @@ describe("payments lifecycle + statement", () => {
     recordPayment(db, adminActor, {
       accountId,
       amountMinor: 300000,
-      receivedOn: "2026-01-10",
+      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-01-10"),
       method: "transfer",
       externalReference: "UPFRONT-3000",
       notes: "Advance payment",
@@ -302,7 +304,7 @@ describe("payments lifecycle + statement", () => {
     recordPayment(db, adminActor, {
       accountId,
       amountMinor: 150000,
-      receivedOn: "2026-03-15",
+      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-03-15"),
       method: "transfer",
       postedAtUtcMs: startTs + 3000,
     });
@@ -342,7 +344,7 @@ describe("payments lifecycle + statement", () => {
     recordPayment(db, adminActor, {
       accountId,
       amountMinor: 300000,
-      receivedOn: "2026-01-10",
+      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-01-10"),
       method: "transfer",
       postedAtUtcMs: startTs,
     });
@@ -373,7 +375,7 @@ describe("payments lifecycle + statement", () => {
     recordPayment(db, adminActor, {
       accountId,
       amountMinor: 600000,
-      receivedOn: "2026-02-10",
+      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-02-10"),
       method: "transfer",
       postedAtUtcMs: startTs + 2000,
     });
@@ -454,7 +456,7 @@ describe("payments lifecycle + statement", () => {
         homeId,
         residentId: residentRow.id,
         amountMinor: 100,
-        receivedOn: "2026-05-07",
+        receivedOnUtcMs: calendarDateIsoToUtcMs("2026-05-07"),
         method: "cash",
       }),
     ).toThrow(ForbiddenError);
@@ -490,7 +492,7 @@ describe("payments lifecycle + statement", () => {
       recordPayment(db, adminActor, {
         accountId,
         amountMinor: 100,
-        receivedOn: "2026-05-08",
+        receivedOnUtcMs: calendarDateIsoToUtcMs("2026-05-08"),
         method: "transfer",
         postedAtUtcMs: Date.now(),
       }),
@@ -505,7 +507,7 @@ describe("payments lifecycle + statement", () => {
     recordPayment(db, adminActor, {
       accountId,
       amountMinor: 77500,
-      receivedOn: "2026-05-08",
+      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-05-08"),
       method: "transfer",
       postedAtUtcMs,
     });

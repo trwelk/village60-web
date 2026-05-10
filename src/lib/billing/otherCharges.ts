@@ -16,6 +16,7 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/erro
 import { getResident } from "@/lib/residents/service";
 import { bumpInvNumberSequence } from "@/lib/billing/invoiceNumbers";
 import { utcDateOnlyFromMs } from "@/lib/billing/billingMonth";
+import { calendarDateIsoToUtcMs } from "@/lib/billing/receivedOnUtcMs";
 
 export const OTHER_CHARGE_TYPES = ["registration", "deposit"] as const;
 export type OtherChargeType = (typeof OTHER_CHARGE_TYPES)[number];
@@ -84,7 +85,10 @@ function listRowsForResident(db: AppDb, residentId: string): ResidentOtherCharge
         type: r.li.category as OtherChargeType,
         amountMinor: r.li.amountMinor,
         received: Boolean(linked),
-        paidOn: linked?.payment.receivedOn ?? null,
+        paidOn:
+          linked?.payment.receivedOn != null
+            ? utcDateOnlyFromMs(linked.payment.receivedOn)
+            : null,
       };
     })
     .sort((a, b) => a.type.localeCompare(b.type));
@@ -103,6 +107,7 @@ function upsertPaymentForLineItem(
     const now = Date.now();
     const paymentId = randomUUID();
     const txnId = randomUUID();
+    const receivedOnUtcMs = calendarDateIsoToUtcMs(paidOn);
     db.insert(billingTransactions)
       .values({
         id: txnId,
@@ -114,7 +119,7 @@ function upsertPaymentForLineItem(
         sourceId: paymentId,
         memo: `other-charge:${lineItemId}`,
         recordedByUserId: actor.userId,
-        postedAtUtcMs: Date.parse(`${paidOn}T00:00:00.000Z`),
+        postedAtUtcMs: receivedOnUtcMs,
       })
       .run();
     db.insert(billingPayments)
@@ -122,19 +127,21 @@ function upsertPaymentForLineItem(
         id: paymentId,
         accountId,
         amountMinor,
-        receivedOn: paidOn,
+        receivedOn: receivedOnUtcMs,
         method: "manual",
         externalReference: null,
         notes: null,
         recordedByUserId: actor.userId,
         ledgerTransactionId: txnId,
-        createdAtUtcMs: now,
         updatedAtUtcMs: now,
       })
       .run();
     return;
   }
-  if (linked.payment.amountMinor === amountMinor && linked.payment.receivedOn === paidOn) {
+  if (
+    linked.payment.amountMinor === amountMinor &&
+    linked.payment.receivedOn === calendarDateIsoToUtcMs(paidOn)
+  ) {
     return;
   }
   throw new ValidationError(RECORDED_OTHER_CHARGE_MESSAGE);
@@ -171,14 +178,18 @@ export function updateResidentOtherCharge(
     throw new ValidationError("amountMinor must be a non-negative integer.");
   }
   if (existing) {
+    const existingPaidDay =
+      existing.payment.receivedOn != null
+        ? utcDateOnlyFromMs(existing.payment.receivedOn)
+        : null;
     const paidOnChanged =
       patch.hasPaidOnKey &&
       patch.paidOn !== undefined &&
-      patch.paidOn !== existing.payment.receivedOn;
+      patch.paidOn !== existingPaidDay;
     const isNoop =
       (patch.amountMinor === undefined || patch.amountMinor === row.li.amountMinor) &&
       (patch.received === undefined || patch.received === true) &&
-      (!patch.hasPaidOnKey || patch.paidOn === existing.payment.receivedOn);
+      (!patch.hasPaidOnKey || patch.paidOn === existingPaidDay);
     if (!isNoop || paidOnChanged) {
       throw new ValidationError(RECORDED_OTHER_CHARGE_MESSAGE);
     }
@@ -200,7 +211,9 @@ export function updateResidentOtherCharge(
       ? patch.paidOn === null
         ? new Date().toISOString().slice(0, 10)
         : parseIsoDate(patch.paidOn ?? new Date().toISOString().slice(0, 10))
-      : existing?.payment.receivedOn ?? new Date().toISOString().slice(0, 10);
+      : existing?.payment.receivedOn != null
+        ? utcDateOnlyFromMs(existing.payment.receivedOn)
+        : new Date().toISOString().slice(0, 10);
     upsertPaymentForLineItem(db, actor, account.id, row.li.id, nextAmount, paidOn);
   }
 

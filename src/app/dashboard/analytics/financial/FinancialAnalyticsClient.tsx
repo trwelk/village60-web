@@ -6,6 +6,7 @@ import type {
   FinancialAnalyticsSnapshot,
   FinancialPreset,
 } from "@/lib/analytics/financialOverview";
+import { getVillage60ChartPalette, resolveVillage60Theme } from "@/lib/theme/village60Theme";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
@@ -50,34 +51,33 @@ function formatMinorAsCurrency(minor: number, currencyCode: string): string {
 }
 
 /**
- * Single cohesive palette for financial charts (warm clay + sage complement).
- * Hex keeps Recharts/SVG fills identical across tabs and avoids mixing unrelated hues.
+ * Financial chart colors follow the active theme (`village60Theme.ts`) so Recharts
+ * fills stay aligned with dashboard tokens.
  */
-const FIN_CHART = {
-  /** Resident collections, totals marked “paid” */
-  collected: "#3d8575",
-  /** Home expenses / outflows */
-  expenses: "#d4895c",
-  /** Outstanding / owed slices */
-  owed: "#c86b45",
-  /** Primary cumulative line */
-  netLine: "#6b3d30",
-  /** Secondary cumulative line (dashed) */
-  potentialLine: "#9d7a5c",
-  /** Draft / low-emphasis bars */
-  invoiceDraft: "#c4b5a8",
-  /** Finalized invoice bars */
-  invoiceFinalized: "#7a4234",
-  /** Distinct slices for category pies (cycles if needed) */
-  categoryCycle: [
-    "#7a4234",
-    "#c86b45",
-    "#e8c9b4",
-    "#3d8575",
-    "#d4895c",
-    "#9d7a5c",
-  ],
-} as const;
+function buildFinancialChartColors() {
+  const core = resolveVillage60Theme().core;
+  const pie = getVillage60ChartPalette("pie");
+  return {
+    /** Resident collections, totals marked “paid” */
+    collected: pie.positive,
+    /** Home expenses / outflows */
+    expenses: core["--chart-categorical-4"],
+    /** Outstanding / owed slices */
+    owed: pie.negative,
+    /** Primary cumulative line */
+    netLine: core["--accent-strong"],
+    /** Secondary cumulative line (dashed) */
+    potentialLine: pie.neutral,
+    /** Draft / low-emphasis bars */
+    invoiceDraft: core["--line-subtle"],
+    /** Finalized invoice bars */
+    invoiceFinalized: core["--chart-categorical-2"],
+    /** Distinct slices for category pies (cycles if needed) */
+    categoryCycle: pie.series,
+  };
+}
+
+const FIN_CHART = buildFinancialChartColors();
 
 const RESIDENT_PAID_FILL = FIN_CHART.collected;
 const RESIDENT_OWED_FILL = FIN_CHART.owed;

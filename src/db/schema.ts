@@ -248,7 +248,8 @@ export const billingPayments = sqliteTable(
       .notNull()
       .references(() => accounts.id, { onDelete: "cascade" }),
     amountMinor: integer("amount_minor").notNull(),
-    receivedOn: text("received_on").notNull(),
+    /** When the payment was received (UTC milliseconds; calendar date at midnight UTC). */
+    receivedOn: integer("received_on").notNull(),
     method: text("method").notNull(),
     externalReference: text("external_reference"),
     notes: text("notes"),
@@ -258,7 +259,6 @@ export const billingPayments = sqliteTable(
     ledgerTransactionId: text("ledger_transaction_id")
       .notNull()
       .references(() => billingTransactions.id, { onDelete: "restrict" }),
-    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
   },
   (t) => [

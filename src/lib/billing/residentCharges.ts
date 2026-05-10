@@ -14,6 +14,7 @@ import {
 } from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError } from "@/lib/homes/errors";
+import { utcCalendarDateIsoFromUtcMs } from "@/lib/billing/receivedOnUtcMs";
 
 export type HomeMonthlyChargeLedgerRow = {
   id: string;
@@ -31,11 +32,9 @@ export type HomeMonthlyChargeLedgerRow = {
   payment?: null | {
     id: string;
     amountMinor: number;
-    paidOn: string;
+    paidOn: string | null;
     notes: string | null;
     recordedByUserId: string;
-    createdAtUtcMs: number;
-    updatedAtUtcMs: number;
   };
   residentId: string;
   residentFullName: string;
@@ -311,7 +310,7 @@ export function listHomeOtherChargesLedger(
         type: r.li.category,
         amountMinor: r.li.amountMinor,
         received: Boolean(linked),
-        paidOn: linked?.p.receivedOn ?? null,
+        paidOn: linked ? utcCalendarDateIsoFromUtcMs(linked.p.receivedOn) : null,
       };
     })
     .filter((r) => (input.receivedFilter === "paid" ? r.received : input.receivedFilter === "unpaid" ? !r.received : true))
@@ -366,7 +365,7 @@ export function listHomeMonthlyPaymentsLedger(
         input.residentId ? eq(residents.id, input.residentId) : sql`1=1`,
       ),
     )
-    .orderBy(desc(billingPayments.receivedOn), desc(billingPayments.createdAtUtcMs))
+    .orderBy(desc(billingPayments.receivedOn))
     .all()
     .filter((r) => !r.txn.memo?.startsWith("other-charge:"))
     .map((r) => {
@@ -387,13 +386,15 @@ export function listHomeMonthlyPaymentsLedger(
       return {
         paymentId: r.p.id,
         chargeId: chargeId ?? r.txn.id,
-        billingMonth: invoice?.issuedOn?.slice(0, 7) ?? r.p.receivedOn.slice(0, 7),
+        billingMonth:
+          invoice?.issuedOn?.slice(0, 7) ??
+          utcCalendarDateIsoFromUtcMs(r.p.receivedOn).slice(0, 7),
         amountMinorSnapshot: charge?.amountMinor,
         residentId: r.resident.id,
         residentFullName: r.resident.fullName,
         residentStatus: r.resident.status,
         amountMinor: r.p.amountMinor,
-        paidOn: r.p.receivedOn,
+        paidOn: utcCalendarDateIsoFromUtcMs(r.p.receivedOn),
         notes: r.p.notes,
         recordedByUserId: r.p.recordedByUserId,
         recordedByEmail: r.user?.email ?? null,

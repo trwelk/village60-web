@@ -22,6 +22,7 @@ type DashboardLedgerPageProps = {
     homeId?: string;
     resident?: string;
     residentId?: string;
+    accountType?: string;
     postedFrom?: string;
     postedTo?: string;
   }>;
@@ -57,15 +58,25 @@ export default async function DashboardLedgerPage({
     defaultCurrencyCode: home.defaultCurrencyCode,
   }));
   const q = searchParams ? await searchParams : {};
-  const requestedResidentId =
-    (typeof q.resident === "string" ? q.resident : q.residentId)?.trim() ?? "";
 
   let selectedHomeId = typeof q.homeId === "string" ? q.homeId : "";
   if (selectedHomeId && !homes.some((home) => home.homeId === selectedHomeId)) {
     selectedHomeId = "";
   }
 
-  if (requestedResidentId) {
+  const rawAccountType =
+    typeof q.accountType === "string" ? q.accountType.trim() : "";
+  let selectedAccountType =
+    rawAccountType === "home" ? ("home" as const) : ("resident" as const);
+
+  const requestedResidentId =
+    (typeof q.resident === "string" ? q.resident : q.residentId)?.trim() ?? "";
+
+  if (
+    requestedResidentId &&
+    selectedAccountType === "resident" &&
+    requestedResidentId.length > 0
+  ) {
     const residentHome = db
       .select({ homeId: residents.homeId })
       .from(residents)
@@ -86,11 +97,14 @@ export default async function DashboardLedgerPage({
   const accounts = selectedHomeId
     ? listResidentBillingAccountsForHome(db, actor, selectedHomeId)
     : [];
-  const selectedResidentId = accounts.some(
-    (account) => account.residentId === requestedResidentId,
-  )
-    ? requestedResidentId
-    : null;
+
+  let selectedResidentId =
+    requestedResidentId && accounts.some((a) => a.residentId === requestedResidentId)
+      ? requestedResidentId
+      : null;
+  if (selectedAccountType === "home") {
+    selectedResidentId = null;
+  }
 
   const atMs = Date.now();
   const ytd = utcYearToDatePostedDateRange(atMs);
@@ -104,6 +118,7 @@ export default async function DashboardLedgerPage({
       <LedgerDashboardClient
         homes={homes}
         selectedHomeId={selectedHomeId}
+        selectedAccountType={selectedAccountType}
         selectedResidentId={selectedResidentId}
         residentOptions={mapAccountsToResidentOptions(accounts)}
         postedFrom={range.postedFrom}

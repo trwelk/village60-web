@@ -40,7 +40,7 @@ function invoiceStatusBadgeClass(status: string): string {
     case "paid":
       return `${base} border-[color:color-mix(in_srgb,var(--success)_44%,var(--line-strong)_56%)] bg-[color:color-mix(in_srgb,var(--partner-green)_20%,var(--bg-elevated)_80%)] text-[var(--success)]`;
     case "finalized":
-      return `${base} border-[color:color-mix(in_srgb,#2563eb_40%,var(--line-strong)_60%)] bg-[color:color-mix(in_srgb,#2563eb_11%,var(--bg-elevated)_89%)] text-[color:color-mix(in_srgb,#1d4ed8_90%,var(--text-primary)_10%)]`;
+      return `${base} border-[color:color-mix(in_srgb,var(--accent)_40%,var(--line-strong)_60%)] bg-[color:color-mix(in_srgb,var(--accent)_11%,var(--bg-elevated)_89%)] text-[color:color-mix(in_srgb,var(--accent-strong)_90%,var(--text-primary)_10%)]`;
     case "draft":
       return `${base} border-[color:color-mix(in_srgb,var(--warning)_48%,var(--line-strong)_52%)] bg-[color:color-mix(in_srgb,var(--warning)_16%,var(--bg-elevated)_84%)] text-[color:color-mix(in_srgb,var(--warning)_95%,var(--text-primary)_5%)]`;
     default:

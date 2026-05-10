@@ -1,4 +1,5 @@
 import { getDb } from "@/db/client";
+import { parseBillingPaymentReceivedOnUtcMs } from "@/lib/billing/receivedOnUtcMs";
 import { requireSessionActor } from "@/lib/authz/sessionActor";
 import { recordPaymentForHome } from "@/lib/billing/paymentsLifecycle";
 import { homesErrorResponse } from "@/lib/homes/http";
@@ -31,12 +32,6 @@ export async function POST(req: Request, { params }: RouteParams) {
       { status: 400 },
     );
   }
-  if (typeof rec.receivedOn !== "string") {
-    return NextResponse.json(
-      { error: "receivedOn must be a string (YYYY-MM-DD)." },
-      { status: 400 },
-    );
-  }
   if (typeof rec.method !== "string") {
     return NextResponse.json({ error: "method must be a string." }, { status: 400 });
   }
@@ -52,10 +47,11 @@ export async function POST(req: Request, { params }: RouteParams) {
   }
 
   try {
+    const receivedOnUtcMs = parseBillingPaymentReceivedOnUtcMs(rec.receivedOn);
     const result = recordPaymentForHome(getDb(), requireSessionActor(session), {
       homeId,
       amountMinor: rec.amountMinor,
-      receivedOn: rec.receivedOn,
+      receivedOnUtcMs,
       method: rec.method,
       ...(typeof rec.externalReference === "string" || rec.externalReference === null
         ? { externalReference: rec.externalReference as string | null }
@@ -63,7 +59,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       ...(typeof rec.notes === "string" || rec.notes === null
         ? { notes: rec.notes as string | null }
         : {}),
-      ...(postedAtUtcMs !== undefined ? { postedAtUtcMs } : {}),
+      postedAtUtcMs: postedAtUtcMs ?? receivedOnUtcMs,
     });
     return NextResponse.json(result, { status: 201 });
   } catch (e) {

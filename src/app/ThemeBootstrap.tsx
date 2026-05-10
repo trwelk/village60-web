@@ -1,12 +1,12 @@
 "use client";
 
 import { useLayoutEffect } from "react";
-import { getAnthropicCssVars } from "@/lib/theme/anthropicTheme";
+import { getVillage60CssVars } from "@/lib/theme/village60Theme";
 
 export function ThemeBootstrap() {
   useLayoutEffect(() => {
     const root = document.documentElement;
-    const cssVars = getAnthropicCssVars();
+    const cssVars = getVillage60CssVars();
     for (const [name, value] of Object.entries(cssVars)) {
       root.style.setProperty(name, value);
     }

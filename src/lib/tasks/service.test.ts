@@ -17,6 +17,7 @@ import {
   residents,
   users,
 } from "@/db/schema";
+import { calendarDateIsoToUtcMs } from "@/lib/billing/receivedOnUtcMs";
 import { createHome } from "@/lib/homes/service";
 import { createResident, departResident } from "@/lib/residents/service";
 import { createUser } from "@/lib/users/service";
@@ -141,37 +142,37 @@ function insertPayment(
   input: { accountId: string; userId: string; amountMinor: number },
 ) {
   const now = Date.now();
+  const paymentId = randomUUID();
   const txnId = randomUUID();
   db.insert(billingTransactions)
     .values({
       id: txnId,
       accountId: input.accountId,
+      accountType: "resident",
       txnType: "payment",
       amountMinor: -input.amountMinor,
       sourceKind: "payment",
-      sourceId: null,
+      sourceId: paymentId,
       memo: null,
       recordedByUserId: input.userId,
       postedAtUtcMs: now,
     })
     .run();
-  const id = randomUUID();
   db.insert(billingPayments)
     .values({
-      id,
+      id: paymentId,
       accountId: input.accountId,
       amountMinor: input.amountMinor,
-      receivedOn: "2026-04-10",
+      receivedOn: calendarDateIsoToUtcMs("2026-04-10"),
       method: "cash",
       externalReference: null,
       notes: null,
       recordedByUserId: input.userId,
       ledgerTransactionId: txnId,
-      createdAtUtcMs: now,
       updatedAtUtcMs: now,
     })
     .run();
-  return id;
+  return paymentId;
 }
 
 describe("firstDayAfterBillingMonth", () => {

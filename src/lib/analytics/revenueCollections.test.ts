@@ -17,6 +17,7 @@ import {
   residents,
   users,
 } from "@/db/schema";
+import { calendarDateIsoToUtcMs } from "@/lib/billing/receivedOnUtcMs";
 import { createHome } from "@/lib/homes/service";
 import { createResident } from "@/lib/residents/service";
 import { createWard } from "@/lib/wards/service";
@@ -115,6 +116,7 @@ function insertPaymentAgainstAccount(
     .values({
       id: ledgerTransactionId,
       accountId: input.accountId,
+      accountType: "resident",
       txnType: "payment",
       amountMinor: -input.amountMinor,
       sourceKind: "payment",
@@ -129,13 +131,12 @@ function insertPaymentAgainstAccount(
       id: paymentId,
       accountId: input.accountId,
       amountMinor: input.amountMinor,
-      receivedOn: input.receivedOn,
+      receivedOn: calendarDateIsoToUtcMs(input.receivedOn),
       method: "cash",
       externalReference: null,
       notes: null,
       recordedByUserId: input.recordedByUserId,
       ledgerTransactionId,
-      createdAtUtcMs: now,
       updatedAtUtcMs: now,
     })
     .run();

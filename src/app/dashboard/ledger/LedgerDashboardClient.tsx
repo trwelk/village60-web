@@ -1,12 +1,24 @@
 "use client";
 
 import { VillageSelect } from "@/components/VillageSelect";
-import { buildDashboardLedgerPath } from "@/lib/billing/dashboardLedgerPath";
+import {
+  buildDashboardLedgerPath,
+  type DashboardLedgerAccountType,
+} from "@/lib/billing/dashboardLedgerPath";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import { BillingLedgerPanel } from "../homes/[id]/ledger/BillingLedgerPanel";
 
-type HomeOption = { homeId: string; homeName: string; defaultCurrencyCode: string };
+type HomeOption = {
+  homeId: string;
+  homeName: string;
+  defaultCurrencyCode: string;
+};
 
 type ResidentOption = {
   residentId: string;
@@ -14,9 +26,13 @@ type ResidentOption = {
   residentStatus: string;
 };
 
+export type LedgerDashboardAccountTypeFilter =
+  DashboardLedgerAccountType;
+
 type Props = {
   homes: HomeOption[];
   selectedHomeId: string;
+  selectedAccountType: LedgerDashboardAccountTypeFilter;
   selectedResidentId: string | null;
   residentOptions: ResidentOption[];
   postedFrom: string;
@@ -28,6 +44,7 @@ type Props = {
 export function LedgerDashboardClient({
   homes,
   selectedHomeId,
+  selectedAccountType,
   selectedResidentId,
   residentOptions,
   postedFrom,
@@ -36,8 +53,15 @@ export function LedgerDashboardClient({
   ytdPostedTo,
 }: Props) {
   const router = useRouter();
+  const [accountTypeDraft, setAccountTypeDraft] =
+    useState<DashboardLedgerAccountType>(selectedAccountType);
+  const [homeDraft, setHomeDraft] = useState(selectedHomeId);
+  const [residentDraft, setResidentDraft] = useState(
+    selectedResidentId ?? "",
+  );
   const [fromDraft, setFromDraft] = useState(postedFrom);
   const [toDraft, setToDraft] = useState(postedTo);
+  const [isApplyingFilters, startApplyingFilters] = useTransition();
   const [isApplyingRange, startApplyingRange] = useTransition();
 
   const activeHome = useMemo(
@@ -45,13 +69,30 @@ export function LedgerDashboardClient({
     [homes, selectedHomeId],
   );
 
+  const accountTypeOptions = useMemo(
+    () =>
+      [
+        { value: "resident" as const, label: "Resident" },
+        { value: "home" as const, label: "Home" },
+      ] as const,
+    [],
+  );
+
+  useEffect(() => {
+    setAccountTypeDraft(selectedAccountType);
+    setHomeDraft(selectedHomeId);
+    setResidentDraft(selectedResidentId ?? "");
+  }, [selectedAccountType, selectedHomeId, selectedResidentId]);
+
   useEffect(() => {
     setFromDraft(postedFrom);
     setToDraft(postedTo);
   }, [postedFrom, postedTo]);
 
   if (homes.length === 0) {
-    return <div className="village-card p-8">You do not have access to any homes.</div>;
+    return (
+      <div className="village-card p-8">You do not have access to any homes.</div>
+    );
   }
 
   const normalizedFromDraft = fromDraft.trim() || ytdPostedFrom;
@@ -70,15 +111,32 @@ export function LedgerDashboardClient({
     hasInvalidOrder ||
     isApplyingRange;
 
+  const hasScopeFilterChanges =
+    accountTypeDraft !== selectedAccountType ||
+    homeDraft !== selectedHomeId ||
+    (accountTypeDraft === "resident" &&
+      residentDraft !== (selectedResidentId ?? ""));
+  const isApplyScopeDisabled =
+    !homeDraft || !hasScopeFilterChanges || isApplyingFilters;
+
+  const selectedHomeName =
+    homes.find((home) => home.homeId === selectedHomeId)?.homeName ??
+    "Selected home";
+
   return (
     <div className="flex flex-col gap-7">
       <header className="village-reveal">
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-[1.65rem]">
-          Resident ledger
+          {selectedAccountType === "home"
+            ? "Home operating ledger"
+            : "Resident ledger"}
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-[var(--text-secondary)]">
-          Billing statements and posted transactions by resident. Choose a home and resident,
-          then narrow by posted date range.
+          Posted transactions and balances. Choose{" "}
+          {selectedAccountType === "home"
+            ? "the facility operating account"
+            : "a resident account"}
+          , optionally narrow dates, then post payments from the ledger.
         </p>
       </header>
 
@@ -86,65 +144,117 @@ export function LedgerDashboardClient({
         data-testid="dashboard-ledger-filters"
         className="village-card village-reveal village-reveal-delay-1 relative z-20 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-5 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6"
       >
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(12rem,16rem)_minmax(16rem,1fr)] lg:items-end">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="ledger-dash-home" className="village-label">
-              Home
-            </label>
+        <div
+          className={
+            accountTypeDraft === "resident"
+              ? "grid gap-4 lg:grid-cols-[minmax(10rem,1fr)_minmax(12rem,1fr)_minmax(14rem,1fr)_auto] lg:items-end"
+              : "grid gap-4 lg:grid-cols-[minmax(10rem,1fr)_minmax(12rem,1fr)_auto] lg:items-end"
+          }
+        >
+          <label className="flex min-w-0 flex-col gap-2 text-sm">
+            <span className="village-label">Account type</span>
+            <VillageSelect
+              value={accountTypeDraft}
+              onChange={(v) => {
+                const next = v === "home" ? "home" : "resident";
+                setAccountTypeDraft(next);
+                if (next === "home") {
+                  setResidentDraft("");
+                }
+              }}
+              options={accountTypeOptions.map((o) => ({
+                value: o.value,
+                label: o.label,
+              }))}
+            />
+          </label>
+          <label className="flex min-w-0 flex-col gap-2 text-sm">
+            <span className="village-label">Home</span>
             <VillageSelect
               id="ledger-dash-home"
-              value={selectedHomeId}
+              value={homeDraft}
               onChange={(id) => {
-                router.push(
-                  buildDashboardLedgerPath(
-                    id,
-                    postedFrom,
-                    postedTo,
-                    ytdPostedFrom,
-                    ytdPostedTo,
-                    { residentId: null },
-                  ),
-                );
+                setHomeDraft(id);
+                setResidentDraft("");
               }}
               options={homes.map((h) => ({
                 value: h.homeId,
                 label: h.homeName,
               }))}
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="ledger-dash-resident" className="village-label">
-              Resident (optional)
+          </label>
+          {accountTypeDraft === "resident" ? (
+            <label className="flex min-w-0 flex-col gap-2 text-sm">
+              <span className="village-label">Resident</span>
+              <VillageSelect
+                id="ledger-dash-resident"
+                value={residentDraft}
+                onChange={setResidentDraft}
+                options={[
+                  { value: "", label: "All residents" },
+                  ...residentOptions.map((r) => ({
+                    value: r.residentId,
+                    label:
+                      r.residentStatus === "active"
+                        ? r.residentFullName
+                        : `${r.residentFullName} (Departed)`,
+                  })),
+                ]}
+              />
             </label>
-            <VillageSelect
-              id="ledger-dash-resident"
-              value={selectedResidentId ?? ""}
-              onChange={(id) => {
-                const next = id === "" ? null : id;
-                if (!selectedHomeId) return;
+          ) : null}
+          <button
+            type="button"
+            className="h-10 w-full rounded-xl border border-[color:color-mix(in_srgb,var(--accent-strong)_72%,transparent)] bg-[var(--accent-strong)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:border-[color:color-mix(in_srgb,var(--line-strong)_65%,transparent)] disabled:bg-[color:color-mix(in_srgb,var(--bg-muted)_84%,transparent)] disabled:text-[var(--text-muted)] lg:w-auto"
+            disabled={isApplyScopeDisabled}
+            aria-busy={isApplyingFilters}
+            onClick={() => {
+              if (isApplyScopeDisabled || !homeDraft) return;
+              const nextAccountType =
+                accountTypeDraft === "home" ? "home" : "resident";
+              const nextResidentId =
+                nextAccountType === "resident"
+                  ? residentDraft === ""
+                    ? null
+                    : residentDraft
+                  : null;
+              startApplyingFilters(() => {
                 router.push(
                   buildDashboardLedgerPath(
-                    selectedHomeId,
+                    homeDraft,
                     postedFrom,
                     postedTo,
                     ytdPostedFrom,
                     ytdPostedTo,
-                    { residentId: next },
+                    {
+                      accountType: nextAccountType,
+                      residentId: nextResidentId,
+                    },
                   ),
                 );
-              }}
-              options={[
-                { value: "", label: "Select a resident" },
-                ...residentOptions.map((r) => ({
-                  value: r.residentId,
-                  label:
-                    r.residentStatus === "active"
-                      ? r.residentFullName
-                      : `${r.residentFullName} (Departed)`,
-                })),
-              ]}
-            />
-          </div>
+              });
+            }}
+          >
+            {isApplyingFilters ? "Applying…" : "Apply filters"}
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
+          <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)] px-3 py-1.5 font-medium text-[var(--text-primary)]">
+            {selectedAccountType === "home" ? "Home" : "Resident"} ·{" "}
+            {selectedHomeName}
+          </span>
+          {selectedAccountType === "resident" ? (
+            selectedResidentId ? (
+              <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--text-secondary)]">
+                Filtered to one resident
+              </span>
+            ) : (
+              <span>Select a resident below to open their statement.</span>
+            )
+          ) : (
+            <span>Shows the facility operating (home) account ledger.</span>
+          )}
         </div>
 
         <div className="mt-5 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-5">
@@ -153,7 +263,10 @@ export function LedgerDashboardClient({
               <legend className="village-label">Posted date range (UTC)</legend>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <label className="village-field-label" htmlFor="ledger-posted-from">
+                  <label
+                    className="village-field-label"
+                    htmlFor="ledger-posted-from"
+                  >
                     From
                   </label>
                   <input
@@ -165,7 +278,10 @@ export function LedgerDashboardClient({
                   />
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <label className="village-field-label" htmlFor="ledger-posted-to">
+                  <label
+                    className="village-field-label"
+                    htmlFor="ledger-posted-to"
+                  >
                     To
                   </label>
                   <input
@@ -193,7 +309,10 @@ export function LedgerDashboardClient({
                       normalizedToDraft,
                       ytdPostedFrom,
                       ytdPostedTo,
-                      { residentId: selectedResidentId },
+                      {
+                        accountType: selectedAccountType,
+                        residentId: selectedResidentId,
+                      },
                     ),
                   );
                 });
@@ -214,9 +333,18 @@ export function LedgerDashboardClient({
         ) : null}
       </section>
 
-      {activeHome && selectedResidentId ? (
+      {activeHome && selectedAccountType === "home" ? (
         <BillingLedgerPanel
           homeId={activeHome.homeId}
+          ledgerAccountType="home"
+          residentId={null}
+          defaultCurrencyCode={activeHome.defaultCurrencyCode}
+          postedDateRange={{ postedFrom, postedTo }}
+        />
+      ) : activeHome && selectedResidentId ? (
+        <BillingLedgerPanel
+          homeId={activeHome.homeId}
+          ledgerAccountType="resident"
           residentId={selectedResidentId}
           defaultCurrencyCode={activeHome.defaultCurrencyCode}
           postedDateRange={{ postedFrom, postedTo }}
@@ -226,7 +354,9 @@ export function LedgerDashboardClient({
           className="village-panel-card px-5 py-10 text-center text-sm text-[var(--text-secondary)] sm:px-8"
           data-testid="dashboard-ledger-empty-prompt"
         >
-          Select a resident to view their statement and post payments.
+          {selectedAccountType === "resident"
+            ? "Select a resident to view their statement and post payments."
+            : null}
         </div>
       )}
     </div>

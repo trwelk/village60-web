@@ -11,7 +11,7 @@ describe("buildDashboardLedgerPath", () => {
         "2026-01-01",
         "2026-05-09",
       ),
-    ).toBe("/dashboard/ledger?homeId=h1");
+    ).toBe("/dashboard/ledger?homeId=h1&accountType=resident");
   });
 
   it("includes both date params for a custom range", () => {
@@ -24,7 +24,7 @@ describe("buildDashboardLedgerPath", () => {
         "2026-05-09",
       ),
     ).toBe(
-      "/dashboard/ledger?homeId=h1&postedFrom=2024-01-01&postedTo=2024-12-31",
+      "/dashboard/ledger?homeId=h1&accountType=resident&postedFrom=2024-01-01&postedTo=2024-12-31",
     );
   });
 
@@ -38,6 +38,19 @@ describe("buildDashboardLedgerPath", () => {
         "2026-05-09",
         { residentId: "r2" },
       ),
-    ).toBe("/dashboard/ledger?homeId=h1&resident=r2");
+    ).toBe("/dashboard/ledger?homeId=h1&accountType=resident&resident=r2");
+  });
+
+  it("uses accountType home and omits resident", () => {
+    expect(
+      buildDashboardLedgerPath(
+        "h1",
+        "2026-01-01",
+        "2026-05-09",
+        "2026-01-01",
+        "2026-05-09",
+        { accountType: "home" },
+      ),
+    ).toBe("/dashboard/ledger?homeId=h1&accountType=home");
   });
 });

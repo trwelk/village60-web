@@ -1,5 +1,8 @@
+export type DashboardLedgerAccountType = "resident" | "home";
+
 type LedgerPathOpts = {
   residentId?: string | null;
+  accountType?: DashboardLedgerAccountType;
 };
 
 /**
@@ -16,13 +19,18 @@ export function buildDashboardLedgerPath(
 ): string {
   const p = new URLSearchParams();
   p.set("homeId", homeId);
+  const accountType =
+    opts?.accountType === "home" ? "home" : "resident";
+  p.set("accountType", accountType);
   if (postedFrom !== ytdPostedFrom || postedTo !== ytdPostedTo) {
     p.set("postedFrom", postedFrom);
     p.set("postedTo", postedTo);
   }
-  const residentId = opts?.residentId?.trim() ?? "";
-  if (residentId !== "") {
-    p.set("resident", residentId);
+  if (accountType === "resident") {
+    const residentId = opts?.residentId?.trim() ?? "";
+    if (residentId !== "") {
+      p.set("resident", residentId);
+    }
   }
   return `/dashboard/ledger?${p.toString()}`;
 }
