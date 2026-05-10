@@ -1101,21 +1101,62 @@ a.village-occ-pill:focus-visible {
 .village-dashboard-shell-rail {
   contain: layout style;
   background:
-    radial-gradient(
-      420px 280px at 0% 112%,
-      color-mix(in srgb, var(--partner-green) 9%, transparent),
-      transparent 64%
-    ),
-    radial-gradient(
-      360px 260px at 0% 0%,
-      color-mix(in srgb, var(--accent) 14%, transparent),
-      transparent 68%
-    ),
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--bg-elevated) 92%, transparent),
-      color-mix(in srgb, var(--bg-muted) 88%, transparent)
+      color-mix(in srgb, var(--bg-canvas) 86%, var(--accent) 7%),
+      color-mix(in srgb, var(--bg-soft) 88%, var(--partner-green) 6%)
     );
+  color: var(--text-primary);
+}
+
+/* Sharp nav on rail: flat surface, tight radius, no clustered card chrome */
+.village-dashboard-shell-rail .village-nav-cluster,
+.village-dashboard-shell-rail .village-nav-cluster-animate {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
+
+.village-dashboard-shell-rail .village-nav-link {
+  color: var(--text-secondary);
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.village-dashboard-shell-rail .village-nav-link:hover {
+  color: var(--text-primary);
+  background: color-mix(
+    in srgb,
+    var(--accent) 8%,
+    color-mix(in srgb, var(--partner-green) 35%, transparent) 92%
+  );
+}
+
+.village-dashboard-shell-rail .village-nav-link[aria-current="page"] {
+  color: var(--text-primary);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-canvas) 78%);
+  border: none;
+  box-shadow: none;
+}
+
+.village-dashboard-shell-rail .village-brand-wordmark {
+  color: var(--text-primary);
+}
+
+.village-dashboard-shell-rail .village-brand-tagline {
+  color: var(--text-muted);
+}
+
+.village-dashboard-shell-rail .village-brand-lockup:hover .village-brand-tagline {
+  color: color-mix(in srgb, var(--accent-strong) 42%, var(--text-muted) 58%);
 }
 
 .village-dashboard-topbar {

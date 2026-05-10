@@ -37,18 +37,21 @@ import {
   BarChart3,
   BookOpen,
   Building2,
+  ChevronRight,
   ClipboardList,
   DoorOpen,
   FileSpreadsheet,
   Inbox,
   Landmark,
   LayoutDashboard,
+  LayoutGrid,
   PackageSearch,
   PanelLeft,
   PanelLeftClose,
   PieChart,
   Receipt,
   Settings,
+  ShoppingCart,
   UserCircle,
   UserCog,
   Users,
@@ -56,7 +59,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { LogoutButton } from "./LogoutButton";
 
 function DashboardBreadcrumbNav({ crumbs }: { crumbs: NavCrumb[] }) {
@@ -149,51 +152,78 @@ type NavGroupSubLink = NavGroupLeafOnly & {
 
 type NavGroupItem = {
   kind: "group";
+  /** Stable key for expand/collapse state. */
+  id: string;
   label: string;
+  Icon: LucideIcon;
   items: NavGroupSubLink[];
 };
 
 type NavEntry = NavLinkItem | NavGroupItem;
 
+function groupHasActiveChild(entry: NavGroupItem, pathname: string): boolean {
+  return entry.items.some((item) => {
+    if (item.isActive(pathname)) return true;
+    return item.children?.some((c) => c.isActive(pathname)) ?? false;
+  });
+}
+
 function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
-  const operationsItems: NavGroupSubLink[] = [
-    {
-      href: "/dashboard/residents",
-      label: "Residents",
-      Icon: Users,
-      isActive: isDashboardResidentsPath,
-    },
-    {
-      href: "/dashboard/tasks",
-      label: "Tasks",
-      Icon: ClipboardList,
-      isActive: isDashboardTasksPath,
-    },
-    {
-      href: "/dashboard/inventory-orders",
-      label: "Inventory orders",
-      Icon: PackageSearch,
-      isActive: isDashboardInventoryOrdersPath,
-    },
-    {
-      href: "/dashboard/inventory-orders/catalog",
-      label: "Item catalog",
-      Icon: PackageSearch,
-      isActive: isDashboardInventoryCatalogPath,
-    },
-    {
-      href: "/dashboard/inventory-orders/suppliers",
-      label: "Suppliers",
-      Icon: Building2,
-      isActive: isDashboardInventorySuppliersPath,
-    },
-    {
-      href: "/dashboard/homes",
-      label: role === "admin" ? "Retirement homes" : "Your homes",
-      Icon: Building2,
-      isActive: isDashboardHomesPath,
-    },
-  ];
+  const homeLabel = role === "admin" ? "Retirement homes" : "Your homes";
+
+  const adminGroup: NavGroupItem = {
+    kind: "group",
+    id: "admin",
+    label: "Admin",
+    Icon: UserCog,
+    items: [
+      {
+        href: "/dashboard/residents",
+        label: "Residents",
+        Icon: Users,
+        isActive: isDashboardResidentsPath,
+      },
+      {
+        href: "/dashboard/homes",
+        label: homeLabel,
+        Icon: Building2,
+        isActive: isDashboardHomesPath,
+      },
+      {
+        href: "/dashboard/tasks",
+        label: "Tasks",
+        Icon: ClipboardList,
+        isActive: isDashboardTasksPath,
+      },
+    ],
+  };
+
+  const inventoryGroup: NavGroupItem = {
+    kind: "group",
+    id: "inventory",
+    label: "Inventory",
+    Icon: PackageSearch,
+    items: [
+      {
+        href: "/dashboard/inventory-orders/catalog",
+        label: "Inventory catalog",
+        Icon: LayoutGrid,
+        isActive: isDashboardInventoryCatalogPath,
+      },
+      {
+        href: "/dashboard/inventory-orders",
+        label: "Inventory orders",
+        Icon: ShoppingCart,
+        isActive: isDashboardInventoryOrdersPath,
+      },
+      {
+        href: "/dashboard/inventory-orders/suppliers",
+        label: "Suppliers",
+        Icon: Building2,
+        isActive: isDashboardInventorySuppliersPath,
+      },
+    ],
+  };
 
   const items: NavEntry[] = [
     {
@@ -203,116 +233,116 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
       Icon: LayoutDashboard,
       isActive: (p) => p === "/dashboard",
     },
-    ...(role === "admin"
-      ? [
-          {
-            kind: "group",
-            label: "Analytics",
-            items: [
-              {
-                href: "/dashboard/analytics/occupancy",
-                label: "Occupancy",
-                Icon: Building2,
-                isActive: isDashboardAnalyticsOccupancyPath,
-              },
-              {
-                href: "/dashboard/analytics/financial",
-                label: "Billing overview",
-                Icon: BarChart3,
-                isActive: isDashboardAnalyticsFinancialPath,
-              },
-              {
-                href: "/dashboard/analytics/admissions-departures",
-                label: "Admissions",
-                Icon: DoorOpen,
-                isActive: isDashboardAnalyticsAdmissionsDeparturesPath,
-              },
-              {
-                href: "/dashboard/analytics/demographics-staff",
-                label: "Demographics",
-                Icon: PieChart,
-                isActive: isDashboardAnalyticsDemographicsStaffPath,
-              },
-            ],
-          } satisfies NavGroupItem,
-        ]
-      : []),
-    {
-      kind: "group",
-      label: "Operations",
-      items: operationsItems,
-    },
   ];
+
+  if (role === "admin") {
+    items.push({
+      kind: "group",
+      id: "analytics",
+      label: "Analytics",
+      Icon: BarChart3,
+      items: [
+        {
+          href: "/dashboard/analytics/occupancy",
+          label: "Occupancy",
+          Icon: Building2,
+          isActive: isDashboardAnalyticsOccupancyPath,
+        },
+        {
+          href: "/dashboard/analytics/financial",
+          label: "Billing overview",
+          Icon: BarChart3,
+          isActive: isDashboardAnalyticsFinancialPath,
+        },
+        {
+          href: "/dashboard/analytics/admissions-departures",
+          label: "Admissions",
+          Icon: DoorOpen,
+          isActive: isDashboardAnalyticsAdmissionsDeparturesPath,
+        },
+        {
+          href: "/dashboard/analytics/demographics-staff",
+          label: "Demographics",
+          Icon: PieChart,
+          isActive: isDashboardAnalyticsDemographicsStaffPath,
+        },
+      ],
+    });
+  }
+
+  items.push(adminGroup, inventoryGroup);
 
   if (role === "admin") {
     items.push(
       {
         kind: "group",
+        id: "billing",
         label: "Billing",
+        Icon: Receipt,
         items: [
           {
             href: "/dashboard/invoices",
             label: "Invoices",
             Icon: FileSpreadsheet,
             isActive: isDashboardInvoicesPath,
-            children: [
-              {
-                href: "/dashboard/charges",
-                label: "Resident charges",
-                Icon: Receipt,
-                isActive: isDashboardChargesPath,
-              },
-              {
-                href: "/dashboard/home-expenses",
-                label: "Home expenses",
-                Icon: Landmark,
-                isActive: isDashboardHomeExpensesPath,
-              },
-            ],
           },
           {
-            href: "/dashboard/ledger",
-            label: "Payments",
-            Icon: BookOpen,
-            isActive: isDashboardLedgerPath,
-            children: [
-              {
-                href: "/dashboard/payments",
-                label: "Resident payments",
-                Icon: Wallet,
-                isActive: isDashboardPaymentsPath,
-              },
-              {
-                href: "/dashboard/home-payments",
-                label: "Home payments",
-                Icon: Banknote,
-                isActive: isDashboardHomeAccountPaymentsPath,
-              },
-            ],
+            href: "/dashboard/charges",
+            label: "Resident charges",
+            Icon: Receipt,
+            isActive: isDashboardChargesPath,
+          },
+          {
+            href: "/dashboard/home-expenses",
+            label: "Home charges",
+            Icon: Landmark,
+            isActive: isDashboardHomeExpensesPath,
           },
         ],
       },
       {
         kind: "group",
-        label: "Growth",
+        id: "ledger",
+        label: "Ledger",
+        Icon: BookOpen,
         items: [
           {
-            href: "/dashboard/leads",
-            label: "Leads",
-            Icon: Inbox,
-            isActive: isDashboardLeadsPath,
+            href: "/dashboard/ledger",
+            label: "Ledger",
+            Icon: BookOpen,
+            isActive: isDashboardLedgerPath,
+          },
+          {
+            href: "/dashboard/home-payments",
+            label: "Home payments",
+            Icon: Banknote,
+            isActive: isDashboardHomeAccountPaymentsPath,
+          },
+          {
+            href: "/dashboard/payments",
+            label: "Resident payments",
+            Icon: Wallet,
+            isActive: isDashboardPaymentsPath,
           },
         ],
       },
       {
         kind: "group",
+        id: "organization",
         label: "Organization",
+        Icon: Settings,
         items: [
           {
             href: "/dashboard/users",
             label: "Staff",
             Icon: UserCog,
             isActive: isDashboardUsersPath,
+          },
+          {
+            href: "/dashboard/leads",
+            label: "Leads",
+            Icon: Inbox,
+            isActive: isDashboardLeadsPath,
           },
           {
             href: "/dashboard/admin/settings",
@@ -356,8 +386,32 @@ function PrimaryNav({
   navLinkLayout = "vertical",
   railCollapsed = false,
 }: PrimaryNavProps) {
-  const items = primaryNavItemsForRole(role);
+  const items = useMemo(() => primaryNavItemsForRole(role), [role]);
   const iconRail = navLinkLayout === "vertical" && railCollapsed;
+  const navPrefix = useId();
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const e of items) {
+      if (e.kind === "group") init[e.id] = groupHasActiveChild(e, pathname);
+    }
+    return init;
+  });
+
+  useEffect(() => {
+    setExpanded((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const e of items) {
+        if (e.kind === "group" && groupHasActiveChild(e, pathname) && !next[e.id]) {
+          next[e.id] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [pathname, items]);
+
   const linkClass =
     navLinkLayout === "vertical"
       ? [
@@ -368,6 +422,17 @@ function PrimaryNav({
         ].join(" ")
       : "village-nav-link flex items-center gap-2";
 
+  const subLinkClassCollapsed = [
+    "village-nav-link block w-full min-w-0 text-left",
+    iconRail
+      ? "village-nav-link--rail-collapsed flex items-center"
+      : "flex items-center gap-2.5 text-left",
+  ].join(" ");
+
+  const toggleGroup = useCallback((id: string) => {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
   return (
     <nav
       className={className}
@@ -377,18 +442,12 @@ function PrimaryNav({
       <div
         className={
           navLinkLayout === "vertical"
-            ? "village-nav-cluster-animate flex flex-col gap-2 rounded-2xl p-1.5 shadow-inner shadow-[color:color-mix(in_srgb,var(--accent)_12%,transparent)]"
+            ? "village-nav-cluster-animate flex flex-col gap-1"
             : "village-nav-cluster village-nav-cluster-animate"
         }
       >
         {items.map((entry) => {
           if (entry.kind === "group") {
-            const railSubLinkClass = [
-              "village-nav-link block w-full min-w-0 text-left",
-              iconRail
-                ? "village-nav-link--rail-collapsed flex items-center"
-                : "flex items-center gap-2.5 border-l-2 pl-3 text-left",
-            ].join(" ");
             const flatLeaves = entry.items.flatMap((sub) => {
               const parent: NavGroupLeafOnly = {
                 href: sub.href,
@@ -398,78 +457,124 @@ function PrimaryNav({
               };
               return sub.children?.length ? [parent, ...sub.children] : [parent];
             });
-            const nestedVertical =
-              navLinkLayout === "vertical" && !iconRail;
-            const subLinkNodes = (
-              nestedVertical
-                ? entry.items.flatMap((sub) => [
-                    { link: sub as NavGroupLeafOnly, nested: false },
-                    ...(sub.children?.map((c) => ({
-                      link: c,
-                      nested: true as const,
-                    })) ?? []),
-                  ])
-                : flatLeaves.map((link) => ({
-                    link,
-                    nested: false as const,
-                  }))
-            ).map(({ link: leaf, nested }) => {
-              const active = leaf.isActive(pathname);
-              const borderAccent = active
-                ? "border-[var(--accent)]"
-                : "border-[color:color-mix(in_srgb,var(--line-subtle)_45%,transparent)]";
-              const nestedIndent =
-                nested && nestedVertical
-                  ? "ml-3 border-l border-[color:color-mix(in_srgb,var(--line-subtle)_45%,transparent)] pl-3 text-[0.9375rem]"
-                  : "";
-              const subLinkClass =
-                iconRail || navLinkLayout !== "vertical"
-                  ? linkClass
-                  : `${railSubLinkClass} ${borderAccent} ${nestedIndent}`.trim();
+
+            if (iconRail || navLinkLayout !== "vertical") {
               return (
-                <Link
-                  key={
-                    nested && nestedVertical
-                      ? `${leaf.href}__nested`
-                      : leaf.href
-                  }
-                  href={leaf.href}
-                  className={subLinkClass}
-                  aria-current={active ? "page" : undefined}
-                  aria-label={iconRail ? leaf.label : undefined}
-                  title={iconRail ? leaf.label : undefined}
-                >
-                  <leaf.Icon
-                    className="shrink-0"
-                    size={iconRail ? 20 : 18}
-                    strokeWidth={active && iconRail ? 2.25 : 2}
-                    aria-hidden
-                  />
-                  {iconRail ? null : (
-                    <span className="min-w-0 leading-snug">{leaf.label}</span>
-                  )}
-                </Link>
+                <Fragment key={entry.id}>
+                  {flatLeaves.map((leaf) => {
+                    const active = leaf.isActive(pathname);
+                    return (
+                      <Link
+                        key={leaf.href}
+                        href={leaf.href}
+                        className={linkClass}
+                        aria-current={active ? "page" : undefined}
+                        aria-label={iconRail ? leaf.label : undefined}
+                        title={iconRail ? leaf.label : undefined}
+                      >
+                        <leaf.Icon
+                          className="shrink-0"
+                          size={iconRail ? 20 : 18}
+                          strokeWidth={active && iconRail ? 2.25 : 2}
+                          aria-hidden
+                        />
+                        {iconRail ? null : (
+                          <span className="min-w-0 leading-snug">{leaf.label}</span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </Fragment>
               );
+            }
+
+            const isOpen = expanded[entry.id] === true;
+            const groupActive = groupHasActiveChild(entry, pathname);
+            const panelId = `${navPrefix}-${entry.id}`;
+            const GroupIcon = entry.Icon;
+
+            const nestedBlocks = entry.items.flatMap((sub) => {
+              const rows: { link: NavGroupLeafOnly; nested: boolean }[] = [
+                { link: sub as NavGroupLeafOnly, nested: false },
+              ];
+              if (sub.children?.length) {
+                for (const c of sub.children) {
+                  rows.push({ link: c, nested: true });
+                }
+              }
+              return rows;
             });
+
             return (
               <div
-                key={entry.label}
-                role="group"
-                aria-label={entry.label}
+                key={entry.id}
                 className="flex flex-col gap-0.5"
               >
-                {iconRail ? null : (
-                  <div className="px-2.5 pt-1.5 pb-0 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                <button
+                  type="button"
+                  className={[
+                    "village-nav-link village-nav-group-toggle flex w-full cursor-pointer items-center gap-2 rounded-md border-none bg-transparent text-left outline-none",
+                    "focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color-mix(in_srgb,var(--bg-canvas)_86%,var(--accent)_7%)]",
+                    isOpen || groupActive
+                      ? "bg-[color:color-mix(in_srgb,var(--accent)_14%,var(--bg-canvas)_86%)] text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)]",
+                  ].join(" ")}
+                  aria-expanded={isOpen}
+                  aria-controls={panelId}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleGroup(entry.id);
+                  }}
+                >
+                  <GroupIcon
+                    className="shrink-0 opacity-90"
+                    size={18}
+                    strokeWidth={2}
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1 text-[0.875rem] font-medium leading-snug">
                     {entry.label}
+                  </span>
+                  <ChevronRight
+                    className={[
+                      "shrink-0 opacity-75 transition-transform duration-150 ease-out motion-reduce:transition-none",
+                      isOpen ? "rotate-90" : "",
+                    ].join(" ")}
+                    size={16}
+                    strokeWidth={2}
+                    aria-hidden
+                  />
+                </button>
+                {isOpen ? (
+                  <div
+                    id={panelId}
+                    className="ml-[1.125rem] flex min-w-0 flex-col gap-0.5 border-l border-[color:color-mix(in_srgb,var(--line-subtle)_55%,var(--accent)_10%)] pl-3"
+                  >
+                    {nestedBlocks.map(({ link: leaf, nested }) => {
+                      const active = leaf.isActive(pathname);
+                      const nestedCls = nested ? "text-[0.9375rem]" : "";
+                      return (
+                        <Link
+                          key={
+                            nested ? `${leaf.href}__nested` : leaf.href
+                          }
+                          href={leaf.href}
+                          className={[subLinkClassCollapsed, nestedCls].filter(Boolean).join(" ")}
+                          aria-current={active ? "page" : undefined}
+                        >
+                          <leaf.Icon
+                            className="shrink-0"
+                            size={18}
+                            strokeWidth={active ? 2.15 : 2}
+                            aria-hidden
+                          />
+                          <span className="min-w-0 leading-snug">{leaf.label}</span>
+                        </Link>
+                      );
+                    })}
                   </div>
-                )}
-                {navLinkLayout === "vertical" && !iconRail ? (
-                  <div className="ml-2 flex min-w-0 flex-col gap-0.5">
-                    {subLinkNodes}
-                  </div>
-                ) : (
-                  subLinkNodes
-                )}
+                ) : null}
               </div>
             );
           }
@@ -510,7 +615,7 @@ function BrandLockup({ collapsed, className }: BrandLockupProps) {
     <Link
       href="/dashboard"
       className={[
-        "village-brand-lockup group shrink-0 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_50%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-canvas)]",
+        "village-brand-lockup group shrink-0 outline-none focus-visible:rounded-xl focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_50%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color-mix(in_srgb,var(--bg-canvas)_86%,var(--accent)_7%)]",
         collapsed
           ? "!mb-0 !gap-0 !px-0 !py-0 [&_.village-brand-mark]:h-10 [&_.village-brand-mark]:w-10"
           : "mb-2",
@@ -527,7 +632,7 @@ function BrandLockup({ collapsed, className }: BrandLockupProps) {
       ) : (
         <span className="min-w-0">
           <span className="village-brand-wordmark block">Village60</span>
-          <span className="village-brand-tagline mt-1 block transition-colors group-hover:text-[color:color-mix(in_srgb,var(--highlight)_85%,var(--text-muted)_15%)]">
+          <span className="village-brand-tagline mt-1 block transition-colors">
             Retirement operations
           </span>
         </span>
@@ -695,7 +800,7 @@ export function DashboardAppShell({
       >
         <aside
           className={[
-            "village-dashboard-shell-rail group fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-[color:color-mix(in_srgb,var(--line-subtle)_75%,transparent)] shadow-[var(--shadow-md)] transition-[width,padding] duration-150 ease-out motion-reduce:transition-none lg:flex",
+            "village-dashboard-shell-rail group fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-[color:color-mix(in_srgb,var(--line-subtle)_72%,var(--accent)_10%)] shadow-none transition-[width,padding] duration-150 ease-out motion-reduce:transition-none lg:flex",
             asideWidthClass,
             asidePadClass,
           ].join(" ")}
@@ -717,7 +822,7 @@ export function DashboardAppShell({
                   : "Expand navigation rail"
               }
               className={[
-                "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_94%,transparent)] text-[var(--text-primary)] shadow-sm transition hover:border-[color:color-mix(in_srgb,var(--accent)_56%,transparent)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]",
+                "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--line-strong)_68%,var(--accent)_12%)] bg-[color:color-mix(in_srgb,var(--bg-canvas)_88%,var(--accent)_4%)] text-[var(--text-primary)] transition hover:border-[color:color-mix(in_srgb,var(--accent)_40%,var(--line-strong)_60%)] hover:bg-[color:color-mix(in_srgb,var(--bg-canvas)_78%,var(--accent)_8%)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]",
                 railExpanded ? "mt-1" : "",
               ]
                 .filter(Boolean)
@@ -755,7 +860,7 @@ export function DashboardAppShell({
         {mobileOpen ? (
           <div
             ref={mobilePanelRef}
-            className="village-dashboard-shell-rail fixed inset-y-0 left-0 z-50 flex w-[min(100vw,20rem)] flex-col border-r border-[color:color-mix(in_srgb,var(--line-strong)_66%,transparent)] p-4 pt-5 shadow-[var(--shadow-lg)] backdrop-blur lg:hidden"
+            className="village-dashboard-shell-rail fixed inset-y-0 left-0 z-50 flex w-[min(100vw,20rem)] flex-col border-r border-[color:color-mix(in_srgb,var(--line-subtle)_72%,var(--accent)_10%)] p-4 pt-5 shadow-none lg:hidden"
             id={menuId}
             role="dialog"
             aria-modal="true"
@@ -767,7 +872,7 @@ export function DashboardAppShell({
               </span>
               <button
                 type="button"
-                className="rounded-lg border border-[color:color-mix(in_srgb,var(--line-strong)_65%,transparent)] px-2.5 py-1 text-sm font-semibold text-[var(--text-secondary)] hover:border-[color:color-mix(in_srgb,var(--accent)_54%,transparent)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]"
+                className="rounded-lg border border-[color:color-mix(in_srgb,var(--line-strong)_65%,var(--accent)_15%)] bg-[color:color-mix(in_srgb,var(--bg-canvas)_90%,var(--accent)_4%)] px-2.5 py-1 text-sm font-semibold text-[var(--text-secondary)] hover:border-[color:color-mix(in_srgb,var(--accent)_45%,var(--line-strong)_55%)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]"
                 onClick={() => {
                   closeMobile();
                   menuButtonRef.current?.focus();
