@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import type { MonthEndCensusChartDatum } from "@/lib/dashboard/charts";
-import { getHomeChartColor } from "./homeChartColors";
+import { getHomeChartColor } from "../../homeChartColors";
 
 type MonthEndCensusChartProps = {
   data: MonthEndCensusChartDatum[];

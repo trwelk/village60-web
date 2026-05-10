@@ -1,5 +1,7 @@
 import { getDb } from "@/db/client";
 import { homes, residents } from "@/db/schema";
+import type { HomeAccountPaymentLedgerRow } from "@/lib/billing/homeAccounts";
+import { listHomeAccountPaymentsLedger } from "@/lib/billing/homeAccounts";
 import type { HomeMonthlyPaymentLedgerRow } from "@/lib/billing/residentCharges";
 import {
   DEFAULT_PAYMENTS_LEDGER_PAGE_SIZE,
@@ -19,6 +21,7 @@ import { HomePaymentsLedgerSection } from "./HomePaymentsLedgerSection";
 type PaymentsPageProps = {
   searchParams?: Promise<{
     homeId?: string;
+    accountType?: string;
     residentId?: string;
     page?: string;
     pageSize?: string;
@@ -81,6 +84,10 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   const pageSize = parsePageSizeParam(
     typeof q.pageSize === "string" ? q.pageSize : undefined,
   );
+  const rawAccountType = typeof q.accountType === "string" ? q.accountType.trim() : "";
+  const selectedAccountType =
+    rawAccountType === "home" ? ("home" as const) : ("resident" as const);
+
   const selectedResidentIdRaw =
     typeof q.residentId === "string" ? q.residentId.trim() : "";
   const residentOptions = selectedHomeId
@@ -95,36 +102,58 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
         .all()
         .sort((a, b) => a.residentFullName.localeCompare(b.residentFullName))
     : [];
-  const selectedResidentId = residentOptions.some(
+  let selectedResidentId = residentOptions.some(
     (r) => r.residentId === selectedResidentIdRaw,
   )
     ? selectedResidentIdRaw
     : null;
-  const emptyLedger: {
-    rows: HomeMonthlyPaymentLedgerRow[];
-    totalCount: number;
-    page: number;
-    pageSize: number;
-  } = {
-    rows: [],
+  if (selectedAccountType === "home") {
+    selectedResidentId = null;
+  }
+
+  const emptyResidentLedger = {
+    kind: "resident" as const,
+    rows: [] as HomeMonthlyPaymentLedgerRow[],
     totalCount: 0,
     page: 1,
     pageSize: DEFAULT_PAYMENTS_LEDGER_PAGE_SIZE,
   };
+  const emptyHomeLedger = {
+    kind: "home" as const,
+    rows: [] as HomeAccountPaymentLedgerRow[],
+    totalCount: 0,
+    page: 1,
+    pageSize: DEFAULT_PAYMENTS_LEDGER_PAGE_SIZE,
+  };
+
   const ledger =
     selectedHomeId && homeRow
-      ? listHomeMonthlyPaymentsLedger(db, actor, selectedHomeId, {
-          page,
-          pageSize,
-          residentId: selectedResidentId,
-        })
-      : emptyLedger;
+      ? selectedAccountType === "home"
+        ? {
+            kind: "home" as const,
+            ...listHomeAccountPaymentsLedger(db, actor, selectedHomeId, {
+              page,
+              pageSize,
+            }),
+          }
+        : {
+            kind: "resident" as const,
+            ...listHomeMonthlyPaymentsLedger(db, actor, selectedHomeId, {
+              page,
+              pageSize,
+              residentId: selectedResidentId,
+            }),
+          }
+      : selectedAccountType === "home"
+        ? emptyHomeLedger
+        : emptyResidentLedger;
 
   return (
     <main className="flex flex-col gap-7 text-ink">
       <HomePaymentsLedgerSection
         homes={homeOptions}
         selectedHomeId={selectedHomeId}
+        selectedAccountType={selectedAccountType}
         selectedResidentId={selectedResidentId}
         residentOptions={residentOptions}
         defaultCurrencyCode={homeRow?.defaultCurrencyCode ?? DEFAULT_CURRENCY_CODE}

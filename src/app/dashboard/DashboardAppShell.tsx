@@ -8,6 +8,7 @@ import {
   isDashboardAccountPath,
   isDashboardAnalyticsAdmissionsDeparturesPath,
   isDashboardAnalyticsDemographicsStaffPath,
+  isDashboardAnalyticsOccupancyPath,
   isDashboardAnalyticsFinancialPath,
   isDashboardAnalyticsRevenueCollectionsPath,
   isDashboardChargesPath,
@@ -210,6 +211,12 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
             kind: "group",
             label: "Analytics",
             items: [
+              {
+                href: "/dashboard/analytics/occupancy",
+                label: "Occupancy",
+                Icon: Building2,
+                isActive: isDashboardAnalyticsOccupancyPath,
+              },
               {
                 href: "/dashboard/analytics/revenue-collections",
                 label: "Revenue",

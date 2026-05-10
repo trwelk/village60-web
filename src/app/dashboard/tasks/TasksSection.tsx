@@ -8,6 +8,14 @@ import type {
   TaskPriority,
 } from "@/lib/tasks/service";
 import { VillageSelect } from "@/components/VillageSelect";
+import {
+  Cake,
+  CalendarClock,
+  ClipboardList,
+  Inbox,
+  Plus,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -85,11 +93,11 @@ const TASK_PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
   { value: "urgent", label: "Urgent" },
 ];
 const taskCardClass =
-  "group relative overflow-hidden rounded-[1.75rem] border border-pine/12 bg-cream/92 p-5 shadow-[0_18px_52px_-36px_rgba(12,24,20,0.45)] transition duration-200 hover:-translate-y-0.5 hover:border-pine/20 hover:shadow-[0_24px_64px_-38px_rgba(12,24,20,0.55)] motion-reduce:transform-none sm:p-6";
+  "village-lift relative overflow-hidden rounded-2xl border border-[color:color-mix(in_srgb,var(--line-subtle)_78%,transparent)] bg-[color-mix(in_srgb,var(--bg-elevated)_94%,transparent)] p-4 shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_72%,transparent),var(--shadow-sm)] motion-reduce:transform-none sm:p-4";
 
 function homePill(label: string) {
   return (
-    <span className="inline-flex items-center rounded-full bg-pine-soft px-3 py-1 text-sm font-semibold text-pine-2 ring-1 ring-pine/8">
+    <span className="inline-flex max-w-[min(100%,14rem)] items-center truncate rounded-full bg-[var(--partner-green-muted)] px-2.5 py-0.5 text-[0.8125rem] font-semibold text-[var(--text-primary)] ring-1 ring-[color-mix(in_srgb,var(--partner-green)_28%,transparent)]">
       {label}
     </span>
   );
@@ -97,19 +105,23 @@ function homePill(label: string) {
 
 function typePill(
   label: string,
-  tone: "neutral" | "warm" | "urgent" = "neutral",
+  tone: "neutral" | "warm" | "urgent" | "payment" | "birthday" = "neutral",
 ) {
   const toneClass =
     tone === "urgent"
-      ? "bg-terracotta/12 text-terracotta ring-terracotta/18"
-      : tone === "warm"
-        ? "bg-paper-2/55 text-ink/65 ring-pine/8"
-        : "bg-cream-muted text-ink/60 ring-pine/8";
+      ? "bg-[color-mix(in_srgb,var(--danger)_14%,var(--bg-elevated))] text-[var(--danger)] ring-[color-mix(in_srgb,var(--danger)_32%,transparent)]"
+      : tone === "payment"
+        ? "bg-[color-mix(in_srgb,var(--warning)_16%,var(--bg-elevated))] text-[color-mix(in_srgb,var(--accent-strong)_55%,var(--warning)_45%)] ring-[color-mix(in_srgb,var(--warning)_35%,transparent)]"
+        : tone === "birthday"
+          ? "bg-[color-mix(in_srgb,var(--highlight)_18%,var(--bg-elevated))] text-[var(--accent-strong)] ring-[color-mix(in_srgb,var(--accent)_22%,transparent)]"
+          : tone === "warm"
+            ? "bg-[color-mix(in_srgb,var(--bg-muted)_55%,var(--bg-elevated))] text-[var(--text-secondary)] ring-[color:color-mix(in_srgb,var(--line-subtle)_70%,transparent)]"
+            : "bg-[color-mix(in_srgb,var(--bg-muted)_40%,var(--bg-elevated))] text-[var(--text-muted)] ring-[color:color-mix(in_srgb,var(--line-subtle)_65%,transparent)]";
 
   return (
     <span
       className={[
-        "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ring-1",
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.14em] ring-1",
         toneClass,
       ].join(" ")}
     >
@@ -274,32 +286,58 @@ export function TasksSection({
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="village-reveal village-reveal-delay-2 space-y-4">
-        <div className="rounded-[1.5rem] border border-pine/12 bg-cream/88 p-4 shadow-sm shadow-pine/[0.04] sm:p-5">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="font-mono text-[0.68rem] uppercase tracking-[0.2em] text-ink/48">
-                Inbox controls
-              </p>
-              <h2 className="text-base font-semibold tracking-tight text-pine-2">
-                Prioritise what needs attention
-              </h2>
+      <section
+        className="village-reveal village-reveal-delay-2 space-y-4"
+        aria-labelledby="tasks-inbox-heading"
+      >
+        <div className="village-panel-card overflow-hidden p-0">
+          <div
+            className="h-1 bg-gradient-to-r from-[var(--accent)] via-[var(--highlight)] to-[var(--partner-green)]"
+            aria-hidden
+          />
+          <div className="p-5 sm:p-6">
+            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex min-w-0 gap-3">
+                <span
+                  className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--accent)_14%,var(--bg-elevated))] text-[var(--accent-strong)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_65%,transparent)]"
+                  aria-hidden
+                >
+                  <Inbox className="h-5 w-5" strokeWidth={2} />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                    Inbox controls
+                  </p>
+                  <h2
+                    id="tasks-inbox-heading"
+                    className="font-display text-lg font-normal tracking-tight text-[var(--text-primary)] sm:text-xl"
+                  >
+                    Prioritise what needs attention
+                  </h2>
+                  <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
+                    Filter open items by home and type. Manual tasks can be edited,
+                    completed, or removed; reminders open their destination.
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">
+                <button
+                  type="button"
+                  className="village-btn-primary inline-flex min-h-10 items-center justify-center gap-1.5 self-stretch px-4 text-sm sm:self-auto"
+                  onClick={openCreateTaskModal}
+                >
+                  <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+                  New manual task
+                </button>
+                <p className="text-center text-xs font-medium tabular-nums text-[var(--text-muted)] sm:text-right">
+                  <span className="rounded-full bg-[color-mix(in_srgb,var(--partner-green)_12%,var(--bg-elevated))] px-2.5 py-1 ring-1 ring-[color-mix(in_srgb,var(--partner-green)_22%,transparent)]">
+                    {tasks.length} {tasks.length === 1 ? "item" : "items"} shown
+                  </span>
+                </p>
+              </div>
             </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-3">
-              <button
-                type="button"
-                className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
-                onClick={openCreateTaskModal}
-              >
-                New manual task
-              </button>
-              <p className="text-sm text-ink/55">
-                {tasks.length} {tasks.length === 1 ? "item" : "items"} shown
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <div className="flex flex-col gap-4 rounded-xl border border-[color:color-mix(in_srgb,var(--line-subtle)_70%,transparent)] bg-[color-mix(in_srgb,var(--bg-elevated)_55%,transparent)] p-4 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
             <label htmlFor="inbox-status" className="village-label">
               Status
             </label>
@@ -318,8 +356,8 @@ export function TasksSection({
                 { value: "completed", label: "Completed (manual only)" },
               ]}
             />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
             <label htmlFor="inbox-home" className="village-label">
               Home
             </label>
@@ -341,8 +379,8 @@ export function TasksSection({
                 })),
               ]}
             />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xs">
             <label htmlFor="inbox-type" className="village-label">
               Type
             </label>
@@ -370,17 +408,23 @@ export function TasksSection({
                 { value: "birthday", label: "Birthdays" },
               ]}
             />
+              </div>
+            </div>
           </div>
-        </div>
         </div>
 
         {tasks.length === 0 ? (
-          <div className="rounded-[1.75rem] border border-dashed border-pine/18 bg-cream/72 p-8 text-center shadow-sm">
-            <p className="font-display text-2xl text-pine-2">Nothing urgent here</p>
-            <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-ink/65">
-            {query.status === "completed"
-              ? "No completed manual tasks for the current filters."
-              : "No open tasks or reminders match the current filters. Adjust status, home, or type, or add a manual task."}
+          <div className="rounded-2xl border border-dashed border-[color-mix(in_srgb,var(--accent)_28%,var(--line-subtle))] bg-[color-mix(in_srgb,var(--accent)_4%,var(--bg-elevated))] px-6 py-12 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--partner-green)_16%,var(--bg-elevated))] text-[var(--success)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_70%,transparent)]">
+              <Inbox className="h-7 w-7" strokeWidth={1.75} aria-hidden />
+            </div>
+            <p className="mt-5 font-display text-xl font-normal text-[var(--text-primary)]">
+              Nothing to show right now
+            </p>
+            <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-[var(--text-secondary)]">
+              {query.status === "completed"
+                ? "No completed manual tasks for the current filters."
+                : "No open tasks or reminders match these filters. Broaden home or type, or create a manual task."}
             </p>
           </div>
         ) : null}
@@ -390,29 +434,42 @@ export function TasksSection({
               return (
                 <article
                   key={task.sourceId}
-                  className={taskCardClass}
+                  className={[
+                    taskCardClass,
+                    "border-[color-mix(in_srgb,var(--warning)_38%,var(--line-subtle))] bg-[color-mix(in_srgb,var(--warning)_7%,var(--bg-elevated))]",
+                  ].join(" ")}
                 >
-                  <div className="absolute inset-y-0 left-0 w-1.5 bg-terracotta/70" />
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
+                  <div className="absolute inset-y-0 left-0 w-1 bg-[color-mix(in_srgb,var(--danger)_65%,var(--warning)_35%)]" />
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div className="min-w-0 flex gap-3 pl-1">
+                      <span
+                        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--danger)_14%,var(--bg-elevated))] text-[var(--danger)]"
+                        aria-hidden
+                      >
+                        <Wallet className="h-[1.15rem] w-[1.15rem]" strokeWidth={2} />
+                      </span>
+                      <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {homePill(task.homeName)}
-                        {typePill("Payment", "urgent")}
+                        {typePill("Payment", "payment")}
                       </div>
-                      <h3 className="mt-3 text-lg font-semibold tracking-tight text-pine-2">
+                      <h3 className="mt-2 font-display text-[1.05rem] font-normal leading-snug tracking-tight text-[var(--text-primary)] sm:text-lg">
                         Overdue monthly charge — {task.residentName}
                       </h3>
-                      <p className="mt-2 text-sm leading-6 text-ink/65">
+                      <p className="mt-1.5 text-sm leading-snug text-[var(--text-secondary)]">
                         Billing month {task.billingMonth} · Unpaid amount{" "}
-                        {formatMinorAsCurrency(
-                          task.amountMinor,
-                          task.currencyCode,
-                        )}
+                        <span className="font-semibold tabular-nums text-[var(--text-primary)]">
+                          {formatMinorAsCurrency(
+                            task.amountMinor,
+                            task.currencyCode,
+                          )}
+                        </span>
                       </p>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
+                    <div className="flex shrink-0 sm:pt-0.5">
                       <Link
-                        className="village-btn-primary inline-flex min-h-10 items-center no-underline"
+                        className="village-btn-primary inline-flex min-h-10 w-full items-center justify-center no-underline sm:w-auto sm:min-w-[10.5rem]"
                         href={`/dashboard/homes/${task.homeId}/ledger?residentId=${encodeURIComponent(task.residentId)}`}
                       >
                         Open billing
@@ -428,23 +485,31 @@ export function TasksSection({
                   key={task.sourceId}
                   className={taskCardClass}
                 >
-                  <div className="absolute inset-y-0 left-0 w-1.5 bg-sage/55" />
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
+                  <div className="absolute inset-y-0 left-0 w-1 bg-[color-mix(in_srgb,var(--partner-green)_58%,var(--highlight)_42%)]" />
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div className="min-w-0 flex gap-3 pl-1">
+                      <span
+                        className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--highlight)_22%,var(--bg-elevated))] text-[var(--accent-strong)]"
+                        aria-hidden
+                      >
+                        <Cake className="h-[1.15rem] w-[1.15rem]" strokeWidth={2} />
+                      </span>
+                      <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {homePill(task.homeName)}
-                        {typePill("Birthday", "warm")}
+                        {typePill("Birthday", "birthday")}
                       </div>
-                      <h3 className="mt-3 text-lg font-semibold tracking-tight text-pine-2">
+                      <h3 className="mt-2 font-display text-[1.05rem] font-normal leading-snug tracking-tight text-[var(--text-primary)] sm:text-lg">
                         Resident birthday — {task.residentName}
                       </h3>
-                      <p className="mt-2 text-sm leading-6 text-ink/65">
+                      <p className="mt-1.5 text-sm leading-snug text-[var(--text-secondary)]">
                         Birthday date {task.birthdayDate}
                       </p>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
+                    <div className="flex shrink-0 sm:pt-0.5">
                       <Link
-                        className="village-btn-primary inline-flex min-h-10 items-center no-underline"
+                        className="village-btn-primary inline-flex min-h-10 w-full items-center justify-center no-underline sm:w-auto sm:min-w-[10.5rem]"
                         href={`/dashboard/homes/${task.homeId}/residents/${task.residentId}`}
                       >
                         Open resident
@@ -463,8 +528,10 @@ export function TasksSection({
               >
                 <div
                   className={[
-                    "absolute inset-y-0 left-0 w-1.5",
-                    task.priority === "urgent" ? "bg-terracotta/70" : "bg-pine/45",
+                    "absolute inset-y-0 left-0 w-1",
+                    task.priority === "urgent"
+                      ? "bg-[color-mix(in_srgb,var(--danger)_72%,var(--accent)_28%)]"
+                      : "bg-[color-mix(in_srgb,var(--accent)_52%,var(--partner-green)_48%)]",
                   ].join(" ")}
                 />
                 {isEditing ? (
@@ -553,53 +620,69 @@ export function TasksSection({
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div className="min-w-0 flex gap-3 pl-1">
+                      <span
+                        className={[
+                          "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                          task.priority === "urgent"
+                            ? "bg-[color-mix(in_srgb,var(--danger)_12%,var(--bg-elevated))] text-[var(--danger)]"
+                            : "bg-[color-mix(in_srgb,var(--accent)_12%,var(--bg-elevated))] text-[var(--accent-strong)]",
+                        ].join(" ")}
+                        aria-hidden
+                      >
+                        <ClipboardList className="h-[1.15rem] w-[1.15rem]" strokeWidth={2} />
+                      </span>
+                      <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {homePill(task.homeName || homeNameById.get(task.homeId) || "Home")}
                         {typePill(
                           task.priority,
                           task.priority === "urgent" ? "urgent" : "neutral",
                         )}
-                        <span className="rounded-full bg-cream/80 px-3 py-1 text-sm text-ink/55 ring-1 ring-pine/8">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--bg-muted)_50%,var(--bg-elevated))] px-2.5 py-0.5 text-[0.8125rem] tabular-nums text-[var(--text-secondary)] ring-1 ring-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)]">
+                          <CalendarClock className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden strokeWidth={2} />
                           {dueLabel(task.dueDate)}
                         </span>
                       </div>
-                      <h3 className="mt-3 text-lg font-semibold tracking-tight text-pine-2">
+                      <h3 className="mt-2 font-display text-[1.05rem] font-normal leading-snug tracking-tight text-[var(--text-primary)] sm:text-lg">
                         {task.title}
                       </h3>
                       {task.notes ? (
-                        <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/65">
+                        <p className="mt-1.5 max-w-3xl text-sm leading-snug text-[var(--text-secondary)]">
                           {task.notes}
                         </p>
                       ) : null}
+                      </div>
                     </div>
-                    <div className="flex shrink-0 flex-wrap gap-2 md:justify-end">
+                    <div className="flex shrink-0 flex-col gap-2 sm:items-end sm:pt-0.5">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className="village-btn-primary order-1 min-h-10 px-4"
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => void onComplete(task.id)}
+                        >
+                          Complete
+                        </button>
+                        <button
+                          className="village-btn-secondary order-2 min-h-10 px-4"
+                          type="button"
+                          onClick={() => {
+                            setEditingId(task.id);
+                            setEditDraft(draftFromTask(task));
+                          }}
+                        >
+                          Edit
+                        </button>
+                      </div>
                       <button
-                        className="village-btn-secondary"
-                        type="button"
-                        onClick={() => {
-                          setEditingId(task.id);
-                          setEditDraft(draftFromTask(task));
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="village-btn-primary"
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => void onComplete(task.id)}
-                      >
-                        Complete
-                      </button>
-                      <button
-                        className="village-btn-secondary"
+                        className="text-[0.8125rem] font-semibold text-[var(--danger)] underline-offset-2 hover:underline disabled:opacity-50 sm:text-right"
                         type="button"
                         disabled={isBusy}
                         onClick={() => void onDelete(task.id)}
                       >
-                        Delete
+                        Delete task
                       </button>
                     </div>
                   </div>
@@ -762,14 +845,14 @@ export function TasksSection({
                       </div>
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:col-start-2">
                         <button
-                          className="inline-flex items-center justify-center rounded-full border border-[color-mix(in_srgb,#c2410c_78%,transparent)] bg-gradient-to-br from-[#fdba74] to-[#ea580c] px-5 py-2.5 text-sm font-bold text-[var(--bg-elevated)] shadow-[inset_0_1px_0_color-mix(in_srgb,#fef3c7_45%,transparent),0_12px_24px_-16px_color-mix(in_srgb,#c2410c_78%,transparent)] transition-all duration-150 ease-out hover:-translate-y-px hover:saturate-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:saturate-100 min-h-10"
+                          className="village-btn-primary min-h-10 px-5"
                           type="submit"
                           disabled={creating || !createDraft.title.trim()}
                         >
                           {creating ? "Creating..." : "Create task"}
                         </button>
                         {error ? (
-                          <p className="text-sm font-medium text-terracotta">
+                          <p className="text-sm font-medium text-[var(--danger)]">
                             {error}
                           </p>
                         ) : null}

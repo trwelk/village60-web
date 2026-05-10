@@ -107,6 +107,12 @@ export function isDashboardAnalyticsDemographicsStaffPath(
   return pathname === "/dashboard/analytics/demographics-staff";
 }
 
+export function isDashboardAnalyticsOccupancyPath(
+  pathname: string,
+): boolean {
+  return pathname === "/dashboard/analytics/occupancy";
+}
+
 export function isDashboardAnalyticsFinancialPath(pathname: string): boolean {
   return pathname === "/dashboard/analytics/financial";
 }

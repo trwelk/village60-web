@@ -3,22 +3,33 @@ import {
   MAX_PAYMENTS_LEDGER_PAGE_SIZE,
 } from "@/lib/billing/residentCharges";
 
+export type DashboardPaymentsAccountType = "resident" | "home";
+
+export type BuildDashboardPaymentsPathOptions = {
+  accountType?: DashboardPaymentsAccountType;
+  residentId?: string | null;
+};
+
 /**
- * Build `/dashboard/payments` with `homeId`, optional resident filter,
- * and optional pagination query params.
+ * Build `/dashboard/payments` with `homeId`, `accountType`, optional resident
+ * filter (resident accounts only), and optional pagination query params.
  * Omits `page` and `pageSize` when they match defaults (page 1, default size).
  */
 export function buildDashboardPaymentsPath(
   homeId: string,
   page: number,
   pageSize: number,
-  residentId?: string | null,
+  options?: BuildDashboardPaymentsPathOptions,
 ): string {
   const p = new URLSearchParams();
   p.set("homeId", homeId);
-  const resident = residentId?.trim() ?? "";
-  if (resident !== "") {
-    p.set("residentId", resident);
+  const accountType = options?.accountType ?? "resident";
+  p.set("accountType", accountType);
+  if (accountType === "resident") {
+    const resident = options?.residentId?.trim() ?? "";
+    if (resident !== "") {
+      p.set("residentId", resident);
+    }
   }
   const safePage = Math.max(1, page);
   const safeSize = Math.min(

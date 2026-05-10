@@ -56,8 +56,8 @@ function formatMinorAsCurrency(minor: number, currencyCode: string): string {
 const FIN_CHART = {
   /** Resident collections, totals marked “paid” */
   collected: "#3d8575",
-  /** Home ledger payouts / outflows */
-  payouts: "#d4895c",
+  /** Home expenses / outflows */
+  expenses: "#d4895c",
   /** Outstanding / owed slices */
   owed: "#c86b45",
   /** Primary cumulative line */
@@ -141,16 +141,16 @@ export function FinancialAnalyticsClient({
       ["KPI", "Amount minor"],
       ["Total collected", String(financial.kpis.totalCollectedMinor)],
       [
-        "Total home ledger payouts",
+        "Total home expenses",
         String(financial.kpis.totalExpensesMinor),
       ],
-      ["Net (collected − home payouts)", String(financial.kpis.netMinor)],
+      ["Net (collected − home expenses)", String(financial.kpis.netMinor)],
       [
         "Outstanding receivables (resident balances > 0)",
         String(financial.kpis.outstandingReceivablesMinor),
       ],
       [],
-      ["Home ledger payouts total", String(expenses.totalExpensesMinor)],
+      ["Home expenses total", String(expenses.totalExpensesMinor)],
     ];
     const csv = rows.map((r) => r.map(escapeCsvCell).join(",")).join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -176,7 +176,7 @@ export function FinancialAnalyticsClient({
               Billing & revenue analytics
             </h2>
             <p className="max-w-2xl text-sm text-[var(--text-muted)]">
-              Resident collections, home-account ledger payouts (not invoice
+              Resident collections, home expenses (not invoice
               totals), invoicing shown for context, and balances — scoped by UTC
               billing months. Figures in {financial.currencyCode}.
             </p>
@@ -223,7 +223,7 @@ export function FinancialAnalyticsClient({
             [
               ["overview", "Overview"],
               ["revenue", "Revenue"],
-              ["expenses", "Home payouts"],
+              ["expenses", "Home Expenses"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -273,7 +273,7 @@ function OverviewTab({
   fmt: (n: number) => string;
 }) {
   const strokeCollected = FIN_CHART.collected;
-  const strokeExpenses = FIN_CHART.payouts;
+  const strokeExpenses = FIN_CHART.expenses;
   const strokeNet = FIN_CHART.netLine;
   const strokePotentialNet = FIN_CHART.potentialLine;
 
@@ -324,12 +324,12 @@ function OverviewTab({
           value={fmt(financial.kpis.totalCollectedMinor)}
         />
         <KpiCard
-          label="Home ledger payouts (period)"
+          label="Home Expenses (period)"
           value={fmt(financial.kpis.totalExpensesMinor)}
           hint="Payments on home billing accounts by received date"
         />
         <KpiCard
-          label="Net cash (collected − home payouts)"
+          label="Net cash (collected − home expenses)"
           value={fmt(financial.kpis.netMinor)}
         />
         <KpiCard
@@ -341,7 +341,7 @@ function OverviewTab({
 
       <ChartCard
         title="Cash activity by month"
-        subtitle="Bars: resident collections vs home-ledger payments each UTC month (by payment received date). Lines use cumulative resident collections minus cumulative home-ledger payments."
+        subtitle="Bars: resident collections vs home expenses each UTC month (by payment received date). Lines use cumulative resident collections minus cumulative home expenses."
       >
         <div className="mt-4 h-[320px] w-full min-w-0">
           {financial.monthlyCashFlow.some(
@@ -381,9 +381,9 @@ function OverviewTab({
 
                     const titles: Record<string, string> = {
                       collectedMinor: "Collected (this month)",
-                      expensesBarMinor: "Home ledger payouts (this month)",
+                      expensesBarMinor: "Home Expenses (this month)",
                       cumNetCashMinor:
-                        "Cumulative net (collected − home payouts)",
+                        "Cumulative net (collected − home expenses)",
                       cumPotentialNetMinor:
                         "Cumulative potential (net + outstanding)",
                     };
@@ -446,7 +446,7 @@ function OverviewTab({
                 />
                 <Bar
                   dataKey="expensesBarMinor"
-                  name="Home ledger payouts"
+                  name="Home Expenses"
                   fill={strokeExpenses}
                   radius={[4, 4, 0, 0]}
                   maxBarSize={48}
@@ -945,7 +945,7 @@ function ExpensesTab({
     {
       label: "Total paid",
       amountMinor: expenses.homeInvoicePaymentsMinor,
-      fill: FIN_CHART.payouts,
+      fill: FIN_CHART.expenses,
     },
     {
       label: "Total owed",
@@ -958,7 +958,7 @@ function ExpensesTab({
     <>
       <section className="grid gap-4 sm:grid-cols-3">
         <KpiCard
-          label="Home ledger payouts (period)"
+          label="Home Expenses (period)"
           value={fmt(expenses.totalExpensesMinor)}
           hint="Payments on home billing accounts by received date"
         />
@@ -1066,7 +1066,7 @@ function ExpensesTab({
 
         <ChartCard
           title="Homes: total owed vs paid"
-          subtitle="Paid = home ledger payouts in selected period; owed = current outstanding home receivables"
+          subtitle="Paid = home expenses in selected period; owed = current outstanding home receivables"
         >
           <div className="mt-4 h-[280px] w-full min-w-0">
             {homeOwedVsPaidData.length > 0 ? (

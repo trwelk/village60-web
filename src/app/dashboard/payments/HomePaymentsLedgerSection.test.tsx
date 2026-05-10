@@ -44,7 +44,9 @@ describe("HomePaymentsLedgerSection (20a)", () => {
         selectedResidentId={null}
         residentOptions={[]}
         defaultCurrencyCode="NZD"
+        selectedAccountType="resident"
         ledger={{
+          kind: "resident",
           rows: [sampleRow],
           totalCount: 1,
           page: 1,
@@ -64,7 +66,9 @@ describe("HomePaymentsLedgerSection (20a)", () => {
         selectedResidentId={null}
         residentOptions={[]}
         defaultCurrencyCode="NZD"
+        selectedAccountType="resident"
         ledger={{
+          kind: "resident",
           rows: [sampleRow],
           totalCount: 1,
           page: 1,
@@ -97,7 +101,9 @@ describe("HomePaymentsLedgerSection (20a)", () => {
           },
         ]}
         defaultCurrencyCode="NZD"
+        selectedAccountType="resident"
         ledger={{
+          kind: "resident",
           rows: [sampleRow],
           totalCount: 40,
           page: 1,
@@ -111,6 +117,9 @@ describe("HomePaymentsLedgerSection (20a)", () => {
       expect.stringMatching(/homeId=h1/),
     );
     expect(mockPush).toHaveBeenCalledWith(
+      expect.stringMatching(/accountType=resident/),
+    );
+    expect(mockPush).toHaveBeenCalledWith(
       expect.stringMatching(/[?&]page=2/),
     );
 
@@ -122,6 +131,7 @@ describe("HomePaymentsLedgerSection (20a)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Apply filters/i }));
     const last = mockPush.mock.calls[mockPush.mock.calls.length - 1]![0] as string;
     expect(last).toContain("homeId=h2");
+    expect(last).toContain("accountType=resident");
     expect(last).not.toMatch(/[?&]page=/);
   });
 
@@ -144,7 +154,9 @@ describe("HomePaymentsLedgerSection (20a)", () => {
           },
         ]}
         defaultCurrencyCode="NZD"
+        selectedAccountType="resident"
         ledger={{
+          kind: "resident",
           rows: [sampleRow],
           totalCount: 1,
           page: 1,
@@ -165,6 +177,7 @@ describe("HomePaymentsLedgerSection (20a)", () => {
 
     const last = mockPush.mock.calls[mockPush.mock.calls.length - 1]![0] as string;
     expect(last).toContain("homeId=h1");
+    expect(last).toContain("accountType=resident");
     expect(last).not.toMatch(/[?&]residentId=/);
   });
 });

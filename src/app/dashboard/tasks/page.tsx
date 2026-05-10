@@ -38,7 +38,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
   const tasks = listTasksForInboxQuery(db, actor, query);
 
   return (
-    <main className="flex flex-col gap-7 text-ink">
+    <main className="flex flex-col gap-8 text-[var(--text-primary)]">
       <TasksSection homes={homes} tasks={tasks} query={query} />
     </main>
   );

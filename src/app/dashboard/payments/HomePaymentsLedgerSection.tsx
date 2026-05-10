@@ -1,17 +1,38 @@
 "use client";
 
 import { VillageSelect } from "@/components/VillageSelect";
-import { buildDashboardPaymentsPath } from "@/lib/billing/dashboardPaymentsPath";
+import {
+  buildDashboardPaymentsPath,
+  type DashboardPaymentsAccountType,
+} from "@/lib/billing/dashboardPaymentsPath";
+import type { HomeAccountPaymentLedgerRow } from "@/lib/billing/homeAccounts";
 import type { HomeMonthlyPaymentLedgerRow } from "@/lib/billing/residentCharges";
 import type { DashboardHomeOption } from "@/lib/dashboard/charts";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useMemo, useState, useTransition, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+
+export type HomePaymentsLedgerPayload =
+  | {
+      kind: "resident";
+      rows: HomeMonthlyPaymentLedgerRow[];
+      totalCount: number;
+      page: number;
+      pageSize: number;
+    }
+  | {
+      kind: "home";
+      rows: HomeAccountPaymentLedgerRow[];
+      totalCount: number;
+      page: number;
+      pageSize: number;
+    };
 
 type Props = {
   homes: DashboardHomeOption[];
   selectedHomeId: string;
+  selectedAccountType: DashboardPaymentsAccountType;
   selectedResidentId: string | null;
   residentOptions: {
     residentId: string;
@@ -19,12 +40,7 @@ type Props = {
     residentStatus: string;
   }[];
   defaultCurrencyCode: string;
-  ledger: {
-    rows: HomeMonthlyPaymentLedgerRow[];
-    totalCount: number;
-    page: number;
-    pageSize: number;
-  };
+  ledger: HomePaymentsLedgerPayload;
 };
 
 function formatMinorAsCurrency(minor: number, currencyCode: string): string {
@@ -54,6 +70,7 @@ async function parseError(res: Response): Promise<string> {
 export function HomePaymentsLedgerSection({
   homes,
   selectedHomeId,
+  selectedAccountType,
   selectedResidentId,
   residentOptions,
   defaultCurrencyCode,
@@ -72,9 +89,20 @@ export function HomePaymentsLedgerSection({
   const [notes, setNotes] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [accountTypeDraft, setAccountTypeDraft] =
+    useState<DashboardPaymentsAccountType>(selectedAccountType);
   const [homeDraft, setHomeDraft] = useState(selectedHomeId);
   const [residentDraft, setResidentDraft] = useState(selectedResidentId ?? "");
   const [isApplyingFilters, startApplyingFilters] = useTransition();
+
+  const accountTypeOptions = useMemo(
+    () =>
+      [
+        { value: "resident" as const, label: "Resident" },
+        { value: "home" as const, label: "Home" },
+      ] as const,
+    [],
+  );
 
   useEffect(() => {
     if (!paymentModalOpen) return;
@@ -87,9 +115,10 @@ export function HomePaymentsLedgerSection({
     setSubmitError(null);
   }, [paymentModalOpen, residentOptions, selectedResidentId]);
   useEffect(() => {
+    setAccountTypeDraft(selectedAccountType);
     setHomeDraft(selectedHomeId);
     setResidentDraft(selectedResidentId ?? "");
-  }, [selectedHomeId, selectedResidentId]);
+  }, [selectedAccountType, selectedHomeId, selectedResidentId]);
 
   if (homes.length === 0) {
     return (
@@ -108,11 +137,21 @@ export function HomePaymentsLedgerSection({
     homes.find((home) => home.homeId === selectedHomeId)?.homeName ??
     "Selected home";
   const visibleAmountMinor = rows.reduce((sum, row) => sum + row.amountMinor, 0);
-  const uniqueResidentCount = new Set(rows.map((row) => row.residentId)).size;
+  const uniqueResidentCount =
+    ledger.kind === "resident"
+      ? new Set(
+          (rows as HomeMonthlyPaymentLedgerRow[]).map((row) => row.residentId),
+        ).size
+      : rows.length > 0
+        ? 1
+        : 0;
   const rangeText =
     totalCount === 0 ? "Showing 0 of 0" : `Showing ${from}–${to} of ${totalCount}`;
   const hasFilterChanges =
-    homeDraft !== selectedHomeId || residentDraft !== (selectedResidentId ?? "");
+    accountTypeDraft !== selectedAccountType ||
+    homeDraft !== selectedHomeId ||
+    (accountTypeDraft === "resident" &&
+      residentDraft !== (selectedResidentId ?? ""));
   const isApplyDisabled = !homeDraft || !hasFilterChanges || isApplyingFilters;
 
   async function handleCreatePaymentSubmit(e: FormEvent<HTMLFormElement>) {
@@ -170,11 +209,29 @@ export function HomePaymentsLedgerSection({
         data-testid="payments-ledger-filters"
         className="village-card village-reveal village-reveal-delay-1 relative z-20 rounded-3xl border border-[color:color-mix(in_srgb,var(--line-strong)_56%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] p-5 shadow-[0_18px_46px_-34px_color-mix(in_srgb,var(--accent)_35%,transparent)] sm:p-6"
       >
-        <div className="grid gap-4 lg:grid-cols-[minmax(14rem,20rem)_minmax(16rem,1fr)_auto_auto] lg:items-end">
-          <div className="flex min-w-0 w-full flex-col gap-2">
-            <label htmlFor="payments-ledger-home" className="village-label">
-              Home
-            </label>
+        <div
+          className={
+            accountTypeDraft === "resident"
+              ? "grid gap-4 lg:grid-cols-[minmax(10rem,1fr)_minmax(12rem,1fr)_minmax(14rem,1fr)_auto_auto] lg:items-end"
+              : "grid gap-4 lg:grid-cols-[minmax(10rem,1fr)_minmax(12rem,1fr)_auto_auto] lg:items-end"
+          }
+        >
+          <label className="flex min-w-0 flex-col gap-2 text-sm">
+            <span className="village-label">Account type</span>
+            <VillageSelect
+              value={accountTypeDraft}
+              onChange={(v) => {
+                const next = v === "home" ? "home" : "resident";
+                setAccountTypeDraft(next);
+                if (next === "home") {
+                  setResidentDraft("");
+                }
+              }}
+              options={accountTypeOptions.map((o) => ({ value: o.value, label: o.label }))}
+            />
+          </label>
+          <label className="flex min-w-0 flex-col gap-2 text-sm">
+            <span className="village-label">Home</span>
             <VillageSelect
               id="payments-ledger-home"
               value={homeDraft}
@@ -187,27 +244,27 @@ export function HomePaymentsLedgerSection({
                 label: h.homeName,
               }))}
             />
-          </div>
-          <div className="flex min-w-0 flex-col gap-2">
-            <label htmlFor="payments-ledger-resident" className="village-label">
-              Resident (optional)
+          </label>
+          {accountTypeDraft === "resident" ? (
+            <label className="flex min-w-0 flex-col gap-2 text-sm">
+              <span className="village-label">Resident (optional)</span>
+              <VillageSelect
+                id="payments-ledger-resident"
+                value={residentDraft}
+                onChange={setResidentDraft}
+                options={[
+                  { value: "", label: "All residents" },
+                  ...residentOptions.map((resident) => ({
+                    value: resident.residentId,
+                    label:
+                      resident.residentStatus === "active"
+                        ? resident.residentFullName
+                        : `${resident.residentFullName} (Departed)`,
+                  })),
+                ]}
+              />
             </label>
-            <VillageSelect
-              id="payments-ledger-resident"
-              value={residentDraft}
-              onChange={setResidentDraft}
-              options={[
-                { value: "", label: "All residents" },
-                ...residentOptions.map((resident) => ({
-                  value: resident.residentId,
-                  label:
-                    resident.residentStatus === "active"
-                      ? resident.residentFullName
-                      : `${resident.residentFullName} (Departed)`,
-                })),
-              ]}
-            />
-          </div>
+          ) : null}
           <button
             type="button"
             className="h-10 w-full rounded-xl border border-[color:color-mix(in_srgb,var(--accent-strong)_72%,transparent)] bg-[var(--accent-strong)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:border-[color:color-mix(in_srgb,var(--line-strong)_65%,transparent)] disabled:bg-[color:color-mix(in_srgb,var(--bg-muted)_84%,transparent)] disabled:text-[var(--text-muted)] lg:w-auto"
@@ -215,10 +272,18 @@ export function HomePaymentsLedgerSection({
             aria-busy={isApplyingFilters}
             onClick={() => {
               if (isApplyDisabled) return;
-              const nextResidentId = residentDraft === "" ? null : residentDraft;
+              const nextResidentId =
+                accountTypeDraft === "resident" && residentDraft === ""
+                  ? null
+                  : accountTypeDraft === "resident"
+                    ? residentDraft
+                    : null;
               startApplyingFilters(() => {
                 router.push(
-                  buildDashboardPaymentsPath(homeDraft, 1, pageSize, nextResidentId),
+                  buildDashboardPaymentsPath(homeDraft, 1, pageSize, {
+                    accountType: accountTypeDraft,
+                    residentId: nextResidentId,
+                  }),
                 );
               });
             }}
@@ -229,21 +294,32 @@ export function HomePaymentsLedgerSection({
             type="button"
             className="h-10 w-full rounded-xl border border-[color:color-mix(in_srgb,var(--accent-strong)_72%,transparent)] bg-[var(--accent-strong)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:border-[color:color-mix(in_srgb,var(--line-strong)_65%,transparent)] disabled:bg-[color:color-mix(in_srgb,var(--bg-muted)_84%,transparent)] disabled:text-[var(--text-muted)] lg:w-auto"
             onClick={() => setPaymentModalOpen(true)}
-            disabled={!selectedHomeId || residentOptions.length === 0}
+            disabled={
+              selectedAccountType !== "resident" ||
+              !selectedHomeId ||
+              residentOptions.length === 0
+            }
           >
             Create payment
           </button>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
           <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)] px-3 py-1.5 font-medium text-[var(--text-primary)]">
+            {selectedAccountType === "home" ? "Home" : "Resident"} ·{" "}
             {selectedHomeName}
           </span>
           <span data-testid="payments-ledger-range">{rangeText}</span>
-          {selectedResidentId ? (
-            <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--text-secondary)]">
-              Filtered to one resident
-            </span>
-          ) : null}
+          {selectedAccountType === "resident" ? (
+            selectedResidentId ? (
+              <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--text-secondary)]">
+                Filtered to one resident
+              </span>
+            ) : (
+              <span>Showing all residents in this home.</span>
+            )
+          ) : (
+            <span>Shows operating (home) payments for the selected facility.</span>
+          )}
         </div>
       </section>
 
@@ -263,13 +339,17 @@ export function HomePaymentsLedgerSection({
             </div>
             <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
               <p className="font-mono text-[0.58rem] font-medium uppercase tracking-[0.16em] text-[color:color-mix(in_srgb,var(--text-muted)_88%,transparent)]">
-                Residents
+                {ledger.kind === "resident" ? "Residents" : "Account"}
               </p>
               <p className="mt-2 text-3xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-[2.1rem]">
                 {uniqueResidentCount}
               </p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                represented on this page
+                {ledger.kind === "resident"
+                  ? "represented on this page"
+                  : rows.length > 0
+                    ? "home operating ledger"
+                    : "no rows on this page"}
               </p>
             </div>
             <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--danger)_38%,var(--line-strong)_62%)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
@@ -300,7 +380,10 @@ export function HomePaymentsLedgerSection({
                       selectedHomeId,
                       page - 1,
                       pageSize,
-                      selectedResidentId,
+                      {
+                        accountType: selectedAccountType,
+                        residentId: selectedResidentId,
+                      },
                     ),
                   );
                 }}
@@ -317,7 +400,10 @@ export function HomePaymentsLedgerSection({
                       selectedHomeId,
                       page + 1,
                       pageSize,
-                      selectedResidentId,
+                      {
+                        accountType: selectedAccountType,
+                        residentId: selectedResidentId,
+                      },
                     ),
                   );
                 }}
@@ -354,7 +440,7 @@ export function HomePaymentsLedgerSection({
                     Amount
                   </th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    Resident
+                    {ledger.kind === "home" ? "Account" : "Resident"}
                   </th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
                     Status
@@ -379,17 +465,54 @@ export function HomePaymentsLedgerSection({
                     >
                       <div className="mx-auto max-w-md rounded-2xl border border-dashed border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_74%,transparent)] px-6 py-7">
                         <p className="font-semibold text-[var(--text-primary)]">
-                          No recorded monthly payments for this home yet.
+                          {ledger.kind === "home"
+                            ? "No recorded home operating payments yet."
+                            : "No recorded monthly payments for this home yet."}
                         </p>
                         <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                          Payments will appear here after they are recorded from
-                          a resident&rsquo;s Billing tab.
+                          {ledger.kind === "home"
+                            ? "Payments to the facility operating account will appear after they are posted."
+                            : "Payments will appear here after they are recorded from a resident’s Billing tab."}
                         </p>
                       </div>
                     </td>
                   </tr>
+                ) : ledger.kind === "home" ? (
+                  (rows as HomeAccountPaymentLedgerRow[]).map((row) => (
+                    <tr
+                      key={row.paymentId}
+                      className="transition-colors hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)]"
+                    >
+                      <td className="px-5 py-4 font-mono text-xs tabular-nums text-[var(--text-secondary)]">
+                        {row.paidOn}
+                      </td>
+                      <td className="px-5 py-4 font-semibold tabular-nums text-[var(--text-primary)]">
+                        {formatMinorAsCurrency(
+                          row.amountMinor,
+                          defaultCurrencyCode,
+                        )}
+                      </td>
+                      <td className="px-5 py-4 font-semibold text-[var(--text-primary)]">
+                        Home operating
+                      </td>
+                      <td className="px-5 py-4 capitalize text-[var(--text-primary)]">
+                        <span className="rounded-full border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)]">
+                          Operating
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 font-mono text-xs tabular-nums text-[var(--text-secondary)]">
+                        {row.billingMonth}
+                      </td>
+                      <td className="max-w-[18rem] px-5 py-4 text-[var(--text-secondary)]">
+                        {row.notes?.trim() ? row.notes : "—"}
+                      </td>
+                      <td className="px-5 py-4 text-[var(--text-secondary)]">
+                        {row.recordedByEmail ?? "—"}
+                      </td>
+                    </tr>
+                  ))
                 ) : (
-                  rows.map((row) => (
+                  (rows as HomeMonthlyPaymentLedgerRow[]).map((row) => (
                     <tr
                       key={row.paymentId}
                       className="transition-colors hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)]"
@@ -423,7 +546,7 @@ export function HomePaymentsLedgerSection({
                         {row.notes?.trim() ? row.notes : "—"}
                       </td>
                       <td className="px-5 py-4 text-[var(--text-secondary)]">
-                        {row.recordedByEmail}
+                        {row.recordedByEmail ?? "—"}
                       </td>
                     </tr>
                   ))

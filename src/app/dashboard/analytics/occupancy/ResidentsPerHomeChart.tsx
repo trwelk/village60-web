@@ -9,7 +9,7 @@ import {
   Tooltip,
 } from "recharts";
 import type { ResidentsPerHomeChartDatum } from "@/lib/dashboard/charts";
-import { getHomeChartColor } from "./homeChartColors";
+import { getHomeChartColor } from "../../homeChartColors";
 
 type ResidentsPerHomeChartProps = {
   data: ResidentsPerHomeChartDatum[];

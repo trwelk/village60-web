@@ -41,10 +41,10 @@ function tileSurfaceClass(
   t: OccupancyHeatmapWardTile | { kind: "unassigned"; count: number },
 ): string {
   if (t.kind === "unassigned") {
-    return "village-occ-unassigned-fill text-cream";
+    return "village-occ-unassigned-fill";
   }
   if (t.notConfigured) {
-    return "village-occ-neutral-fill text-cream";
+    return "village-occ-neutral-fill";
   }
   switch (t.band) {
     case "green":
@@ -56,7 +56,7 @@ function tileSurfaceClass(
     case "over":
       return "village-occ-over";
     default:
-      return "village-occ-neutral-fill text-cream";
+      return "village-occ-neutral-fill";
   }
 }
 
@@ -65,13 +65,13 @@ function occupancyBarFillClass(
 ): string {
   switch (tile.band) {
     case "green":
-      return "bg-pine/50";
+      return "bg-success";
     case "amber":
-      return "bg-pine/40";
+      return "bg-warning";
     case "red":
-      return "bg-terracotta/55";
+      return "bg-danger";
     case "over":
-      return "bg-terracotta-bright/75";
+      return "bg-danger brightness-110";
     default:
       return "bg-pine/35";
   }
@@ -104,35 +104,43 @@ function WardOrUnassignedContent({
 }) {
   if (tile.kind === "unassigned") {
     return (
-      <>
-        <p className="font-medium text-cream">Unassigned</p>
-        <p className="mt-1 font-display text-2xl tabular-nums text-cream">
-          {tile.count}
-        </p>
-        <p className="mt-1 text-xs text-cream/75">Active residents (no ward)</p>
-      </>
+      <div className="flex h-full flex-col">
+        <p className="font-medium text-ink/90">Unassigned</p>
+        <div className="mt-auto pt-3">
+          <p className="font-display text-2xl tabular-nums text-pine-2">
+            {tile.count}
+          </p>
+          <p className="mt-0.5 text-xs text-ink/65">Active residents (no ward)</p>
+        </div>
+      </div>
     );
   }
   if (tile.notConfigured) {
     return (
-      <>
-        <p className="font-medium text-cream">{tile.label}</p>
-        <p className="mt-2 text-sm text-cream/80">Not configured</p>
-        <p className="mt-1 text-xs text-cream/75">No bed count on this ward</p>
-      </>
+      <div className="flex h-full flex-col">
+        <p className="font-medium text-ink/90">{tile.label}</p>
+        <div className="mt-auto pt-3">
+          <p className="text-sm text-ink/80">Not configured</p>
+          <p className="mt-0.5 text-xs text-ink/65">No bed count on this ward</p>
+        </div>
+      </div>
     );
   }
   return (
-    <>
-      <p className="font-medium text-ink/90">{tile.label}</p>
-      <p className="mt-1 font-display text-2xl tabular-nums text-pine-2">
-        {tile.occupancyPercent}%
-      </p>
-      <p className="village-muted mt-1 text-sm tabular-nums">
-        {tile.occupied} / {tile.bedCount} beds · {tile.availableBeds} available
-      </p>
-      <OccupancyMiniBar tile={tile} />
-    </>
+    <div className="flex h-full flex-col">
+      <div className="flex items-start justify-between gap-2">
+        <p className="font-medium text-ink/90">{tile.label}</p>
+        <p className="font-display text-xl tabular-nums text-pine-2">
+          {tile.occupancyPercent}%
+        </p>
+      </div>
+      <div className="mt-auto pt-3">
+        <p className="village-muted text-xs tabular-nums">
+          {tile.occupied} / {tile.bedCount} beds · {tile.availableBeds} available
+        </p>
+        <OccupancyMiniBar tile={tile} />
+      </div>
+    </div>
   );
 }
 
@@ -214,7 +222,7 @@ export function OccupancyHeatmapBoardCard({ board }: OccupancyHeatmapBoardCardPr
                       home.homeId,
                       t.wardId,
                     )}`}
-                    className={`block rounded-2xl border p-4 outline-none transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_36px_-22px_rgba(12,24,20,0.35)] focus-visible:ring-2 focus-visible:ring-pine/35 ${tileSurfaceClass(
+                    className={`flex flex-col rounded-2xl border p-4 outline-none transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_36px_-22px_rgba(12,24,20,0.35)] focus-visible:ring-2 focus-visible:ring-pine/35 ${tileSurfaceClass(
                       t,
                     )}`}
                     aria-label={`View active residents in ${t.label} at ${home.homeName}`}
@@ -223,9 +231,9 @@ export function OccupancyHeatmapBoardCard({ board }: OccupancyHeatmapBoardCardPr
                   </Link>
                 ))}
                 <div
-                  className={`rounded-2xl border p-4 ${tileSurfaceClass(
-                    home.unassigned,
-                  )}`}
+                  className={`flex flex-col rounded-2xl border border-dashed p-4 ${
+                    home.unassigned.count === 0 ? "opacity-80" : ""
+                  } ${tileSurfaceClass(home.unassigned)}`}
                 >
                   <WardOrUnassignedContent tile={home.unassigned} />
                 </div>
