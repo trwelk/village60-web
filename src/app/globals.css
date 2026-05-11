@@ -1432,7 +1432,7 @@ a.village-occ-pill:focus-visible {
   }
 }
 
-/* VillageList: loading shimmer over table/card body (see VillageList.tsx) */
+/* VillageList: loading layer over table/card body (see VillageList.tsx) */
 @keyframes village-list-body-shimmer {
   0% {
     background-position: 180% 0;
@@ -1442,16 +1442,30 @@ a.village-occ-pill:focus-visible {
   }
 }
 
-.village-list-body-loading-overlay {
+.village-list-body-loading-layer {
   position: absolute;
   inset: 0;
   z-index: 1;
-  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
-.village-list-body-loading-overlay::after {
+.village-list-body-loading-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg-elevated) 52%, transparent);
+}
+
+.village-list-body-loading-shimmer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.village-list-body-loading-shimmer::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1465,6 +1479,11 @@ a.village-occ-pill:focus-visible {
   );
   background-size: 220% 100%;
   animation: village-list-body-shimmer 1.35s ease-in-out infinite;
+}
+
+.village-list-body-loading-spinner {
+  position: relative;
+  z-index: 2;
 }
 
 /* Route transition progress (DashboardAppShell + NavigationProgress.tsx) */

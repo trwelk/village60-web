@@ -19,7 +19,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import { createPortal } from "react-dom";
 
 const DEFAULT_INBOX_QUERY: TaskInboxListQuery = {
@@ -138,6 +145,7 @@ export function TasksSection({
 }: Props) {
   const query = queryProp ?? DEFAULT_INBOX_QUERY;
   const router = useRouter();
+  const [isNavPending, startNavTransition] = useTransition();
   const firstHomeId = homes[0]?.id ?? "";
   const [createDraft, setCreateDraft] = useState(() => emptyDraft(firstHomeId));
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -190,8 +198,10 @@ export function TasksSection({
   }
 
   function navigateInbox(next: TaskInboxListQuery) {
-    router.push(buildTasksPath(next));
-    router.refresh();
+    startNavTransition(() => {
+      router.push(buildTasksPath(next));
+      router.refresh();
+    });
   }
 
   async function onCreate(e: FormEvent<HTMLFormElement>) {
@@ -407,6 +417,7 @@ export function TasksSection({
         }
         error={error && !createModalOpen ? error : null}
         listTitle=""
+        loading={isNavPending}
         wrapBody="none"
         rootElement="div"
       >

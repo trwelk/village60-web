@@ -213,6 +213,10 @@ export function HomeChargesSection({
         listTitle={null}
         filtersCollapsible
         activeFilterCount={chargesActiveFilterCount}
+        loading={
+          isApplyingRange ||
+          (paymentFilter !== "all" && filterFetchState === "loading")
+        }
         toolbar={
           <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
             <div className="min-w-0 flex-1" aria-hidden />

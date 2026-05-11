@@ -277,6 +277,7 @@ export function InventoryOrdersClient({
         filtersCollapsible
         activeFilterCount={activeFilterCount}
         error={error && !createOpen ? error : null}
+        loading={loading}
         toolbar={
           <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-between gap-2 sm:gap-3">
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:gap-3">

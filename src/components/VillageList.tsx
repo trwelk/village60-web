@@ -6,12 +6,31 @@ import { type ReactNode, useState } from "react";
 // FilterToggle (internal)
 // ---------------------------------------------------------------------------
 
-function ListLoadingSpinner() {
+function ListLoadingSpinner({ size = "sm" }: { size?: "sm" | "lg" }) {
+  const dim = size === "lg" ? "size-9 border-[3px]" : "size-3.5 border-2";
   return (
     <span
-      className="inline-block size-3.5 shrink-0 animate-spin rounded-full border-2 border-[color:color-mix(in_srgb,var(--text-muted)_35%,transparent)] border-t-[var(--accent-strong)]"
+      className={`inline-block shrink-0 animate-spin rounded-full border-[color:color-mix(in_srgb,var(--text-muted)_35%,transparent)] border-t-[var(--accent-strong)] ${dim}`}
       aria-hidden
     />
+  );
+}
+
+/** Full-area overlay: frosted backdrop, shimmer sweep, centered spinner (table + wrapBody="none"). */
+function VillageListBodyLoadingLayer() {
+  return (
+    <div className="village-list-body-loading-layer pointer-events-none">
+      <div className="village-list-body-loading-backdrop" aria-hidden />
+      <div className="village-list-body-loading-shimmer" aria-hidden />
+      <div
+        className="village-list-body-loading-spinner"
+        role="status"
+        aria-live="polite"
+      >
+        <span className="sr-only">Loading list</span>
+        <ListLoadingSpinner size="lg" />
+      </div>
+    </div>
   );
 }
 
@@ -191,7 +210,7 @@ type VillageListProps = {
    * Defaults to "Directory".
    */
   listTitle?: string | null;
-  /** While true: `aria-busy` on the list section, spinner by the title (when set), disabled pagination, and a subtle loading shimmer over the table body. */
+  /** While true: `aria-busy` on the list section, spinner by the title (when set), disabled pagination, and a frosted overlay with shimmer + centered spinner over the list body (table and `wrapBody="none"`). */
   loading?: boolean;
   /** When set, renders a `village-alert-error` banner above the list section. */
   error?: string | null;
@@ -294,7 +313,7 @@ export function VillageList({
         {listTitle ? (
           <h2 className="village-section-title flex flex-wrap items-center gap-2">
             <span>{listTitle}</span>
-            {loading ? <ListLoadingSpinner /> : null}
+            {loading ? <ListLoadingSpinner size="sm" /> : null}
           </h2>
         ) : loading ? (
           <div
@@ -303,7 +322,7 @@ export function VillageList({
             aria-live="polite"
           >
             <span className="sr-only">Loading</span>
-            <ListLoadingSpinner />
+            <ListLoadingSpinner size="sm" />
           </div>
         ) : null}
 
@@ -325,12 +344,12 @@ export function VillageList({
               .join(" ")}
           >
             {children}
-            {loading ? (
-              <span
-                className="village-list-body-loading-overlay"
-                aria-hidden
-              />
-            ) : null}
+            {loading ? <VillageListBodyLoadingLayer /> : null}
+          </div>
+        ) : loading ? (
+          <div className="relative min-h-[14rem]">
+            {children}
+            <VillageListBodyLoadingLayer />
           </div>
         ) : (
           children
