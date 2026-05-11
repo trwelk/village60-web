@@ -79,6 +79,10 @@ export function InvoiceDetailClient({
   const [lineModalOpen, setLineModalOpen] = useState(false);
   const [editingLine, setEditingLine] = useState<InvoiceLineItem | null>(null);
 
+  useEffect(() => {
+    setInvoice(null);
+  }, [homeId, invoiceId]);
+
   const accountLabel = useMemo(() => {
     if (!invoice) return null;
     const accountType = invoice.accountType ?? "resident";
@@ -221,10 +225,19 @@ export function InvoiceDetailClient({
         </p>
       ) : null}
 
-      {loading ? (
+      {loading && !invoice ? (
         <p className="text-sm text-[var(--text-secondary)]">Loading invoice…</p>
-      ) : !invoice ? null : (
+      ) : null}
+
+      {invoice ? (
         <>
+          <div
+            className={
+              loading
+                ? "flex flex-col gap-8 opacity-50 transition-opacity duration-150 [pointer-events:none] motion-reduce:transition-none"
+                : "flex flex-col gap-8"
+            }
+          >
           <section className="village-card village-reveal village-reveal-delay-1 overflow-hidden p-0">
             <div className="border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_14%,var(--bg-elevated)_86%)] px-6 py-6 sm:px-8">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -403,6 +416,7 @@ export function InvoiceDetailClient({
               )}
             </div>
           </section>
+          </div>
 
           <CreateInvoiceLineModal
             open={lineModalOpen}
@@ -426,7 +440,7 @@ export function InvoiceDetailClient({
             onSaved={() => void load()}
           />
         </>
-      )}
+      ) : null}
     </main>
   );
 }

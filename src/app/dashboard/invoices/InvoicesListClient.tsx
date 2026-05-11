@@ -120,6 +120,10 @@ export function InvoicesListClient({
   }, [homeId]);
 
   useEffect(() => {
+    setInvoices([]);
+  }, [homeId]);
+
+  useEffect(() => {
     void loadInvoices();
   }, [loadInvoices]);
 
@@ -195,7 +199,16 @@ export function InvoicesListClient({
         ) : null}
 
         {filteredInvoices.length > 0 ? (
-          <div className="overflow-x-auto">
+          <div
+            className={[
+              "overflow-x-auto",
+              loading
+                ? "pointer-events-none opacity-50 transition-opacity duration-150 motion-reduce:transition-none"
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">

@@ -527,7 +527,18 @@ export function HomeChargesSection({
                 />
               </div>
             </div>
-            <div className="overflow-x-auto rounded-b-3xl">
+            <div
+              className={[
+                "overflow-x-auto rounded-b-3xl",
+                filterFetchState === "loading" &&
+                paymentFilter !== "all" &&
+                rows.length > 0
+                  ? "pointer-events-none opacity-50 transition-opacity duration-150 motion-reduce:transition-none"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
             <table
               aria-label="Monthly charge ledger"
               className="min-w-full border-collapse text-left text-sm"

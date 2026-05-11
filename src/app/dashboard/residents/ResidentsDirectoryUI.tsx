@@ -13,7 +13,7 @@ import {
 import type { Resident } from "@/lib/residents/service";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type HomeOption = { id: string; name: string };
 
@@ -63,6 +63,17 @@ export function ResidentsDirectoryUI({
   const homeNameById = Object.fromEntries(homes.map((h) => [h.id, h.name]));
 
   const effectiveHomeId = fixedHomeId ?? (urlState.homeId || undefined);
+
+  const prevEffectiveHomeId = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (
+      prevEffectiveHomeId.current !== undefined &&
+      prevEffectiveHomeId.current !== effectiveHomeId
+    ) {
+      setResidents(null);
+    }
+    prevEffectiveHomeId.current = effectiveHomeId;
+  }, [effectiveHomeId]);
 
   const navigate = useCallback(
     (next: Partial<typeof urlState>) => {
@@ -127,7 +138,6 @@ export function ResidentsDirectoryUI({
   const fetchResidents = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setResidents(null);
     const params = new URLSearchParams();
     if (effectiveHomeId) {
       params.set("homeId", effectiveHomeId);
@@ -317,17 +327,13 @@ export function ResidentsDirectoryUI({
       listTitle={null}
       loading={loading}
       error={error}
-      pagination={
-        residents != null
-          ? {
-              page: urlState.page,
-              pageSize: urlState.pageSize,
-              totalCount,
-              onPrevious: () => navigate({ page: urlState.page - 1 }),
-              onNext: () => navigate({ page: urlState.page + 1 }),
-            }
-          : undefined
-      }
+      pagination={{
+        page: urlState.page,
+        pageSize: urlState.pageSize,
+        totalCount,
+        onPrevious: () => navigate({ page: urlState.page - 1 }),
+        onNext: () => navigate({ page: urlState.page + 1 }),
+      }}
       paginationRangeTestId="residents-directory-range"
     >
       <table className="village-table" aria-label="Residents directory">
@@ -340,7 +346,16 @@ export function ResidentsDirectoryUI({
             <th className="village-th">Detail</th>
           </tr>
         </thead>
-        <tbody className="village-tbody">
+        <tbody
+          className={[
+            "village-tbody transition-opacity duration-150 motion-reduce:transition-none",
+            loading && residents != null
+              ? "pointer-events-none opacity-50"
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
           {!loading && residents && residents.length === 0 && totalCount === 0 ? (
             <VillageListEmpty
               colSpan={5}

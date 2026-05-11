@@ -7,6 +7,7 @@ import { getSessionOptions, type SessionData } from "@/lib/session";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { DashboardDetailRouteSkeleton } from "@/components/VillageListSkeleton";
 import { Suspense } from "react";
 import { LedgerPageUI } from "./LedgerPageUI";
 
@@ -39,13 +40,7 @@ export default async function HomeLedgerPage({ params }: PageParams) {
   }
 
   return (
-    <Suspense
-      fallback={
-        <main className="flex flex-col gap-8 text-ink">
-          <p className="text-sm text-ink/70">Loading ledger…</p>
-        </main>
-      }
-    >
+    <Suspense fallback={<DashboardDetailRouteSkeleton />}>
       <LedgerPageUI
         homeId={homeId}
         homeName={home.name}

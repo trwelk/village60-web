@@ -144,12 +144,13 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
   }, [selectedHomeId]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadCategories();
-    void loadItems();
+    setItems([]);
     setEditingId(null);
     setCategoryFilterId("");
     setCatalogSearch("");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadCategories();
+    void loadItems();
   }, [loadCategories, loadItems]);
 
   const closeCreateItemModal = useCallback(() => {
@@ -428,7 +429,16 @@ export function HomeItemCatalogClient({ homes, selectedHomeId }: Props) {
             </div>
           ) : null}
           {items.length > 0 && filteredItems.length > 0 ? (
-            <div className="overflow-x-auto">
+            <div
+              className={[
+                "overflow-x-auto",
+                loading
+                  ? "pointer-events-none opacity-50 transition-opacity duration-150 motion-reduce:transition-none"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">

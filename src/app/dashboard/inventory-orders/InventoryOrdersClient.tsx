@@ -168,6 +168,7 @@ export function InventoryOrdersClient({
 
   useEffect(() => {
     queueMicrotask(() => {
+      setOrders([]);
       void loadOrders();
 
       void loadSuppliers();
@@ -405,7 +406,16 @@ export function InventoryOrdersClient({
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-b-3xl">
+            <div
+              className={[
+                "overflow-x-auto rounded-b-3xl",
+                loading && filteredOrders.length > 0
+                  ? "pointer-events-none opacity-50 transition-opacity duration-150 motion-reduce:transition-none"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <table
                 aria-label="Inventory purchase orders"
                 className="min-w-full border-collapse text-left text-sm"

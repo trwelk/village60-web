@@ -6,6 +6,15 @@ import { type ReactNode, useState } from "react";
 // FilterToggle (internal)
 // ---------------------------------------------------------------------------
 
+function ListLoadingSpinner() {
+  return (
+    <span
+      className="inline-block size-3.5 shrink-0 animate-spin rounded-full border-2 border-[color:color-mix(in_srgb,var(--text-muted)_35%,transparent)] border-t-[var(--accent-strong)]"
+      aria-hidden
+    />
+  );
+}
+
 function FilterToggle({
   open,
   onClick,
@@ -176,13 +185,13 @@ type VillageListProps = {
    */
   activeFilterCount?: number;
   /**
-   * Heading for the list section.
-   * When `loading` is true this is replaced by "Loading…".
-   * Pass `null` to hide the heading entirely.
+   * Heading for the list section. When `loading` is true a small spinner is
+   * shown next to the title (title stays visible). Pass `null` to hide the
+   * heading; while loading without a title, a spinner row is still shown.
    * Defaults to "Directory".
    */
   listTitle?: string | null;
-  /** While true: sets `aria-busy` on the list section and shows "Loading…". */
+  /** While true: `aria-busy` on the list section, spinner by the title (when set), disabled pagination, and a subtle loading shimmer over the table body. */
   loading?: boolean;
   /** When set, renders a `village-alert-error` banner above the list section. */
   error?: string | null;
@@ -282,13 +291,23 @@ export function VillageList({
 
       {/* List / table section */}
       <section aria-busy={loading} className="village-region p-5 sm:p-6">
-        {loading ? (
-          <h2 className="village-section-title">Loading&hellip;</h2>
-        ) : listTitle ? (
-          <h2 className="village-section-title">{listTitle}</h2>
+        {listTitle ? (
+          <h2 className="village-section-title flex flex-wrap items-center gap-2">
+            <span>{listTitle}</span>
+            {loading ? <ListLoadingSpinner /> : null}
+          </h2>
+        ) : loading ? (
+          <div
+            className="village-section-title flex items-center gap-2"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="sr-only">Loading</span>
+            <ListLoadingSpinner />
+          </div>
         ) : null}
 
-        {!loading && pagination != null ? (
+        {pagination != null ? (
           <VillageListPagination
             {...pagination}
             loading={loading}
@@ -297,7 +316,22 @@ export function VillageList({
         ) : null}
 
         {wrapBody === "table" ? (
-          <div className="village-table-wrap mt-4">{children}</div>
+          <div
+            className={[
+              "village-table-wrap mt-4",
+              loading ? "relative" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {children}
+            {loading ? (
+              <span
+                className="village-list-body-loading-overlay"
+                aria-hidden
+              />
+            ) : null}
+          </div>
         ) : (
           children
         )}
