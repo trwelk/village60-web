@@ -3,66 +3,33 @@ import { ValidationError } from "@/lib/homes/errors";
 import { parseCreateIntakeLine } from "./otherChargeIntake";
 
 describe("parseCreateIntakeLine (17c)", () => {
-  const adm = "2025-06-01";
-
-  it("accepts zero amount and not received without paid on", () => {
+  it("accepts zero amount", () => {
     expect(
       parseCreateIntakeLine(
         "registration",
-        { amountMinor: 0, received: false },
-        adm,
+        { amountMinor: 0 },
       ),
     ).toEqual({
       amountMinor: 0,
-      received: false,
-      paidOn: null,
     });
   });
 
-  it("defaults paid on to admission date when received and paid on omitted", () => {
+  it("accepts positive amount", () => {
     expect(
       parseCreateIntakeLine(
         "deposit",
-        { amountMinor: 100, received: true },
-        adm,
+        { amountMinor: 100 },
       ),
     ).toEqual({
       amountMinor: 100,
-      received: true,
-      paidOn: "2025-06-01",
     });
   });
 
-  it("uses explicit paid on when received", () => {
-    expect(
-      parseCreateIntakeLine(
-        "registration",
-        { amountMinor: 50, received: true, paidOn: "2024-12-31" },
-        adm,
-      ),
-    ).toEqual({
-      amountMinor: 50,
-      received: true,
-      paidOn: "2024-12-31",
-    });
-  });
-
-  it("rejects paid on when not received", () => {
+  it("rejects negative amount", () => {
     expect(() =>
       parseCreateIntakeLine(
         "deposit",
-        { amountMinor: 0, received: false, paidOn: "2024-01-01" },
-        adm,
-      ),
-    ).toThrow(ValidationError);
-  });
-
-  it("rejects explicit null paid on when received", () => {
-    expect(() =>
-      parseCreateIntakeLine(
-        "registration",
-        { amountMinor: 0, received: true, paidOn: null },
-        adm,
+        { amountMinor: -100 },
       ),
     ).toThrow(ValidationError);
   });

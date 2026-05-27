@@ -13,7 +13,7 @@ import {
 import { VillageSelect } from "@/components/VillageSelect";
 import { useCallback, useState } from "react";
 
-type LeadsFunnelBoardProps = {
+type WaitingListFunnelBoardProps = {
   leads: AdminInterestLeadListItem[];
   submittedFmt: Intl.DateTimeFormat;
   statusSavingId: string | null;
@@ -37,12 +37,12 @@ const FUNNEL_STATUS_OPTIONS = INTEREST_LEAD_STATUSES.map((s) => ({
   label: INTEREST_LEAD_STATUS_LABELS[s],
 }));
 
-export function LeadsFunnelBoard({
+export function WaitingListFunnelBoard({
   leads,
   submittedFmt,
   statusSavingId,
   onStatusChange,
-}: LeadsFunnelBoardProps) {
+}: WaitingListFunnelBoardProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropHoverStatus, setDropHoverStatus] =
     useState<KanbanStageStatus | null>(null);
@@ -114,7 +114,7 @@ export function LeadsFunnelBoard({
             <ul className="flex min-h-[12rem] flex-col gap-2 lg:min-h-[14rem]">
               {columnLeads.length === 0 ? (
                 <li className="rounded-xl border border-dashed border-[color-mix(in_srgb,var(--line-subtle)_92%,transparent)] px-3 py-8 text-center text-xs text-ink/45">
-                  Drop leads here
+                  Drop enquiries here
                 </li>
               ) : (
                 columnLeads.map((row) => (

@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { assertActorMayAccessHome } from "@/lib/authz/homeScope";
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import type { SessionUserRole } from "@/lib/session";
-import { homes, wards } from "@/db/schema";
+import { homes, residents, wards } from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
 import {
   ForbiddenError,
@@ -120,6 +120,35 @@ export function createWard(
   };
   db.insert(wards).values(row).run();
   return toWardListItem(row, actor!.role);
+}
+
+/** Active resident counts by ward id for a home (wardId null omitted). */
+export function countActiveResidentsByWardId(
+  db: AppDb,
+  homeId: string,
+): Map<string, number> {
+  const rows = db
+    .select({ wardId: residents.wardId })
+    .from(residents)
+    .where(and(eq(residents.homeId, homeId), eq(residents.status, "active")))
+    .all();
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (row.wardId) {
+      counts.set(row.wardId, (counts.get(row.wardId) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+export function isWardAtCapacity(
+  bedCount: number | null,
+  occupied: number,
+): boolean {
+  if (bedCount == null || bedCount <= 0) {
+    return false;
+  }
+  return occupied >= bedCount;
 }
 
 export function listWardsForHome(

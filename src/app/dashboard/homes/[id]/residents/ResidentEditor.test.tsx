@@ -45,6 +45,26 @@ describe("ResidentEditor create wizard", () => {
     expect(onCloseCreate).toHaveBeenCalledTimes(1);
   });
 
+  it("blocks Next on a full ward", async () => {
+    render(
+      <ResidentEditor
+        mode="create"
+        homeId="h1"
+        homeName="Home A"
+        wards={[{ id: "w1", label: "North", isFull: true }]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Step\s*1\s*of\s*5/)).toBeInTheDocument();
+    });
+    await pickSelectOption("Ward", "North");
+    await userEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByText("Ward full.")).toBeInTheDocument();
+    expect(screen.getByText(/Step\s*1\s*of\s*5/)).toBeInTheDocument();
+  });
+
   it("moves through wizard steps and validates demographics", async () => {
     render(
       <ResidentEditor

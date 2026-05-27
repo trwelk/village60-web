@@ -14,9 +14,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { INVOICE_MODAL_PRIMARY_BTN_CLASS as MODAL_PRIMARY_BTN_CLASS } from "@/app/dashboard/invoices/invoiceModalStyles";
-import { LeadsFunnelBoard } from "./LeadsFunnelBoard";
+import { WaitingListFunnelBoard } from "./WaitingListFunnelBoard";
 
-type LeadsAdminUIProps = {
+type WaitingListAdminUIProps = {
   initialLeads: AdminInterestLeadListItem[];
   homes: PublicInterestHomeOption[];
   residentCountByHomeId: Record<string, number>;
@@ -53,11 +53,11 @@ async function parseError(res: Response): Promise<string> {
   return "Request failed.";
 }
 
-export function LeadsAdminUI({
+export function WaitingListAdminUI({
   initialLeads,
   homes,
   residentCountByHomeId,
-}: LeadsAdminUIProps) {
+}: WaitingListAdminUIProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [statusSavingId, setStatusSavingId] = useState<string | null>(null);
@@ -168,7 +168,7 @@ export function LeadsAdminUI({
         <h2 className="village-section-title">Growth snapshot</h2>
         <p className="mt-2 max-w-3xl text-sm text-ink/70">
           Active pipeline counts new plus contacted enquiries. Win rate compares
-          completed leads to all closed outcomes—use alongside occupancy when
+          completed enquiries to all closed outcomes—use alongside occupancy when
           talking revenue and fill.
         </p>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -284,12 +284,12 @@ export function LeadsAdminUI({
 
       <section className="village-card p-6 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="village-section-title mb-0">All leads</h2>
+          <h2 className="village-section-title mb-0">Waiting list</h2>
           <div className="flex flex-wrap items-center gap-2">
             <div
               className="inline-flex rounded-full border border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] bg-[color-mix(in_srgb,var(--bg-muted)_40%,transparent)] p-0.5"
               role="group"
-              aria-label="Lead list view"
+              aria-label="Waiting list view"
             >
               <button
                 type="button"
@@ -321,7 +321,7 @@ export function LeadsAdminUI({
               className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
               onClick={openCreateLeadModal}
             >
-              Create lead
+              Add to waiting list
             </button>
           </div>
         </div>
@@ -332,7 +332,7 @@ export function LeadsAdminUI({
         </p>
         {view === "pipeline" ? (
           <div className="mt-5">
-            <LeadsFunnelBoard
+            <WaitingListFunnelBoard
               leads={initialLeads}
               submittedFmt={submittedFmt}
               statusSavingId={statusSavingId}
@@ -360,7 +360,7 @@ export function LeadsAdminUI({
                       colSpan={7}
                       className="village-td-muted py-10 text-center"
                     >
-                      No leads yet.
+                      The waiting list is empty.
                     </td>
                   </tr>
                 ) : (
@@ -418,14 +418,14 @@ export function LeadsAdminUI({
               <button
                 type="button"
                 className="absolute inset-0 bg-[color:color-mix(in_srgb,var(--text-primary)_42%,transparent)] backdrop-blur-[2px]"
-                aria-label="Dismiss create lead dialog"
+                aria-label="Dismiss add to waiting list dialog"
                 onClick={closeCreateLeadModal}
               />
               <div
                 role="dialog"
                 aria-modal="true"
-                aria-labelledby="leads-create-modal-heading"
-                data-testid="leads-create-panel"
+                aria-labelledby="waiting-list-create-modal-heading"
+                data-testid="waiting-list-create-panel"
                 className="relative z-10 flex max-h-[min(calc(100dvh-env(safe-area-inset-bottom,0px)-0.75rem),52rem)] w-full min-h-0 max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-[color-mix(in_srgb,var(--line-strong)_50%,transparent)] bg-[color-mix(in_srgb,var(--bg-muted)_35%,var(--bg-elevated)_65%)] shadow-[0_-8px_40px_-12px_color-mix(in_srgb,var(--text-primary)_35%,transparent)] sm:max-h-[min(92dvh,56rem)] sm:rounded-2xl sm:shadow-[0_22px_60px_-24px_color-mix(in_srgb,var(--text-primary)_38%,transparent)]"
               >
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -438,13 +438,13 @@ export function LeadsAdminUI({
                           </div>
                           <div className="flex flex-col gap-1">
                             <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-terracotta">
-                              New interest lead
+                              New waiting list entry
                             </p>
                             <h2
-                              id="leads-create-modal-heading"
+                              id="waiting-list-create-modal-heading"
                               className="text-xl font-semibold tracking-tight text-pine-2"
                             >
-                              Capture a lead
+                              Add someone to the waiting list
                             </h2>
                             <p className="text-sm leading-6 text-ink/65">
                               Saves home and contact snapshots at submission; only
@@ -473,8 +473,8 @@ export function LeadsAdminUI({
                     {homes.length === 0 ? (
                       <div className="space-y-4 p-5 sm:p-6">
                         <p className="text-sm leading-relaxed text-ink/70">
-                          There are no active homes to attach to a lead. Restore or
-                          create a home first.
+                          There are no active homes to attach to a waiting list entry.
+                          Restore or create a home first.
                         </p>
                         <button
                           type="button"
@@ -486,20 +486,20 @@ export function LeadsAdminUI({
                       </div>
                     ) : (
                       <form
-                        id="leads-create-form"
+                        id="waiting-list-create-form"
                         className="grid gap-5 p-5 sm:p-6"
                         onSubmit={onCreateLead}
                       >
                         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                           <div className="flex flex-col gap-2">
                             <label
-                              htmlFor="lead-create-home"
+                              htmlFor="waiting-list-create-home"
                               className="village-label"
                             >
                               Home
                             </label>
                             <VillageSelect
-                              id="lead-create-home"
+                              id="waiting-list-create-home"
                               className="w-full min-w-0"
                               value={createHomeId}
                               onChange={setCreateHomeId}
@@ -513,13 +513,13 @@ export function LeadsAdminUI({
                           </div>
                           <div className="flex flex-col gap-2">
                             <label
-                              htmlFor="lead-create-name"
+                              htmlFor="waiting-list-create-name"
                               className="village-label"
                             >
                               Name
                             </label>
                             <input
-                              id="lead-create-name"
+                              id="waiting-list-create-name"
                               className="village-input min-w-0"
                               value={createName}
                               onChange={(e) => setCreateName(e.target.value)}
@@ -529,13 +529,13 @@ export function LeadsAdminUI({
                           </div>
                           <div className="flex flex-col gap-2">
                             <label
-                              htmlFor="lead-create-phone"
+                              htmlFor="waiting-list-create-phone"
                               className="village-label"
                             >
                               Phone
                             </label>
                             <input
-                              id="lead-create-phone"
+                              id="waiting-list-create-phone"
                               className="village-input min-w-0"
                               type="tel"
                               value={createPhone}
@@ -546,13 +546,13 @@ export function LeadsAdminUI({
                           </div>
                           <div className="flex flex-col gap-2">
                             <label
-                              htmlFor="lead-create-email"
+                              htmlFor="waiting-list-create-email"
                               className="village-label"
                             >
                               Email (optional)
                             </label>
                             <input
-                              id="lead-create-email"
+                              id="waiting-list-create-email"
                               className="village-input min-w-0"
                               type="email"
                               value={createEmail}
@@ -563,13 +563,13 @@ export function LeadsAdminUI({
                         </div>
                         <div className="flex flex-col gap-2">
                           <label
-                            htmlFor="lead-create-note"
+                            htmlFor="waiting-list-create-note"
                             className="village-label"
                           >
                             Notes (optional)
                           </label>
                           <textarea
-                            id="lead-create-note"
+                            id="waiting-list-create-note"
                             className="village-input mt-2 min-h-28 resize-y"
                             value={createNote}
                             onChange={(e) => setCreateNote(e.target.value)}
@@ -578,12 +578,12 @@ export function LeadsAdminUI({
                         </div>
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                           <button
-                            form="leads-create-form"
+                            form="waiting-list-create-form"
                             type="submit"
                             className={MODAL_PRIMARY_BTN_CLASS}
                             disabled={createPending}
                           >
-                            {createPending ? "Saving…" : "Save lead"}
+                            {createPending ? "Saving…" : "Save"}
                           </button>
                           {error ? (
                             <p className="text-sm font-medium text-terracotta">

@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { DepartResidentModal } from "./DepartResidentModal";
 
-type WardOption = { id: string; label: string };
+type WardOption = { id: string; label: string; isFull?: boolean };
 
 type ResidentInitial = ResidentPublic;
 
@@ -170,6 +170,8 @@ export function ResidentEditor({
         return "This home has no wards. Add a ward before admitting a resident.";
       }
       if (!wardId.trim()) return "Select a ward before continuing.";
+      const selectedWard = wards.find((w) => w.id === wardId);
+      if (selectedWard?.isFull) return "Ward full.";
     }
     if (step === "contacts") {
       if (!nokName.trim()) return "Next of kin name is required.";

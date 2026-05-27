@@ -42,7 +42,7 @@ export type LeadGrowthSnapshot = {
   pipelineTotal: number;
   closedWon: number;
   cancelledLost: number;
-  /** `closed` ÷ (`closed` + `cancelled`); null when there are no terminal leads. */
+  /** `closed` ÷ (`closed` + `cancelled`); null when there are no terminal enquiries. */
   winRatePercent: number | null;
   homeRows: LeadGrowthHomeRow[];
 };

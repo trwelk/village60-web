@@ -40,6 +40,7 @@ type PoLine = {
   quantityReceivedBaseUnits: number;
   status: string;
   totalReceivedCents: number;
+  invoiceId: string | null;
 };
 type ItemOption = { id: string; name: string; baseUnit: string };
 
@@ -86,7 +87,7 @@ export function PurchaseOrderDetailClient({
   const router = useRouter();
   const { setHomeBreadcrumbs } = useDashboardWayfinding();
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [lines, setLines] = useState<PoLine[]>([]);
+  const [lines, setLines] = useState<(PoLine & { invoiceId: string | null })[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -549,6 +550,14 @@ export function PurchaseOrderDetailClient({
                     </td>
                     <td className="whitespace-nowrap px-5 py-2.5 text-right align-middle sm:px-6">
                       <div className="flex flex-wrap justify-end gap-1.5 sm:flex-nowrap">
+                        {line.invoiceId ? (
+                          <Link
+                            href={`/dashboard/invoices/${encodeURIComponent(line.invoiceId)}?homeId=${encodeURIComponent(selectedHomeId)}`}
+                            className="village-button village-button--compact"
+                          >
+                            View invoice
+                          </Link>
+                        ) : null}
                         {canReceive ? (
                           <button
                             type="button"
@@ -617,56 +626,58 @@ export function PurchaseOrderDetailClient({
               <div role="dialog" aria-modal="true" className="relative z-10 flex max-h-[min(calc(100dvh-env(safe-area-inset-bottom,0px)-0.75rem),52rem)] w-full min-h-0 max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-[color-mix(in_srgb,var(--line-strong)_50%,transparent)] bg-[color-mix(in_srgb,var(--bg-muted)_35%,var(--bg-elevated)_65%)] sm:max-h-[min(92dvh,56rem)] sm:rounded-2xl">
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                   <section className="village-card overflow-hidden border-0 p-0 shadow-none">
-                    <div className="border-b border-pine/10 bg-[linear-gradient(135deg,rgba(26,77,58,0.09),rgba(184,71,50,0.08)_48%,rgba(250,247,241,0.15))] px-5 py-5 sm:px-6">
+                    <div className="border-b border-[var(--line)] bg-[var(--bg-elevated)] px-5 py-5 sm:px-6">
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex max-w-2xl gap-4">
-                          <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pine text-cream"><Plus size={22} /></div>
+                          <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--bg-elevated)] shadow-sm"><Plus size={22} /></div>
                           <div>
-                            <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-terracotta">{activeOrder.poNumber}</p>
-                            <h2 className="text-xl font-semibold tracking-tight text-pine-2">Add purchase order line</h2>
+                            <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-[var(--accent)]">{activeOrder.poNumber}</p>
+                            <h2 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">Add purchase order line</h2>
                           </div>
                         </div>
-                        <button type="button" className={MODAL_CLOSE_BTN_CLASS} onClick={() => setAddLineModalOpen(false)}>Close</button>
+                        <button type="button" className="rounded-full border border-[var(--line-strong)] bg-transparent px-4 py-1.5 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-muted)]" onClick={() => setAddLineModalOpen(false)}>Close</button>
                       </div>
                     </div>
                     <form className="grid gap-5 p-5 sm:p-6" onSubmit={submitAddLine}>
-                      <label className="flex max-w-2xl flex-col gap-2">
-                        <span className="village-label">Item</span>
-                        <VillageSelect value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: `${i.name} (${i.baseUnit})` }))} />
-                      </label>
-                      <label className="flex max-w-2xl flex-col gap-2">
-                        <span className="village-label">Purchase unit type</span>
-                        <input
-                          className="village-input min-w-0"
-                          value={purchaseUnitType}
-                          onChange={(e) => setPurchaseUnitType(e.target.value)}
-                          placeholder="e.g. bottle, box, tablet"
-                          required
-                          autoComplete="off"
-                        />
-                        <span className="text-xs font-normal leading-snug text-[var(--text-muted)]">
-                          How the supplier expresses this quantity (defaults to this item&apos;s base unit).
-                        </span>
-                      </label>
-                      <label className="flex max-w-xs flex-col gap-2">
-                        <span className="village-label">Owner type</span>
-                        <VillageSelect value={ownerType} onChange={(v) => { const next = v as "HOME" | "RESIDENT"; setOwnerType(next); setOwnerId(""); setResidentSearch(""); setResidentPickOpen(false); }} options={[{ value: "HOME", label: "HOME" }, { value: "RESIDENT", label: "RESIDENT" }]} />
-                      </label>
-                      {ownerType === "HOME" ? (
-                        <label className="flex max-w-2xl flex-col gap-2">
-                          <span className="village-label">Owner (home)</span>
-                          <input className="village-input min-w-0" readOnly value={selectedHomeName} />
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <label className="flex min-w-0 flex-col gap-2">
+                          <span className="village-label">Item</span>
+                          <VillageSelect value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: `${i.name} (${i.baseUnit})` }))} />
                         </label>
-                      ) : (
-                        <div className="flex max-w-2xl flex-col gap-2">
-                          <label className="flex flex-col gap-2">
+                        <label className="flex min-w-0 flex-col gap-2">
+                          <span className="village-label">Purchase unit type</span>
+                          <input
+                            className="village-input min-w-0"
+                            value={purchaseUnitType}
+                            onChange={(e) => setPurchaseUnitType(e.target.value)}
+                            placeholder="e.g. bottle, box, tablet"
+                            required
+                            autoComplete="off"
+                          />
+                          <span className="text-xs font-normal leading-snug text-[var(--text-muted)]">
+                            How the supplier expresses this quantity (defaults to this item&apos;s base unit).
+                          </span>
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <label className="flex min-w-0 flex-col gap-2">
+                          <span className="village-label">Owner type</span>
+                          <VillageSelect value={ownerType} onChange={(v) => { const next = v as "HOME" | "RESIDENT"; setOwnerType(next); setOwnerId(""); setResidentSearch(""); setResidentPickOpen(false); }} options={[{ value: "HOME", label: "HOME" }, { value: "RESIDENT", label: "RESIDENT" }]} />
+                        </label>
+                        {ownerType === "HOME" ? (
+                          <label className="flex min-w-0 flex-col gap-2">
+                            <span className="village-label">Owner (home)</span>
+                            <input className="village-input min-w-0" readOnly value={selectedHomeName} />
+                          </label>
+                        ) : (
+                          <label className="flex min-w-0 flex-col gap-2">
                             <span className="village-label">Resident</span>
                             <div ref={residentPickerRef} className="relative">
                               <input ref={residentInputRef} className="village-input min-w-0" placeholder="Search by name..." value={residentSearch} onChange={(e) => { setResidentSearch(e.target.value); setOwnerId(""); setResidentPickOpen(true); }} onFocus={() => { setResidentPickOpen(true); void fetchResidentsForPicker(residentSearch); }} />
                             </div>
                           </label>
-                        </div>
-                      )}
+                        )}
+                      </div>
                       <label className="flex max-w-xs flex-col gap-2">
                         <span className="village-label">Qty ordered</span>
                         <input className="village-input min-w-0" value={quantity} onChange={(e) => setQuantity(e.target.value)} required inputMode="decimal" />
@@ -735,13 +746,16 @@ export function PurchaseOrderDetailClient({
               <div role="dialog" aria-modal="true" className="relative z-10 flex max-h-[min(calc(100dvh-env(safe-area-inset-bottom,0px)-0.75rem),52rem)] w-full min-h-0 max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-[color-mix(in_srgb,var(--line-strong)_50%,transparent)] bg-[color-mix(in_srgb,var(--bg-muted)_35%,var(--bg-elevated)_65%)] sm:max-h-[min(92dvh,56rem)] sm:rounded-2xl">
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                   <section className="village-card overflow-hidden border-0 p-0 shadow-none">
-                    <div className="border-b border-pine/10 bg-[linear-gradient(135deg,rgba(26,77,58,0.09),rgba(184,71,50,0.08)_48%,rgba(250,247,241,0.15))] px-5 py-5 sm:px-6">
+                    <div className="border-b border-[var(--line)] bg-[var(--bg-elevated)] px-5 py-5 sm:px-6">
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-terracotta">{activeOrder.poNumber}</p>
-                          <h2 className="text-xl font-semibold tracking-tight text-pine-2">Receive inventory line</h2>
+                        <div className="flex max-w-2xl gap-4">
+                          <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent)] text-[var(--bg-elevated)] shadow-sm"><PackagePlus size={22} /></div>
+                          <div>
+                            <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-[var(--accent)]">{activeOrder.poNumber}</p>
+                            <h2 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">Receive inventory line</h2>
+                          </div>
                         </div>
-                        <button type="button" className={MODAL_CLOSE_BTN_CLASS} onClick={() => setReceiveModalOpen(false)}>Close</button>
+                        <button type="button" className="rounded-full border border-[var(--line-strong)] bg-transparent px-4 py-1.5 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-muted)]" onClick={() => setReceiveModalOpen(false)}>Close</button>
                       </div>
                     </div>
                     <form className="grid gap-5 p-5 sm:p-6" onSubmit={receiveLine}>

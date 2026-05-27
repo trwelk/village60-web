@@ -82,8 +82,16 @@ export function NavigationProgress() {
 
   useEffect(() => {
     const onPop = () => {
+      // History entry is already applied when popstate fires. Next.js often
+      // updates pathname/search before this event, so the routeKey effect may
+      // not run again — finish explicitly or the bar stays stuck on "running".
+      const nextKey = `${window.location.pathname}${window.location.search}`;
+      routeKeyRef.current = nextKey;
       setAnimKey((k) => k + 1);
       setPhase("running");
+      queueMicrotask(() => {
+        setPhase((p) => (p === "running" ? "finishing" : p));
+      });
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);

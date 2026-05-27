@@ -367,29 +367,43 @@ export function listHomeMonthlyPaymentsLedger(
     )
     .orderBy(desc(billingPayments.receivedOn))
     .all()
-    .filter((r) => !r.txn.memo?.startsWith("other-charge:"))
     .map((r) => {
-      const chargeId =
-        r.txn.memo?.startsWith("charge:")
-          ? r.txn.memo.slice("charge:".length)
+      const paidMonthFallback = utcCalendarDateIsoFromUtcMs(r.p.receivedOn).slice(0, 7);
+      let chargeId: string | null = null;
+      let billingMonth = paidMonthFallback;
+      let amountMinorSnapshot: number | undefined;
+
+      if (r.txn.memo?.startsWith("other-charge:")) {
+        chargeId = r.txn.memo.slice("other-charge:".length);
+        const lineItem = db
+          .select()
+          .from(invoiceLineItems)
+          .where(eq(invoiceLineItems.id, chargeId))
+          .get();
+        const invoice = lineItem
+          ? db.select().from(invoices).where(eq(invoices.id, lineItem.invoiceId)).get()
           : null;
-      const charge = chargeId
-        ? db
-            .select()
-            .from(billingTransactions)
-            .where(eq(billingTransactions.id, chargeId))
-            .get()
-        : null;
-      const invoice = charge?.sourceId
-        ? db.select().from(invoices).where(eq(invoices.id, charge.sourceId)).get()
-        : null;
+        billingMonth = invoice?.issuedOn?.slice(0, 7) ?? paidMonthFallback;
+        amountMinorSnapshot = lineItem?.amountMinor;
+      } else if (r.txn.memo?.startsWith("charge:")) {
+        chargeId = r.txn.memo.slice("charge:".length);
+        const charge = db
+          .select()
+          .from(billingTransactions)
+          .where(eq(billingTransactions.id, chargeId))
+          .get();
+        const invoice = charge?.sourceId
+          ? db.select().from(invoices).where(eq(invoices.id, charge.sourceId)).get()
+          : null;
+        billingMonth = invoice?.issuedOn?.slice(0, 7) ?? paidMonthFallback;
+        amountMinorSnapshot = charge?.amountMinor;
+      }
+
       return {
         paymentId: r.p.id,
         chargeId: chargeId ?? r.txn.id,
-        billingMonth:
-          invoice?.issuedOn?.slice(0, 7) ??
-          utcCalendarDateIsoFromUtcMs(r.p.receivedOn).slice(0, 7),
-        amountMinorSnapshot: charge?.amountMinor,
+        billingMonth,
+        amountMinorSnapshot,
         residentId: r.resident.id,
         residentFullName: r.resident.fullName,
         residentStatus: r.resident.status,

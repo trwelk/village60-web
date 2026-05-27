@@ -1,38 +1,6 @@
-import { getDb } from "@/db/client";
-import { listResidentsPerHomeChart } from "@/lib/dashboard/charts";
-import {
-  listInterestLeadsForAdmin,
-  listPublicInterestHomes,
-} from "@/lib/homeInterestLeads/service";
-import { getSessionOptions, type SessionData } from "@/lib/session";
-import { getIronSession } from "iron-session";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { LeadsAdminUI } from "./LeadsAdminUI";
 
-export default async function DashboardLeadsPage() {
-  const session = await getIronSession<SessionData>(
-    await cookies(),
-    getSessionOptions(),
-  );
-  if (!session.userId) {
-    redirect("/login");
-  }
-  if (session.role !== "admin") {
-    redirect("/dashboard");
-  }
-  const db = getDb();
-  const leads = listInterestLeadsForAdmin(db, session.role);
-  const homes = listPublicInterestHomes(db);
-  const residentsPerHome = listResidentsPerHomeChart(db);
-  const residentCountByHomeId = Object.fromEntries(
-    residentsPerHome.map((r) => [r.homeId, r.residentCount]),
-  );
-  return (
-    <LeadsAdminUI
-      initialLeads={leads}
-      homes={homes}
-      residentCountByHomeId={residentCountByHomeId}
-    />
-  );
+/** Old URL — canonical route is `/dashboard/waiting-list`. */
+export default function DashboardLeadsRedirectPage() {
+  redirect("/dashboard/waiting-list");
 }

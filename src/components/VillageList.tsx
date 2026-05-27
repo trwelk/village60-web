@@ -273,7 +273,7 @@ export function VillageList({
             className={
               showFilterCollapsible
                 ? "flex min-w-0 flex-1 flex-wrap items-center justify-end gap-3"
-                : "ml-auto flex flex-wrap items-center gap-3"
+                : "flex min-w-0 w-full flex-1 flex-wrap items-center gap-3"
             }
           >
             {toolbar}

@@ -103,7 +103,9 @@ describe("DashboardAppShell", () => {
       "/dashboard/tasks",
     );
     expect(rail.queryByRole("link", { name: "Staff" })).not.toBeInTheDocument();
-    expect(rail.queryByRole("link", { name: "Leads" })).not.toBeInTheDocument();
+    expect(
+      rail.queryByRole("link", { name: "Waiting list" }),
+    ).not.toBeInTheDocument();
   });
 
   it("admin sees Analytics sub‑nav links in the desktop rail", () => {
@@ -154,8 +156,8 @@ describe("DashboardAppShell", () => {
       within(mainNav).getByRole("button", { name: "Organization" }),
     );
     expect(
-      within(mainNav).getByRole("link", { name: "Leads" }),
-    ).toHaveAttribute("href", "/dashboard/leads");
+      within(mainNav).getByRole("link", { name: "Waiting list" }),
+    ).toHaveAttribute("href", "/dashboard/waiting-list");
   });
 
   it("care user sees Operations group with Residents, Tasks, and homes", () => {

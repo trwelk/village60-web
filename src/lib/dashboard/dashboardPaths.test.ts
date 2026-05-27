@@ -92,6 +92,7 @@ describe("existing path predicates are unaffected", () => {
 
   it("isDashboardResidentsPath still works", () => {
     expect(isDashboardResidentsPath("/dashboard/residents")).toBe(true);
+    expect(isDashboardResidentsPath("/dashboard/residents/new")).toBe(true);
     expect(isDashboardResidentsPath("/dashboard/analytics")).toBe(false);
   });
 

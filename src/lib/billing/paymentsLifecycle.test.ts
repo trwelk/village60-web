@@ -520,4 +520,81 @@ describe("payments lifecycle + statement", () => {
     expect(ledger.rows[0]?.amountMinor).toBe(77500);
     expect(ledger.rows[0]?.billingMonth).toBe("2026-05");
   });
+
+  it("includes registration/deposit other-charge payments in the home monthly payments ledger", () => {
+    const db = getDb();
+    const { homeId, accountId } = seedBillingAccount(db);
+    const now = Date.now();
+    const invoiceId = randomUUID();
+    const lineItemId = randomUUID();
+    const paymentId = randomUUID();
+    const txnId = randomUUID();
+    const receivedOnUtcMs = calendarDateIsoToUtcMs("2026-05-27");
+
+    db.insert(invoices)
+      .values({
+        id: invoiceId,
+        accountId,
+        homeId,
+        invNo: "INV-DEPOSIT",
+        purchaseOrderId: null,
+        status: "draft",
+        issuedOn: "2026-05-01",
+        totalMinorSnapshot: null,
+        createdAtUtcMs: now,
+        updatedAtUtcMs: now,
+      })
+      .run();
+    db.insert(invoiceLineItems)
+      .values({
+        id: lineItemId,
+        invoiceId,
+        category: "deposit",
+        description: "deposit charge",
+        amountMinor: 4500000,
+        serviceMonth: null,
+        quantity: 1,
+        createdAtUtcMs: now,
+        updatedAtUtcMs: now,
+      })
+      .run();
+    db.insert(billingTransactions)
+      .values({
+        id: txnId,
+        accountId,
+        accountType: "resident",
+        txnType: "payment",
+        amountMinor: -4500000,
+        sourceKind: "payment",
+        sourceId: paymentId,
+        memo: `other-charge:${lineItemId}`,
+        recordedByUserId: adminActor.userId,
+        postedAtUtcMs: receivedOnUtcMs,
+      })
+      .run();
+    db.insert(billingPayments)
+      .values({
+        id: paymentId,
+        accountId,
+        amountMinor: 4500000,
+        receivedOn: receivedOnUtcMs,
+        method: "manual",
+        externalReference: null,
+        notes: null,
+        recordedByUserId: adminActor.userId,
+        ledgerTransactionId: txnId,
+        updatedAtUtcMs: now,
+      })
+      .run();
+
+    const ledger = listHomeMonthlyPaymentsLedger(db, adminActor, homeId, {
+      page: 1,
+      pageSize: 25,
+    });
+    expect(ledger.totalCount).toBe(1);
+    expect(ledger.rows[0]?.amountMinor).toBe(4500000);
+    expect(ledger.rows[0]?.chargeId).toBe(lineItemId);
+    expect(ledger.rows[0]?.billingMonth).toBe("2026-05");
+    expect(ledger.rows[0]?.amountMinorSnapshot).toBe(4500000);
+  });
 });

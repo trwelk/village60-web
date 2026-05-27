@@ -147,9 +147,8 @@ export async function POST(req: Request, { params }: RouteParams) {
       registration: parseCreateIntakeLine(
         "registration",
         ocRec.registration,
-        admissionDate,
       ),
-      deposit: parseCreateIntakeLine("deposit", ocRec.deposit, admissionDate),
+      deposit: parseCreateIntakeLine("deposit", ocRec.deposit),
     };
   } catch (e) {
     const resp = homesErrorResponse(e);

@@ -350,27 +350,13 @@ function OverviewTab({
     },
   ].filter((r) => r.amountMinor > 0);
 
-  const invoiceDraftTotal = financial.invoiceVolumeByStatusMonth.reduce(
-    (s, m) => s + m.draftMinor,
+  const paidInvoiceCategoriesData = financial.paidInvoiceCategories.filter(
+    (r) => r.amountMinor > 0,
+  );
+  const paidInvoiceTotalMinor = paidInvoiceCategoriesData.reduce(
+    (s, r) => s + r.amountMinor,
     0,
   );
-  const invoiceFinalizedTotal = financial.invoiceVolumeByStatusMonth.reduce(
-    (s, m) => s + m.finalizedMinor,
-    0,
-  );
-  const invoiceStatusPieData = [
-    {
-      label: "Draft",
-      amountMinor: invoiceDraftTotal,
-      fill: FIN_CHART.invoiceDraft,
-    },
-    {
-      label: "Finalized",
-      amountMinor: invoiceFinalizedTotal,
-      fill: FIN_CHART.invoiceFinalized,
-    },
-  ].filter((r) => r.amountMinor > 0);
-  const invoiceIssuedTotalMinor = invoiceDraftTotal + invoiceFinalizedTotal;
 
   return (
     <>
@@ -582,16 +568,16 @@ function OverviewTab({
         </ChartCard>
 
         <ChartCard
-          title="Invoice totals by status"
-          subtitle="Draft vs finalized snapshot totals on invoices issued in this period (aggregated)."
+          title="Paid invoice revenue by category"
+          subtitle="Grouped by line item category for paid invoices in this period."
         >
           <div className="relative mt-4 h-[280px] w-full min-w-0">
-            {invoiceStatusPieData.length > 0 ? (
+            {paidInvoiceCategoriesData.length > 0 ? (
               <>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={invoiceStatusPieData}
+                      data={paidInvoiceCategoriesData}
                       dataKey="amountMinor"
                       nameKey="label"
                       cx="50%"
@@ -611,8 +597,15 @@ function OverviewTab({
                         stroke: "color-mix(in srgb, var(--line-strong) 45%, transparent)",
                       }}
                     >
-                      {invoiceStatusPieData.map((row, i) => (
-                        <Cell key={`inv-status-${i}`} fill={row.fill} />
+                      {paidInvoiceCategoriesData.map((row, i) => (
+                        <Cell
+                          key={`paid-cat-${i}`}
+                          fill={
+                            FIN_CHART.categoryCycle[
+                              i % FIN_CHART.categoryCycle.length
+                            ]!
+                          }
+                        />
                       ))}
                     </Pie>
                     <Tooltip
@@ -625,10 +618,9 @@ function OverviewTab({
                           amountMinor: number;
                         };
                         const pct =
-                          invoiceIssuedTotalMinor > 0
+                          paidInvoiceTotalMinor > 0
                             ? Math.round(
-                                (p.amountMinor / invoiceIssuedTotalMinor) *
-                                  1000,
+                                (p.amountMinor / paidInvoiceTotalMinor) * 1000,
                               ) / 10
                             : 0;
                         return (
@@ -636,7 +628,7 @@ function OverviewTab({
                             <p className="font-semibold">{p.label}</p>
                             <p className="tabular-nums">{fmt(p.amountMinor)}</p>
                             <p className="mt-0.5 text-[var(--text-muted)]">
-                              {pct}% of issued invoice totals
+                              {pct}% of paid invoice totals
                             </p>
                           </div>
                         );
@@ -658,10 +650,10 @@ function OverviewTab({
                 >
                   <div className="text-center">
                     <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                      Issued total
+                      Paid total
                     </p>
                     <p className="text-base font-semibold tabular-nums text-[var(--text-primary)]">
-                      {fmt(invoiceIssuedTotalMinor)}
+                      {fmt(paidInvoiceTotalMinor)}
                     </p>
                   </div>
                 </div>
@@ -758,7 +750,7 @@ function RevenueTab({
     <>
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard
-          title="Finalized invoice revenue by category"
+          title="Unpaid invoice revenue by category"
           subtitle="Grouped by line item category"
         >
           <div className="mt-4 h-[280px] w-full min-w-0">
@@ -1024,7 +1016,7 @@ function ExpensesTab({
         <KpiCard
           label="Expense categories"
           value={String(byCategory.length)}
-          hint="Distinct line item categories on finalized home invoices"
+          hint="Distinct line item categories on finalized and paid home invoices"
         />
         <KpiCard
           label="Home receivables now"
@@ -1036,7 +1028,7 @@ function ExpensesTab({
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard
           title="Home expense by category"
-          subtitle="Finalized home-account invoice line items (issued in this period)"
+          subtitle="Finalized and paid home-account invoice line items (issued in this period)"
         >
           <div className="relative mt-4 h-[280px] w-full min-w-0">
             {byCategory.length > 0 ? (

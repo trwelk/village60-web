@@ -18,7 +18,7 @@ import {
   isDashboardInventoryCatalogPath,
   isDashboardInventoryOrdersPath,
   isDashboardInventorySuppliersPath,
-  isDashboardLeadsPath,
+  isDashboardWaitingListPath,
   isDashboardPaymentsPath,
   isDashboardHomeAccountPaymentsPath,
   isDashboardResidentsPath,
@@ -353,10 +353,10 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
             isActive: isDashboardUsersPath,
           },
           {
-            href: "/dashboard/leads",
-            label: "Leads",
+            href: "/dashboard/waiting-list",
+            label: "Waiting list",
             Icon: Inbox,
-            isActive: isDashboardLeadsPath,
+            isActive: isDashboardWaitingListPath,
           },
           {
             href: "/dashboard/admin/settings",

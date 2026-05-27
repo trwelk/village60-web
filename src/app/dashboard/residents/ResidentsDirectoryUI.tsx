@@ -195,8 +195,14 @@ export function ResidentsDirectoryUI({
     router.replace(`/dashboard/homes/${fixedHomeId}/residents/new`);
   }, [fixedHomeId, urlState.newResident, router]);
 
-  const showToolbar =
-    fixedHomeId != null || (role === "admin" && urlState.homeId !== "");
+  const addResidentHref =
+    fixedHomeId != null
+      ? null
+      : role === "admin"
+        ? urlState.homeId
+          ? `/dashboard/homes/${urlState.homeId}/residents/new`
+          : `/dashboard/residents/new`
+        : null;
 
   const activeFilterCount =
     (urlState.homeId && !fixedHomeId ? 1 : 0) +
@@ -209,30 +215,28 @@ export function ResidentsDirectoryUI({
       toolbar={
         <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-3">
-            {showToolbar ? (
-              fixedHomeId ? (
-                <>
-                  <Link
-                    href={`/dashboard/homes/${fixedHomeId}/residents/departed`}
-                    className="village-btn-secondary"
-                  >
-                    Departed residents
-                  </Link>
-                  <Link
-                    href={`/dashboard/homes/${fixedHomeId}/residents/new`}
-                    className="village-btn-primary inline-flex items-center justify-center"
-                  >
-                    Add resident
-                  </Link>
-                </>
-              ) : (
+            {fixedHomeId ? (
+              <>
                 <Link
-                  href={`/dashboard/homes/${urlState.homeId}/residents/new`}
+                  href={`/dashboard/homes/${fixedHomeId}/residents/departed`}
+                  className="village-btn-secondary"
+                >
+                  Departed residents
+                </Link>
+                <Link
+                  href={`/dashboard/homes/${fixedHomeId}/residents/new`}
                   className="village-btn-primary inline-flex items-center justify-center"
                 >
                   Add resident
                 </Link>
-              )
+              </>
+            ) : addResidentHref ? (
+              <Link
+                href={addResidentHref}
+                className="village-btn-primary inline-flex items-center justify-center"
+              >
+                Add resident
+              </Link>
             ) : null}
           </div>
           <button

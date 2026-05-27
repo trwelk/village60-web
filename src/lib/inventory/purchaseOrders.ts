@@ -12,6 +12,7 @@ import {
   inventorySuppliers,
   residents,
   users,
+  invoiceLineItems,
 } from "@/db/schema";
 import { createPurchaseOrderCloseInvoices } from "@/lib/billing/poCloseInvoices";
 import { assertActorMayAccessHome } from "@/lib/authz/homeScope";
@@ -486,7 +487,36 @@ export function getPurchaseOrderWithLines(
         ? homeOwnerName
         : (residentNameById.get(line.ownerId) ?? line.ownerId),
     totalReceivedCents: costByLineId.get(line.id) ?? 0,
+    invoiceId: null as string | null,
   }));
+
+  // Fetch invoice line items to map lines to invoices
+  if (po.status === "CLOSED" && lines.length > 0) {
+    const invoiceLines = db
+      .select({
+        purchaseOrderLineId: invoiceLineItems.purchaseOrderLineId,
+        invoiceId: invoiceLineItems.invoiceId,
+      })
+      .from(invoiceLineItems)
+      .where(
+        sql`${invoiceLineItems.purchaseOrderLineId} IN (${sql.join(
+          lines.map((l) => l.id),
+          sql`, `,
+        )})`
+      )
+      .all();
+    
+    const invoiceIdByLineId = new Map(
+      invoiceLines
+        .filter((l) => l.purchaseOrderLineId)
+        .map((l) => [l.purchaseOrderLineId!, l.invoiceId])
+    );
+    
+    for (const line of lines) {
+      line.invoiceId = invoiceIdByLineId.get(line.id) ?? null;
+    }
+  }
+
   const totalReceivedCents = receiveEventCosts.reduce((sum, r) => sum + r.totalReceivedCents, 0);
   return { po, lines, totalReceivedCents };
 }

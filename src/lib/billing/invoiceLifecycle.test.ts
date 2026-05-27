@@ -14,7 +14,12 @@ import { createHome } from "@/lib/homes/service";
 import { createResident } from "@/lib/residents/service";
 import { createWard } from "@/lib/wards/service";
 import { ensureHomeAccount } from "./homeAccounts";
-import { createDraftInvoice, finalizeInvoice, updateDraftInvoice } from "./invoiceLifecycle";
+import {
+  createDraftInvoice,
+  finalizeInvoice,
+  revertFinalizedInvoiceToDraft,
+  updateDraftInvoice,
+} from "./invoiceLifecycle";
 
 const adminActor = { userId: "admin-invoice", role: "admin" as const };
 
@@ -520,5 +525,100 @@ describe("invoice lifecycle: finalize", () => {
       .all()
       .filter((row) => row.memo === "Should roll back too" || row.memo === "Conflicting monthly fee");
     expect(postedForTarget).toHaveLength(0);
+  });
+});
+
+describe("invoice lifecycle: revert to draft", () => {
+  let dbPath: string;
+
+  beforeEach(() => {
+    dbPath = path.join(os.tmpdir(), `village60-invoice-revert-${randomUUID()}.sqlite`);
+    process.env.DATABASE_PATH = dbPath;
+    closeDbConnection();
+    runMigrations(dbPath);
+  });
+
+  afterEach(() => {
+    closeDbConnection();
+    try {
+      fs.unlinkSync(dbPath);
+    } catch {
+      // ignore
+    }
+  });
+
+  it("reverts a finalized invoice, removes posted charges, and allows draft edits", () => {
+    const db = getDb();
+    seedAdminUser(db, adminActor.userId);
+    const home = createHome(db, "admin", {
+      name: "Invoice Home",
+      defaultCurrencyCode: "NZD",
+    });
+    const ward = createWard(db, adminActor, home.id, {
+      label: "Revert Ward",
+      monthlyRatePerPersonMinor: 90000,
+    });
+    const resident = createResident(db, adminActor, {
+      homeId: home.id,
+      fullName: "Resident Revert",
+      dob: "1945-05-01",
+      admissionDate: "2025-01-01",
+      wardId: ward.id,
+    });
+    const now = Date.now();
+    const accountId = getOrCreateAccountId(db, resident.id, now);
+    const { invoiceId } = createDraftInvoice(db, adminActor, {
+      homeId: home.id,
+      accountId,
+      lineItems: [
+        {
+          category: "supplies",
+          description: "Supplies",
+          amountMinor: 5000,
+        },
+      ],
+      nowUtcMs: now,
+    });
+
+    finalizeInvoice(db, adminActor, {
+      homeId: home.id,
+      invoiceId,
+      finalizedAtUtcMs: now + 5000,
+    });
+    expect(
+      db.select().from(billingTransactions).where(eq(billingTransactions.accountId, accountId)).all(),
+    ).toHaveLength(1);
+
+    revertFinalizedInvoiceToDraft(db, adminActor, {
+      homeId: home.id,
+      invoiceId,
+      revertedAtUtcMs: now + 6000,
+    });
+
+    const invoice = db.select().from(invoices).where(eq(invoices.id, invoiceId)).get();
+    expect(invoice?.status).toBe("draft");
+    expect(invoice?.totalMinorSnapshot).toBeNull();
+    expect(
+      db.select().from(billingTransactions).where(eq(billingTransactions.accountId, accountId)).all(),
+    ).toHaveLength(0);
+
+    updateDraftInvoice(db, adminActor, {
+      homeId: home.id,
+      invoiceId,
+      lineItems: [
+        {
+          category: "supplies",
+          description: "Updated supplies",
+          amountMinor: 7500,
+        },
+      ],
+      nowUtcMs: now + 7000,
+    });
+    const line = db
+      .select()
+      .from(invoiceLineItems)
+      .where(eq(invoiceLineItems.invoiceId, invoiceId))
+      .get();
+    expect(line?.description).toBe("Updated supplies");
   });
 });

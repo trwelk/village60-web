@@ -21,6 +21,9 @@ import {
   ResidentDepartConflictError,
   ValidationError,
 } from "@/lib/homes/errors";
+import { applyCreateResidentOtherChargesIntake } from "@/lib/billing/otherCharges";
+import type { CreateResidentOtherChargesIntake } from "@/lib/billing/otherChargeIntake";
+import { isWardAtCapacity } from "@/lib/wards/service";
 
 export type ResidentRow = typeof residents.$inferSelect;
 
@@ -41,19 +44,7 @@ export type ResidentPublic = Omit<
 /** Alias used across dashboard tabs — same as {@link ResidentPublic}. */
 export type ResidentWithoutFee = ResidentPublic;
 
-/** Resolved registration + deposit lines for atomic create (17c). */
-export type CreateResidentOtherChargesIntake = {
-  registration: {
-    amountMinor: number;
-    received: boolean;
-    paidOn: string | null;
-  };
-  deposit: {
-    amountMinor: number;
-    received: boolean;
-    paidOn: string | null;
-  };
-};
+export type { CreateResidentOtherChargesIntake } from "@/lib/billing/otherChargeIntake";
 
 export function residentViewForActor(_actor: SessionActor, r: Resident): ResidentPublic {
   const {
@@ -166,6 +157,22 @@ function assertWardInHome(
   }
 }
 
+function assertWardHasCapacity(db: AppDb, wardId: string): void {
+  const ward = db.select().from(wards).where(eq(wards.id, wardId)).get();
+  if (!ward) {
+    return;
+  }
+  const occupied =
+    db
+      .select({ value: count() })
+      .from(residents)
+      .where(and(eq(residents.wardId, wardId), eq(residents.status, "active")))
+      .get()?.value ?? 0;
+  if (isWardAtCapacity(ward.bedCount, occupied)) {
+    throw new ValidationError("Ward full.");
+  }
+}
+
 function assertAssignedNurseInHome(
   db: AppDb,
   homeId: string,
@@ -212,7 +219,7 @@ export function createResident(
     poaRelationship?: string | null;
     assignedNurseUserId?: string | null;
     assignedNurseDisplayOverride?: string | null;
-    /** When set, `resident` and exactly two `other_charges` rows are inserted in one transaction (17c). */
+    /** When set, resident billing account + registration/deposit invoice lines (and payments) are inserted atomically (17c). */
     otherChargesIntake?: CreateResidentOtherChargesIntake;
   },
 ): Resident {
@@ -235,6 +242,9 @@ export function createResident(
       ? null
       : input.wardId;
   assertWardInHome(db, input.homeId, wardId);
+  if (wardId) {
+    assertWardHasCapacity(db, wardId);
+  }
 
   const dup = findDuplicate(db, input.homeId, dob, normalizedFullName);
   if (dup) {
@@ -318,9 +328,10 @@ export function createResident(
 
   db.transaction((tx) => {
     tx.insert(residents).values(row).run();
+    const accountId = randomUUID();
     tx.insert(accounts)
       .values({
-        id: randomUUID(),
+        id: accountId,
         accountType: "resident",
         residentId: id,
         homeId: null,
@@ -329,6 +340,16 @@ export function createResident(
         updatedAtUtcMs: now,
       })
       .run();
+    if (input.otherChargesIntake) {
+      applyCreateResidentOtherChargesIntake(
+        tx,
+        actor,
+        input.homeId,
+        accountId,
+        input.otherChargesIntake,
+        now,
+      );
+    }
   });
   return mergeResident(row, undefined);
 }

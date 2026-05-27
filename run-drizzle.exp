@@ -1,0 +1,14 @@
+#!/usr/bin/expect -f
+set timeout -1
+spawn npx drizzle-kit generate --name add_po_line_to_invoice_line
+expect {
+  "Is accounts table created or renamed" {
+    send "\r"
+    exp_continue
+  }
+  "Is" {
+    send "\r"
+    exp_continue
+  }
+  eof
+}

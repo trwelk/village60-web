@@ -3,8 +3,6 @@ import { and, eq } from "drizzle-orm";
 import { assertActorMayAccessHome } from "@/lib/authz/homeScope";
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import {
-  billingPayments,
-  billingTransactions,
   homes,
   invoiceLineItems,
   invoices,
@@ -16,37 +14,24 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/erro
 import { getResident } from "@/lib/residents/service";
 import { bumpInvNumberSequence } from "@/lib/billing/invoiceNumbers";
 import { utcDateOnlyFromMs } from "@/lib/billing/billingMonth";
-import { calendarDateIsoToUtcMs } from "@/lib/billing/receivedOnUtcMs";
+import type { CreateResidentOtherChargesIntake } from "@/lib/billing/otherChargeIntake";
 
 export const OTHER_CHARGE_TYPES = ["registration", "deposit"] as const;
 export type OtherChargeType = (typeof OTHER_CHARGE_TYPES)[number];
-
-export const RECORDED_OTHER_CHARGE_MESSAGE = "paidOn must be YYYY-MM-DD.";
 
 export type ResidentOtherChargeListItem = {
   id: string;
   residentId: string;
   type: OtherChargeType;
   amountMinor: number;
-  received: boolean;
-  paidOn: string | null;
 };
 
 export type OtherChargeUpdatePatch = {
   amountMinor?: number;
-  received?: boolean;
-  paidOn?: string | null;
-  hasPaidOnKey?: boolean;
 };
 
 function requireBillingAdmin(actor: SessionActor | undefined): asserts actor is SessionActor {
   if (!actor || actor.role !== "admin") throw new ForbiddenError();
-}
-
-function parseIsoDate(raw: string): string {
-  const s = raw.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new ValidationError(RECORDED_OTHER_CHARGE_MESSAGE);
-  return s;
 }
 
 function accountForResident(db: AppDb, residentId: string) {
@@ -59,15 +44,6 @@ function accountForResident(db: AppDb, residentId: string) {
   return account;
 }
 
-function paymentForLineItem(db: AppDb, lineItemId: string) {
-  return db
-    .select({ payment: billingPayments, txn: billingTransactions })
-    .from(billingPayments)
-    .innerJoin(billingTransactions, eq(billingTransactions.id, billingPayments.ledgerTransactionId))
-    .where(eq(billingTransactions.memo, `other-charge:${lineItemId}`))
-    .get();
-}
-
 function listRowsForResident(db: AppDb, residentId: string): ResidentOtherChargeListItem[] {
   const account = accountForResident(db, residentId);
   return db
@@ -78,73 +54,14 @@ function listRowsForResident(db: AppDb, residentId: string): ResidentOtherCharge
     .all()
     .filter((r) => r.li.category === "registration" || r.li.category === "deposit")
     .map((r) => {
-      const linked = paymentForLineItem(db, r.li.id);
       return {
         id: r.li.id,
         residentId,
         type: r.li.category as OtherChargeType,
         amountMinor: r.li.amountMinor,
-        received: Boolean(linked),
-        paidOn:
-          linked?.payment.receivedOn != null
-            ? utcDateOnlyFromMs(linked.payment.receivedOn)
-            : null,
       };
     })
     .sort((a, b) => a.type.localeCompare(b.type));
-}
-
-function upsertPaymentForLineItem(
-  db: AppDb,
-  actor: SessionActor,
-  accountId: string,
-  lineItemId: string,
-  amountMinor: number,
-  paidOn: string,
-) {
-  const linked = paymentForLineItem(db, lineItemId);
-  if (!linked) {
-    const now = Date.now();
-    const paymentId = randomUUID();
-    const txnId = randomUUID();
-    const receivedOnUtcMs = calendarDateIsoToUtcMs(paidOn);
-    db.insert(billingTransactions)
-      .values({
-        id: txnId,
-        accountId,
-        accountType: "resident",
-        txnType: "payment",
-        amountMinor: -amountMinor,
-        sourceKind: "payment",
-        sourceId: paymentId,
-        memo: `other-charge:${lineItemId}`,
-        recordedByUserId: actor.userId,
-        postedAtUtcMs: receivedOnUtcMs,
-      })
-      .run();
-    db.insert(billingPayments)
-      .values({
-        id: paymentId,
-        accountId,
-        amountMinor,
-        receivedOn: receivedOnUtcMs,
-        method: "manual",
-        externalReference: null,
-        notes: null,
-        recordedByUserId: actor.userId,
-        ledgerTransactionId: txnId,
-        updatedAtUtcMs: now,
-      })
-      .run();
-    return;
-  }
-  if (
-    linked.payment.amountMinor === amountMinor &&
-    linked.payment.receivedOn === calendarDateIsoToUtcMs(paidOn)
-  ) {
-    return;
-  }
-  throw new ValidationError(RECORDED_OTHER_CHARGE_MESSAGE);
 }
 
 export function updateResidentOtherCharge(
@@ -171,50 +88,16 @@ export function updateResidentOtherCharge(
     throw new ValidationError("Only registration/deposit line items are editable here.");
   }
 
-  const existing = paymentForLineItem(db, row.li.id);
-
   const nextAmount = patch.amountMinor ?? row.li.amountMinor;
   if (!Number.isInteger(nextAmount) || nextAmount < 0) {
     throw new ValidationError("amountMinor must be a non-negative integer.");
   }
-  if (existing) {
-    const existingPaidDay =
-      existing.payment.receivedOn != null
-        ? utcDateOnlyFromMs(existing.payment.receivedOn)
-        : null;
-    const paidOnChanged =
-      patch.hasPaidOnKey &&
-      patch.paidOn !== undefined &&
-      patch.paidOn !== existingPaidDay;
-    const isNoop =
-      (patch.amountMinor === undefined || patch.amountMinor === row.li.amountMinor) &&
-      (patch.received === undefined || patch.received === true) &&
-      (!patch.hasPaidOnKey || patch.paidOn === existingPaidDay);
-    if (!isNoop || paidOnChanged) {
-      throw new ValidationError(RECORDED_OTHER_CHARGE_MESSAGE);
-    }
-  }
+  
   if (patch.amountMinor !== undefined && patch.amountMinor !== row.li.amountMinor) {
     db.update(invoiceLineItems)
       .set({ amountMinor: patch.amountMinor, updatedAtUtcMs: Date.now() })
       .where(eq(invoiceLineItems.id, row.li.id))
       .run();
-  }
-
-  const receivedTarget =
-    patch.received !== undefined ? patch.received : patch.hasPaidOnKey ? patch.paidOn !== null : Boolean(existing);
-
-  if (!receivedTarget && existing) {
-    throw new ValidationError(RECORDED_OTHER_CHARGE_MESSAGE);
-  } else if (receivedTarget) {
-    const paidOn = patch.hasPaidOnKey
-      ? patch.paidOn === null
-        ? new Date().toISOString().slice(0, 10)
-        : parseIsoDate(patch.paidOn ?? new Date().toISOString().slice(0, 10))
-      : existing?.payment.receivedOn != null
-        ? utcDateOnlyFromMs(existing.payment.receivedOn)
-        : new Date().toISOString().slice(0, 10);
-    upsertPaymentForLineItem(db, actor, account.id, row.li.id, nextAmount, paidOn);
   }
 
   const refreshed = listRowsForResident(db, residentId).find((x) => x.id === otherChargeId);
@@ -233,6 +116,57 @@ export function listResidentOtherCharges(
 }
 
 export const DEFAULT_INITIAL_OTHER_CHARGE_MINOR = 0;
+
+/**
+ * Creates one draft invoice with registration + deposit line items from the create-resident
+ * wizard (17c). When a line is marked received, records the payment in the same transaction.
+ */
+export function applyCreateResidentOtherChargesIntake(
+  db: AppDb,
+  actor: SessionActor,
+  homeId: string,
+  accountId: string,
+  intake: CreateResidentOtherChargesIntake,
+  nowUtcMs: number,
+): void {
+  const home = db.select().from(homes).where(eq(homes.id, homeId)).get();
+  if (!home) throw new NotFoundError();
+
+  const invoiceId = randomUUID();
+  const invNo = bumpInvNumberSequence(db, homeId, nowUtcMs);
+  db.insert(invoices)
+    .values({
+      id: invoiceId,
+      accountId,
+      homeId,
+      invNo,
+      purchaseOrderId: null,
+      status: "draft",
+      issuedOn: utcDateOnlyFromMs(nowUtcMs),
+      totalMinorSnapshot: null,
+      createdAtUtcMs: nowUtcMs,
+      updatedAtUtcMs: nowUtcMs,
+    })
+    .run();
+
+  for (const type of OTHER_CHARGE_TYPES) {
+    const line = intake[type];
+    const lineItemId = randomUUID();
+    db.insert(invoiceLineItems)
+      .values({
+        id: lineItemId,
+        invoiceId,
+        category: type,
+        description: `${type} charge`,
+        amountMinor: line.amountMinor,
+        serviceMonth: null,
+        quantity: 1,
+        createdAtUtcMs: nowUtcMs,
+        updatedAtUtcMs: nowUtcMs,
+      })
+      .run();
+  }
+}
 
 export function initializeMissingResidentOtherCharges(
   db: AppDb,

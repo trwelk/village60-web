@@ -13,8 +13,11 @@ This Next.js app provides administrator email and password sign-in, encrypted co
 2. `cp .env.example .env.local` (on Windows, copy the file manually) and set `SESSION_PASSWORD` to a random string **at least 32 characters** long.
 3. `npm install`
 4. `npm run db:migrate` — creates the SQLite file and applies migrations.
+5. Create an initial login (pick one):
+   - **Admin only:** `npm run db:seed:admin` — inserts `admin@example.com` (password `admin` unless you set `SEED_ADMIN_PASSWORD` in `.env.local`).
+   - **Full demo data:** `npm run db:seed` — rich sample dataset (same default admin credentials as `.env.example` comments; seed uses password `admin`).
 
-When you add a seed script again, expose it via an npm script under `scripts/` (for example `db:seed`).
+To wipe the SQLite file and re-run migrations only: `npm run db:reset` (stop `npm run dev` first if the DB is busy). Then run `db:seed:admin` or `db:seed` again.
 
 ## Run locally
 
@@ -32,6 +35,9 @@ Open [http://localhost:3000](http://localhost:3000). You should be redirected to
 | `npm run build`   | Production build                 |
 | `npm run test`    | Vitest (password + lockout IAM)  |
 | `npm run db:migrate` | Apply SQL migrations          |
+| `npm run db:seed:admin` | Insert only `admin@example.com` |
+| `npm run db:seed` | Insert full demo data         |
+| `npm run db:reset` | Delete local DB + migrate     |
 | `npm run db:backup`  | Copy SQLite DB to `BACKUP_DIR`, prune backups older than 7 days |
 | `npm run db:generate` | Regenerate migrations from `src/db/schema.ts` |
 
