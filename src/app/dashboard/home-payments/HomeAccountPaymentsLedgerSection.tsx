@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { INVOICE_MODAL_PRIMARY_BTN_CLASS } from "@/app/dashboard/invoices/invoiceModalStyles";
 
 type Props = {
   homes: DashboardHomeOption[];
@@ -164,6 +165,7 @@ export function HomeAccountPaymentsLedgerSection({
         rootElement="div"
         wrapBody="none"
         listTitle={null}
+        loading={isApplyingFilters}
         filtersCollapsible
         toolbar={
           <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
@@ -506,7 +508,7 @@ export function HomeAccountPaymentsLedgerSection({
                       </label>
                       <button
                         type="submit"
-                        className="inline-flex min-h-10 items-center justify-center rounded-full border border-[color-mix(in_srgb,#c2410c_78%,transparent)] bg-gradient-to-br from-[#fdba74] to-[#ea580c] px-5 py-2.5 text-sm font-bold text-[var(--bg-elevated)] shadow-[inset_0_1px_0_color-mix(in_srgb,#fef3c7_45%,transparent),0_12px_24px_-16px_color-mix(in_srgb,#c2410c_78%,transparent)] transition-all duration-150 ease-out hover:-translate-y-px hover:saturate-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:saturate-100"
+                        className={INVOICE_MODAL_PRIMARY_BTN_CLASS}
                         disabled={submitting}
                       >
                         {submitting ? "Saving…" : "Post payment"}

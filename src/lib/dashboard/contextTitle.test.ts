@@ -23,9 +23,9 @@ describe("getDashboardContextTitle", () => {
     ).toBe("Inventory orders");
   });
 
-  it("returns Leads for /dashboard/leads", () => {
-    expect(getDashboardContextTitle("/dashboard/leads", "admin")).toBe(
-      "Leads",
-    );
+  it("returns Waiting list for /dashboard/waiting-list", () => {
+    expect(
+      getDashboardContextTitle("/dashboard/waiting-list", "admin"),
+    ).toBe("Waiting list");
   });
 });

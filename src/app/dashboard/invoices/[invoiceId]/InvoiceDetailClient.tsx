@@ -76,8 +76,13 @@ export function InvoiceDetailClient({
   const [error, setError] = useState<string | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [finalizeBusy, setFinalizeBusy] = useState(false);
+  const [revertBusy, setRevertBusy] = useState(false);
   const [lineModalOpen, setLineModalOpen] = useState(false);
   const [editingLine, setEditingLine] = useState<InvoiceLineItem | null>(null);
+
+  useEffect(() => {
+    setInvoice(null);
+  }, [homeId, invoiceId]);
 
   const accountLabel = useMemo(() => {
     if (!invoice) return null;
@@ -199,6 +204,25 @@ export function InvoiceDetailClient({
     }
   }
 
+  async function revertToDraft() {
+    if (!invoice || invoice.status !== "finalized") return;
+    setRevertBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/homes/${homeId}/invoices/${invoice.id}/revert-to-draft`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        setError(await parseError(res));
+        return;
+      }
+      await load();
+    } finally {
+      setRevertBusy(false);
+    }
+  }
+
   return (
     <main className="flex flex-col gap-8 text-ink">
       <div className="village-reveal flex flex-wrap items-center gap-2 text-sm text-ink/75">
@@ -221,10 +245,19 @@ export function InvoiceDetailClient({
         </p>
       ) : null}
 
-      {loading ? (
+      {loading && !invoice ? (
         <p className="text-sm text-[var(--text-secondary)]">Loading invoice…</p>
-      ) : !invoice ? null : (
+      ) : null}
+
+      {invoice ? (
         <>
+          <div
+            className={
+              loading
+                ? "flex flex-col gap-8 opacity-50 transition-opacity duration-150 [pointer-events:none] motion-reduce:transition-none"
+                : "flex flex-col gap-8"
+            }
+          >
           <section className="village-card village-reveal village-reveal-delay-1 overflow-hidden p-0">
             <div className="border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_14%,var(--bg-elevated)_86%)] px-6 py-6 sm:px-8">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -398,11 +431,26 @@ export function InvoiceDetailClient({
                     {finalizeBusy ? "Finalizing…" : "Finalize invoice"}
                   </button>
                 </div>
+              ) : invoice.status === "finalized" ? (
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <p className="text-sm text-[var(--text-secondary)]">This invoice has been finalized.</p>
+                  <button
+                    type="button"
+                    className="village-btn-secondary px-4 py-2 text-sm"
+                    disabled={revertBusy}
+                    onClick={() => void revertToDraft()}
+                  >
+                    {revertBusy ? "Reverting…" : "Back to draft"}
+                  </button>
+                </div>
               ) : (
-                <p className="mt-6 text-sm text-[var(--text-secondary)]">This invoice has been finalized.</p>
+                <p className="mt-6 text-sm text-[var(--text-secondary)]">
+                  This invoice is {invoice.status}.
+                </p>
               )}
             </div>
           </section>
+          </div>
 
           <CreateInvoiceLineModal
             open={lineModalOpen}
@@ -426,7 +474,7 @@ export function InvoiceDetailClient({
             onSaved={() => void load()}
           />
         </>
-      )}
+      ) : null}
     </main>
   );
 }

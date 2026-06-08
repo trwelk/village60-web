@@ -82,6 +82,7 @@ export function InvoicesDashboardClient({
       listTitle={null}
       filtersCollapsible
       activeFilterCount={invoiceFilterBadgeCount}
+      loading={isApplyingFilters}
       filters={
         <div className="flex w-full flex-col gap-4" data-testid="invoices-dashboard-filters">
           <div

@@ -6,6 +6,34 @@ import { type ReactNode, useState } from "react";
 // FilterToggle (internal)
 // ---------------------------------------------------------------------------
 
+function ListLoadingSpinner({ size = "sm" }: { size?: "sm" | "lg" }) {
+  const dim = size === "lg" ? "size-9 border-[3px]" : "size-3.5 border-2";
+  return (
+    <span
+      className={`inline-block shrink-0 animate-spin rounded-full border-[color:color-mix(in_srgb,var(--text-muted)_35%,transparent)] border-t-[var(--accent-strong)] ${dim}`}
+      aria-hidden
+    />
+  );
+}
+
+/** Full-area overlay: frosted backdrop, shimmer sweep, centered spinner (table + wrapBody="none"). */
+function VillageListBodyLoadingLayer() {
+  return (
+    <div className="village-list-body-loading-layer pointer-events-none">
+      <div className="village-list-body-loading-backdrop" aria-hidden />
+      <div className="village-list-body-loading-shimmer" aria-hidden />
+      <div
+        className="village-list-body-loading-spinner"
+        role="status"
+        aria-live="polite"
+      >
+        <span className="sr-only">Loading list</span>
+        <ListLoadingSpinner size="lg" />
+      </div>
+    </div>
+  );
+}
+
 function FilterToggle({
   open,
   onClick,
@@ -176,13 +204,13 @@ type VillageListProps = {
    */
   activeFilterCount?: number;
   /**
-   * Heading for the list section.
-   * When `loading` is true this is replaced by "Loading…".
-   * Pass `null` to hide the heading entirely.
+   * Heading for the list section. When `loading` is true a small spinner is
+   * shown next to the title (title stays visible). Pass `null` to hide the
+   * heading; while loading without a title, a spinner row is still shown.
    * Defaults to "Directory".
    */
   listTitle?: string | null;
-  /** While true: sets `aria-busy` on the list section and shows "Loading…". */
+  /** While true: `aria-busy` on the list section, spinner by the title (when set), disabled pagination, and a frosted overlay with shimmer + centered spinner over the list body (table and `wrapBody="none"`). */
   loading?: boolean;
   /** When set, renders a `village-alert-error` banner above the list section. */
   error?: string | null;
@@ -245,7 +273,7 @@ export function VillageList({
             className={
               showFilterCollapsible
                 ? "flex min-w-0 flex-1 flex-wrap items-center justify-end gap-3"
-                : "ml-auto flex flex-wrap items-center gap-3"
+                : "flex min-w-0 w-full flex-1 flex-wrap items-center gap-3"
             }
           >
             {toolbar}
@@ -282,13 +310,23 @@ export function VillageList({
 
       {/* List / table section */}
       <section aria-busy={loading} className="village-region p-5 sm:p-6">
-        {loading ? (
-          <h2 className="village-section-title">Loading&hellip;</h2>
-        ) : listTitle ? (
-          <h2 className="village-section-title">{listTitle}</h2>
+        {listTitle ? (
+          <h2 className="village-section-title flex flex-wrap items-center gap-2">
+            <span>{listTitle}</span>
+            {loading ? <ListLoadingSpinner size="sm" /> : null}
+          </h2>
+        ) : loading ? (
+          <div
+            className="village-section-title flex items-center gap-2"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="sr-only">Loading</span>
+            <ListLoadingSpinner size="sm" />
+          </div>
         ) : null}
 
-        {!loading && pagination != null ? (
+        {pagination != null ? (
           <VillageListPagination
             {...pagination}
             loading={loading}
@@ -297,7 +335,22 @@ export function VillageList({
         ) : null}
 
         {wrapBody === "table" ? (
-          <div className="village-table-wrap mt-4">{children}</div>
+          <div
+            className={[
+              "village-table-wrap mt-4",
+              loading ? "relative" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {children}
+            {loading ? <VillageListBodyLoadingLayer /> : null}
+          </div>
+        ) : loading ? (
+          <div className="relative min-h-[14rem]">
+            {children}
+            <VillageListBodyLoadingLayer />
+          </div>
         ) : (
           children
         )}

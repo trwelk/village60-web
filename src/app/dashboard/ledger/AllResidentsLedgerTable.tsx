@@ -225,6 +225,10 @@ export function AllResidentsLedgerTable({
   }, [homeId]);
 
   useEffect(() => {
+    setAllLines(null);
+  }, [homeId]);
+
+  useEffect(() => {
     void load();
   }, [load]);
 
@@ -411,12 +415,16 @@ export function AllResidentsLedgerTable({
         className="village-reveal village-reveal-delay-2 flex flex-col gap-4"
         data-testid="dashboard-ledger-all-residents"
       >
-        {loading ? (
-          <p className="text-sm text-[var(--text-secondary)]">Loading ledgers…</p>
-        ) : null}
-        {!loading && error ? <p className="village-alert-error">{error}</p> : null}
+        {error && !loading ? <p className="village-alert-error">{error}</p> : null}
 
-        {!loading && allLines ? (
+        {allLines ? (
+          <div
+            className={
+              loading
+                ? "opacity-50 transition-opacity duration-150 [pointer-events:none] motion-reduce:transition-none"
+                : undefined
+            }
+          >
           <>
             <div
               className="flex flex-col divide-y divide-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] overflow-hidden rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] shadow-sm sm:flex-row sm:divide-x sm:divide-y-0"
@@ -675,6 +683,10 @@ export function AllResidentsLedgerTable({
               </div>
             </div>
           </>
+          </div>
+        ) : null}
+        {!allLines && loading ? (
+          <p className="text-sm text-[var(--text-secondary)]">Loading ledgers…</p>
         ) : null}
       </div>
 

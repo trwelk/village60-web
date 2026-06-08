@@ -10,7 +10,13 @@ import { DEFAULT_CURRENCY_CODE } from "@/lib/homes/defaultCurrencyCode";
 import type { Home } from "@/lib/homes/service";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import { createPortal } from "react-dom";
 
 type HomesAdminUIProps = {
@@ -43,6 +49,7 @@ export function HomesAdminUI({
   variant = "admin",
 }: HomesAdminUIProps) {
   const router = useRouter();
+  const [isPaging, startPaging] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [createName, setCreateName] = useState("");
   const [createAddress, setCreateAddress] = useState("");
@@ -295,6 +302,7 @@ export function HomesAdminUI({
           </>
         }
         listTitle={null}
+        loading={isPaging}
         error={showError ? error : null}
         pagination={
           hasPagination
@@ -303,9 +311,13 @@ export function HomesAdminUI({
                 pageSize,
                 totalCount,
                 onPrevious: () =>
-                  router.push(buildHomesListPath(page - 1, pageSize)),
+                  startPaging(() =>
+                    router.push(buildHomesListPath(page - 1, pageSize)),
+                  ),
                 onNext: () =>
-                  router.push(buildHomesListPath(page + 1, pageSize)),
+                  startPaging(() =>
+                    router.push(buildHomesListPath(page + 1, pageSize)),
+                  ),
               }
             : undefined
         }

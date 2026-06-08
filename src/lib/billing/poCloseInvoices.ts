@@ -5,6 +5,7 @@ import {
   homePurchaseOrderLines,
   homePurchaseOrderReceiveEvents,
   homePurchaseOrders,
+  inventoryItemCategories,
   inventoryItems,
   invoiceLineItems,
   invoices,
@@ -52,6 +53,7 @@ type LineCostRow = {
   ownerType: string;
   ownerId: string;
   itemName: string;
+  itemCategoryName: string;
   amountMinor: number;
 };
 
@@ -90,11 +92,26 @@ function computeLineCostsForPurchaseOrder(
 
   const itemIds = [...new Set(poLines.map((l) => l.itemId))];
   const items = db
-    .select({ id: inventoryItems.id, name: inventoryItems.name })
+    .select({
+      id: inventoryItems.id,
+      name: inventoryItems.name,
+      categoryId: inventoryItems.categoryId,
+    })
     .from(inventoryItems)
     .where(inArray(inventoryItems.id, itemIds))
     .all();
+
+  // We need to fetch the category names for these items
+  const categoryIds = [...new Set(items.map((i) => i.categoryId).filter(Boolean))];
+  const categories = categoryIds.length > 0 ? db
+    .select({ id: inventoryItemCategories.id, name: inventoryItemCategories.name })
+    .from(inventoryItemCategories)
+    .where(inArray(inventoryItemCategories.id, categoryIds))
+    .all() : [];
+  
+  const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
   const itemNameById = new Map(items.map((i) => [i.id, i.name]));
+  const itemCategoryNameById = new Map(items.map((i) => [i.id, categoryNameById.get(i.categoryId) ?? INVENTORY_PO_CATEGORY]));
 
   const rows: LineCostRow[] = [];
   for (const line of poLines) {
@@ -106,6 +123,7 @@ function computeLineCostsForPurchaseOrder(
       ownerType: line.ownerType,
       ownerId: line.ownerId,
       itemName: itemNameById.get(line.itemId) ?? line.itemId,
+      itemCategoryName: itemCategoryNameById.get(line.itemId) ?? INVENTORY_PO_CATEGORY,
       amountMinor,
     });
   }
@@ -201,7 +219,8 @@ export function createPurchaseOrderCloseInvoices(
           .values({
             id: randomUUID(),
             invoiceId,
-            category: INVENTORY_PO_CATEGORY,
+            purchaseOrderLineId: line.lineId,
+            category: line.itemCategoryName,
             description: `${line.itemName} — PO ${po.poNumber}`,
             amountMinor: line.amountMinor,
             serviceMonth: null,

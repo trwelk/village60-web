@@ -2,7 +2,11 @@ import { getDb } from "@/db/client";
 import { requireSessionActor } from "@/lib/authz/sessionActor";
 import { ForbiddenError } from "@/lib/homes/errors";
 import { listHomes } from "@/lib/homes/service";
-import { listWardsForHome } from "@/lib/wards/service";
+import {
+  countActiveResidentsByWardId,
+  isWardAtCapacity,
+  listWardsForHome,
+} from "@/lib/wards/service";
 import { listCareStaffForHome } from "@/lib/users/service";
 import { getSessionOptions, type SessionData } from "@/lib/session";
 import { getIronSession } from "iron-session";
@@ -39,12 +43,21 @@ export default async function NewResidentPage({ params }: PageParams) {
     throw e;
   }
 
+  const occupiedByWard = countActiveResidentsByWardId(getDb(), homeId);
+
   return (
     <ResidentEditor
       mode="create"
       homeId={homeId}
       homeName={home.name}
-      wards={wards.map((w) => ({ id: w.id, label: w.label }))}
+      wards={wards.map((w) => ({
+        id: w.id,
+        label: w.label,
+        isFull: isWardAtCapacity(
+          w.bedCount,
+          occupiedByWard.get(w.id) ?? 0,
+        ),
+      }))}
       careStaffOptions={careStaffOptions}
     />
   );

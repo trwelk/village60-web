@@ -19,7 +19,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import { createPortal } from "react-dom";
 
 const DEFAULT_INBOX_QUERY: TaskInboxListQuery = {
@@ -138,6 +145,7 @@ export function TasksSection({
 }: Props) {
   const query = queryProp ?? DEFAULT_INBOX_QUERY;
   const router = useRouter();
+  const [isNavPending, startNavTransition] = useTransition();
   const firstHomeId = homes[0]?.id ?? "";
   const [createDraft, setCreateDraft] = useState(() => emptyDraft(firstHomeId));
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -190,8 +198,10 @@ export function TasksSection({
   }
 
   function navigateInbox(next: TaskInboxListQuery) {
-    router.push(buildTasksPath(next));
-    router.refresh();
+    startNavTransition(() => {
+      router.push(buildTasksPath(next));
+      router.refresh();
+    });
   }
 
   async function onCreate(e: FormEvent<HTMLFormElement>) {
@@ -289,7 +299,7 @@ export function TasksSection({
     <>
       <VillageList
         toolbar={
-          <>
+          <div className="flex w-full min-w-0 flex-wrap items-start justify-between gap-4 sm:items-center">
             <div className="flex min-w-0 flex-1 flex-wrap items-start gap-3">
               <span
                 className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--accent)_14%,var(--bg-elevated))] text-[var(--accent-strong)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_65%,transparent)]"
@@ -313,7 +323,7 @@ export function TasksSection({
                 </p>
               </div>
             </div>
-            <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">
+            <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
               <button
                 type="button"
                 className="village-btn-primary inline-flex min-h-10 items-center justify-center gap-1.5 self-stretch px-4 text-sm sm:self-auto"
@@ -323,12 +333,10 @@ export function TasksSection({
                 New manual task
               </button>
               <p className="text-center text-xs font-medium tabular-nums text-[var(--text-muted)] sm:text-right">
-                <span className="rounded-full bg-[color-mix(in_srgb,var(--partner-green)_12%,var(--bg-elevated))] px-2.5 py-1 ring-1 ring-[color-mix(in_srgb,var(--partner-green)_22%,transparent)]">
-                  {tasks.length} {tasks.length === 1 ? "item" : "items"} shown
-                </span>
+                {tasks.length} {tasks.length === 1 ? "item" : "items"} shown
               </p>
             </div>
-          </>
+          </div>
         }
         filters={
           <>
@@ -353,7 +361,12 @@ export function TasksSection({
                 ]}
               />
             </VillageListFilter>
-            <VillageListFilter label="Home" htmlFor="inbox-home">
+            <VillageListFilter
+              label="Home"
+              htmlFor="inbox-home"
+              minWidth="14rem"
+              width="14rem"
+            >
               <VillageSelect
                 id="inbox-home"
                 className="w-full"
@@ -376,7 +389,7 @@ export function TasksSection({
             <VillageListFilter
               label="Type"
               htmlFor="inbox-type"
-              minWidth="12rem"
+              width="12rem"
             >
               <VillageSelect
                 id="inbox-type"
@@ -407,22 +420,23 @@ export function TasksSection({
         }
         error={error && !createModalOpen ? error : null}
         listTitle=""
+        loading={isNavPending}
         wrapBody="none"
         rootElement="div"
       >
         <div
-          className="village-reveal village-reveal-delay-2 mt-4 flex flex-col gap-4"
+          className="village-reveal village-reveal-delay-2 flex flex-col gap-4"
           aria-labelledby="tasks-inbox-heading"
         >
         {tasks.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[color-mix(in_srgb,var(--accent)_28%,var(--line-subtle))] bg-[color-mix(in_srgb,var(--accent)_4%,var(--bg-elevated))] px-6 py-12 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--partner-green)_16%,var(--bg-elevated))] text-[var(--success)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_70%,transparent)]">
-              <Inbox className="h-7 w-7" strokeWidth={1.75} aria-hidden />
+          <div className="rounded-xl border border-dashed border-[color-mix(in_srgb,var(--accent)_24%,var(--line-subtle))] bg-[color-mix(in_srgb,var(--accent)_3%,var(--bg-muted))] px-6 py-8 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--accent)_14%,var(--bg-elevated))] text-[var(--accent-strong)]">
+              <Inbox className="h-6 w-6" strokeWidth={1.75} aria-hidden />
             </div>
-            <p className="mt-5 font-display text-xl font-normal text-[var(--text-primary)]">
+            <p className="mt-4 font-display text-lg font-normal text-[var(--text-primary)]">
               Nothing to show right now
             </p>
-            <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-[var(--text-secondary)]">
+            <p className="mx-auto mt-1.5 max-w-lg text-sm leading-relaxed text-[var(--text-secondary)]">
               {query.status === "completed"
                 ? "No completed manual tasks for the current filters."
                 : "No open tasks or reminders match these filters. Broaden home or type, or create a manual task."}
@@ -713,30 +727,30 @@ export function TasksSection({
               >
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                   <section className="village-card overflow-hidden border-0 p-0 shadow-none">
-                    <div className="border-b border-pine/10 bg-[linear-gradient(135deg,rgba(26,77,58,0.09),rgba(184,71,50,0.08)_48%,rgba(250,247,241,0.15))] px-5 py-5 sm:px-6">
+                    <div className="border-b border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] bg-[color-mix(in_srgb,var(--accent)_6%,var(--bg-elevated))] px-5 py-5 sm:px-6">
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div className="flex max-w-2xl gap-4">
-                          <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(145deg,color-mix(in_srgb,var(--accent)_82%,var(--highlight)_18%),var(--accent-strong))] text-lg font-display text-[var(--bg-elevated)] shadow-[0_14px_34px_-18px_color-mix(in_srgb,var(--accent-strong)_85%,transparent)]">
-                            +
+                          <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--accent)_14%,var(--bg-elevated))] text-[var(--accent-strong)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_65%,transparent)]">
+                            <Plus className="h-5 w-5" strokeWidth={2.5} aria-hidden />
                           </div>
                           <div className="flex flex-col gap-1">
-                            <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-terracotta">
+                            <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-[var(--text-muted)]">
                               New manual task
                             </p>
                             <h2
                               id="tasks-create-modal-heading"
-                              className="text-xl font-semibold tracking-tight text-pine-2"
+                              className="font-display text-xl font-normal tracking-tight text-[var(--text-primary)]"
                             >
                               Capture a home task
                             </h2>
-                            <p className="text-sm leading-6 text-ink/65">
+                            <p className="text-sm leading-6 text-[var(--text-secondary)]">
                               Shared with everyone who can access the selected home.
                             </p>
                           </div>
                         </div>
                         <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-start">
-                          <div className="rounded-2xl border border-pine/10 bg-cream/72 px-4 py-3 text-sm text-ink/65 shadow-sm">
-                            <span className="font-semibold text-pine-2">
+                          <div className="rounded-xl border border-[color-mix(in_srgb,var(--line-subtle)_75%,transparent)] bg-[color-mix(in_srgb,var(--bg-muted)_45%,var(--bg-elevated))] px-4 py-3 text-sm text-[var(--text-secondary)]">
+                            <span className="font-semibold text-[var(--text-primary)]">
                               {homes.length}
                             </span>{" "}
                             accessible {homes.length === 1 ? "home" : "homes"}

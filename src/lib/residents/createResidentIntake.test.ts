@@ -8,8 +8,9 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
-import { accounts, residents } from "@/db/schema";
+import { accounts, invoiceLineItems, invoices, residents } from "@/db/schema";
 import { createHome } from "@/lib/homes/service";
+import { listResidentOtherCharges } from "@/lib/billing/otherCharges";
 import { createResident } from "./service";
 import { createWard } from "@/lib/wards/service";
 
@@ -83,6 +84,29 @@ describe("createResident + resident_accounts transaction", () => {
       .all();
     expect(rows).toHaveLength(1);
     expect(rows[0]?.currencyCode).toBe("NZD");
+
+    const lineItems = db
+      .select()
+      .from(invoiceLineItems)
+      .innerJoin(invoices, eq(invoices.id, invoiceLineItems.invoiceId))
+      .where(eq(invoices.accountId, rows[0]!.id))
+      .all();
+    expect(lineItems).toHaveLength(2);
+
+    const charges = listResidentOtherCharges(db, adminActor, home.id, r.id);
+    expect(charges).toHaveLength(2);
+    expect(charges[0]).toMatchObject({
+      type: "registration",
+      amountMinor: 100_00,
+      received: true,
+      paidOn: "2025-01-20",
+    });
+    expect(charges[1]).toMatchObject({
+      type: "deposit",
+      amountMinor: 0,
+      received: false,
+      paidOn: null,
+    });
   });
 
   it("rolls back the whole unit when a duplicate resident_account insert violates unique resident_id", () => {

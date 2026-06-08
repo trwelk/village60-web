@@ -5,6 +5,7 @@ import { getSessionOptions, type SessionData } from "@/lib/session";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { VillageListSkeleton } from "@/components/VillageListSkeleton";
 import { ResidentsDirectoryUI } from "@/app/dashboard/residents/ResidentsDirectoryUI";
 import { Suspense } from "react";
 
@@ -31,13 +32,7 @@ export default async function HomeResidentsPage({
   }
 
   return (
-    <Suspense
-      fallback={
-        <main className="flex flex-col gap-8 text-ink">
-          <p className="text-sm text-ink/70">Loading residents…</p>
-        </main>
-      }
-    >
+    <Suspense fallback={<VillageListSkeleton rows={6} cols={5} />}>
       <ResidentsDirectoryUI
         homes={homes.map((h) => ({ id: h.id, name: h.name }))}
         role={actor.role === "admin" ? "admin" : "care"}

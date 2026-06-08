@@ -27,73 +27,22 @@ type RouteParams = {
 
 
 function parseBody(rec: Record<string, unknown>):
-
   | { ok: true; value: OtherChargeUpdatePatch }
-
   | { ok: false; error: string } {
-
   const out: OtherChargeUpdatePatch = {};
 
   if ("amountMinor" in rec) {
-
     if (typeof rec.amountMinor !== "number" || !Number.isInteger(rec.amountMinor)) {
-
       return { ok: false, error: "amountMinor must be an integer." };
-
     }
-
     out.amountMinor = rec.amountMinor;
-
   }
 
-  if ("received" in rec) {
-
-    if (typeof rec.received !== "boolean") {
-
-      return { ok: false, error: "received must be a boolean." };
-
-    }
-
-    out.received = rec.received;
-
-  }
-
-  if ("paidOn" in rec) {
-
-    out.hasPaidOnKey = true;
-
-    if (rec.paidOn === null) {
-
-      out.paidOn = null;
-
-    } else if (typeof rec.paidOn === "string") {
-
-      out.paidOn = rec.paidOn;
-
-    } else {
-
-      return { ok: false, error: "paidOn must be a string or null." };
-
-    }
-
-  }
-
-  if (
-
-    out.amountMinor === undefined &&
-
-    out.received === undefined &&
-
-    !out.hasPaidOnKey
-
-  ) {
-
+  if (out.amountMinor === undefined) {
     return { ok: false, error: "No updates provided." };
-
   }
 
   return { ok: true, value: out };
-
 }
 
 

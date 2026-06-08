@@ -7,6 +7,7 @@ import { getSessionOptions, type SessionData } from "@/lib/session";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { DashboardDetailRouteSkeleton } from "@/components/VillageListSkeleton";
 import { Suspense } from "react";
 import { InvoiceDetailClient } from "./InvoiceDetailClient";
 
@@ -48,13 +49,7 @@ export default async function DashboardInvoiceDetailPage({ params, searchParams 
   }
 
   return (
-    <Suspense
-      fallback={
-        <main className="flex flex-col gap-8 text-ink">
-          <p className="text-sm text-ink/70">Loading invoice…</p>
-        </main>
-      }
-    >
+    <Suspense fallback={<DashboardDetailRouteSkeleton />}>
       <InvoiceDetailClient
         homeId={homeIdFromQuery}
         homeName={home.name}

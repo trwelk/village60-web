@@ -10,9 +10,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-
-const MODAL_PRIMARY_BTN_CLASS =
-  "inline-flex items-center justify-center rounded-full border border-[color-mix(in_srgb,#c2410c_78%,transparent)] bg-gradient-to-br from-[#fdba74] to-[#ea580c] px-5 py-2.5 text-sm font-bold text-[var(--bg-elevated)] shadow-[inset_0_1px_0_color-mix(in_srgb,#fef3c7_45%,transparent),0_12px_24px_-16px_color-mix(in_srgb,#c2410c_78%,transparent)] transition-all duration-150 ease-out hover:-translate-y-px hover:saturate-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:saturate-100 min-h-10";
+import { INVOICE_MODAL_PRIMARY_BTN_CLASS as MODAL_PRIMARY_BTN_CLASS } from "@/app/dashboard/invoices/invoiceModalStyles";
 
 const MODAL_CLOSE_BTN_CLASS =
   "rounded-lg border border-transparent px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)] sm:py-2.5";
@@ -167,6 +165,7 @@ export function SuppliersPageClient({ canManageSuppliers }: Props) {
         filtersCollapsible
         activeFilterCount={activeFilterCount}
         error={error && !createOpen ? error : null}
+        loading={loading}
         toolbar={
           <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
@@ -278,7 +277,16 @@ export function SuppliersPageClient({ canManageSuppliers }: Props) {
             </div>
           ) : null}
           {filteredSuppliers.length > 0 ? (
-            <div className="overflow-x-auto">
+            <div
+              className={[
+                "overflow-x-auto",
+                loading
+                  ? "pointer-events-none opacity-50 transition-opacity duration-150 motion-reduce:transition-none"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">

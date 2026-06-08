@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  RECORDED_OTHER_CHARGE_MESSAGE,
   type ResidentOtherChargeListItem,
 } from "@/lib/billing/otherCharges";
 import Link from "next/link";
@@ -45,8 +44,6 @@ export function OtherChargeTab({
 
   const [editingOtherId, setEditingOtherId] = useState<string | null>(null);
   const [editOtherAmount, setEditOtherAmount] = useState("");
-  const [editOtherReceived, setEditOtherReceived] = useState(false);
-  const [editOtherPaidOn, setEditOtherPaidOn] = useState("");
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -74,19 +71,15 @@ export function OtherChargeTab({
         typeof o.id !== "string" ||
         typeof o.residentId !== "string" ||
         (o.type !== "registration" && o.type !== "deposit") ||
-        typeof o.amountMinor !== "number" ||
-        typeof o.received !== "boolean" ||
-        !(o.paidOn === null || typeof o.paidOn === "string")
+        typeof o.amountMinor !== "number"
       ) {
         continue;
       }
       oc.push({
         id: o.id,
         residentId: o.residentId,
-        type: o.type,
+        type: o.type as "registration" | "deposit",
         amountMinor: o.amountMinor,
-        received: o.received,
-        paidOn: o.paidOn,
       });
     }
     setOtherCharges(oc);
@@ -123,22 +116,11 @@ export function OtherChargeTab({
     setActionError(null);
     setEditingOtherId(row.id);
     setEditOtherAmount(String(row.amountMinor));
-    setEditOtherReceived(row.received);
-    setEditOtherPaidOn(row.paidOn ?? "");
   }
 
   function cancelEditOther() {
     setEditingOtherId(null);
     setEditOtherAmount("");
-    setEditOtherReceived(false);
-    setEditOtherPaidOn("");
-  }
-
-  function setOtherReceived(next: boolean) {
-    setEditOtherReceived(next);
-    if (next) {
-      setEditOtherPaidOn((prev) => (prev.trim() === "" ? admissionDate : prev));
-    }
   }
 
   async function setUpOtherCharges() {
@@ -165,11 +147,7 @@ export function OtherChargeTab({
     }
     const body: Record<string, unknown> = {
       amountMinor,
-      received: editOtherReceived,
     };
-    if (editOtherReceived) {
-      body.paidOn = editOtherPaidOn.trim();
-    }
     const res = await fetch(
       `/api/homes/${homeId}/residents/${residentId}/other-charges/${id}`,
       {
@@ -198,27 +176,24 @@ export function OtherChargeTab({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-ink/70">
-        <Link
-          href={`/dashboard/homes/${homeId}/ledger?residentId=${encodeURIComponent(residentId)}`}
-          className="village-link-subtle font-semibold text-pine underline"
-        >
-          Billing
-        </Link>
-        <span className="text-ink/50"> · </span>
-        recurring ward charges and payments
-      </p>
-
       <section
         data-testid="resident-other-charges"
         className="rounded-lg border border-ink/10 bg-ink/[0.02] p-4 sm:p-5"
       >
-        <h3 className="village-section-title">Registration & deposit</h3>
-        <p className="mt-2 text-sm text-ink/70">
-          One-off intake charges. Update amounts and received status here; when you
-          mark a line as received, paid on defaults to the resident&apos;s
-          admission date if left blank.
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="village-section-title">Registration & deposit</h3>
+            <p className="mt-2 text-sm text-ink/70">
+              One-off intake charges. Update amounts here.
+            </p>
+          </div>
+          <Link
+            href={`/dashboard/homes/${homeId}/ledger?residentId=${encodeURIComponent(residentId)}`}
+            className="village-btn-secondary px-4 py-2 text-sm whitespace-nowrap"
+          >
+            View resident charges
+          </Link>
+        </div>
         {otherCharges.length < 2 ? (
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
             <p className="text-sm text-ink/65">
@@ -260,32 +235,14 @@ export function OtherChargeTab({
                         {row.amountMinor} minor
                       </div>
                     </div>
-                    <div className="flex flex-col gap-2 text-ink/80">
-                      <div>
-                        <span className="text-ink/55">Received: </span>
-                        <span className="font-medium">
-                          {row.received ? "Yes" : "No"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-ink/55">Paid on: </span>
-                        <span className="font-medium">
-                          {row.paidOn ?? "—"}
-                        </span>
-                      </div>
-                      {row.received ? (
-                        <p className="text-xs text-ink/60">
-                          {RECORDED_OTHER_CHARGE_MESSAGE}
-                        </p>
-                      ) : (
-                        <button
-                          type="button"
-                          className="village-link self-start border-0 bg-transparent p-0 text-sm font-semibold text-pine underline"
-                          onClick={() => startEditOther(row)}
-                        >
-                          Edit
-                        </button>
-                      )}
+                    <div className="flex flex-col gap-2 text-ink/80 items-start">
+                      <button
+                        type="button"
+                        className="village-link border-0 bg-transparent p-0 text-sm font-semibold text-pine underline"
+                        onClick={() => startEditOther(row)}
+                      >
+                        Edit
+                      </button>
                     </div>
                   </>
                 ) : (
@@ -304,26 +261,6 @@ export function OtherChargeTab({
                         onChange={(e) => setEditOtherAmount(e.target.value)}
                       />
                     </label>
-                    <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4"
-                        checked={editOtherReceived}
-                        onChange={(e) => setOtherReceived(e.target.checked)}
-                      />
-                      <span>Received</span>
-                    </label>
-                    {editOtherReceived ? (
-                      <label className="flex max-w-xs flex-col gap-1 text-xs">
-                        <span className="village-field-label">Paid on</span>
-                        <input
-                          className="village-input"
-                          type="date"
-                          value={editOtherPaidOn}
-                          onChange={(e) => setEditOtherPaidOn(e.target.value)}
-                        />
-                      </label>
-                    ) : null}
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"

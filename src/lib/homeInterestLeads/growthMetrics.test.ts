@@ -47,7 +47,7 @@ describe("buildLeadGrowthSnapshot", () => {
     });
   });
 
-  it("returns null win rate when there are no terminal leads", () => {
+  it("returns null win rate when there are no terminal enquiries", () => {
     const leads: AdminInterestLeadListItem[] = [
       baseLead({ id: "a", homeId: "h1", status: "new" }),
     ];

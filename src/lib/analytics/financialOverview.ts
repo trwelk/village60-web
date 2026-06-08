@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import {
   accounts,
   billingPayments,
@@ -70,6 +70,7 @@ export type FinancialAnalyticsSnapshot = {
   invoiceVolumeByStatusMonth: InvoiceStatusMonthDatum[];
   revenueByCategory: NamedAmountDatum[];
   revenueBySegment: NamedAmountDatum[];
+  paidInvoiceCategories: NamedAmountDatum[];
   revenueSegmentKind: "ward" | "home";
   topOutstanding: OutstandingRow[];
   projectedMonthlyCapacityMinor: number;
@@ -383,6 +384,29 @@ export function getFinancialAnalyticsSnapshot(
     amountMinor: Number(r.total),
   }));
 
+  const paidCategoryPredicates = [
+    issuedMonthClause,
+    invoicesHomeScope(input.homeId),
+    eq(invoices.status, "paid"),
+  ].filter(Boolean);
+
+  const paidCategoryRows = db
+    .select({
+      category: invoiceLineItems.category,
+      total: sql<number>`ifnull(sum(${invoiceLineItems.amountMinor}), 0)`,
+    })
+    .from(invoiceLineItems)
+    .innerJoin(invoices, eq(invoices.id, invoiceLineItems.invoiceId))
+    .where(and(...paidCategoryPredicates))
+    .groupBy(invoiceLineItems.category)
+    .orderBy(asc(invoiceLineItems.category))
+    .all();
+
+  const paidInvoiceCategories: NamedAmountDatum[] = paidCategoryRows.map((r) => ({
+    label: r.category,
+    amountMinor: Number(r.total),
+  }));
+
   let revenueSegmentKind: "ward" | "home" = "home";
   let revenueBySegment: NamedAmountDatum[] = [];
 
@@ -538,6 +562,7 @@ export function getFinancialAnalyticsSnapshot(
     monthlyCashFlow,
     invoiceVolumeByStatusMonth,
     revenueByCategory,
+    paidInvoiceCategories,
     revenueBySegment,
     revenueSegmentKind,
     topOutstanding,
@@ -554,7 +579,7 @@ export type ExpenseAnalyticsSnapshot = {
   totalExpensesMinor: number;
   homeInvoicePaymentsMinor: number;
   homeOutstandingReceivablesMinor: number;
-  /** Finalized home-account invoice lines, grouped by line item category (`issuedOn` in range). */
+  /** Finalized and paid home-account invoice lines, grouped by line item category (`issuedOn` in range). */
   expensesByCategory: NamedAmountDatum[];
 };
 
@@ -630,7 +655,7 @@ export function getExpenseAnalyticsSnapshot(
 
   const homeExpenseCategoryPredicates = [
     issuedMonthClause,
-    eq(invoices.status, "finalized"),
+    inArray(invoices.status, ["finalized", "paid"]),
     eq(accounts.accountType, "home"),
     isNull(homes.archivedAtUtcMs),
     input.homeId ? eq(accounts.homeId, input.homeId) : sql`1 = 1`,

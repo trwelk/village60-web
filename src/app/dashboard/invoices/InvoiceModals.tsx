@@ -320,15 +320,17 @@ export function CreateInvoiceLineModal({
   const [amountDollars, setAmountDollars] = useState("");
   const [serviceMonth, setServiceMonth] = useState("");
   const [customCategoryOptions, setCustomCategoryOptions] = useState<string[]>([]);
+  const [itemCategories, setItemCategories] = useState<{ id: string; name: string }[]>([]);
   const [newCategoryInput, setNewCategoryInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddCategory, setShowAddCategory] = useState(false);
 
   const categoryOptions = useMemo(
-    () => buildCategoryOptions(customCategoryOptions, category),
-    [customCategoryOptions, category],
+    () => buildCategoryOptions([...customCategoryOptions, ...itemCategories.map((c) => c.name)], category),
+    [customCategoryOptions, itemCategories, category],
   );
+
   const monthlyFeeSelected = isMonthlyFeeCategory(category);
 
   const closeModal = useCallback(() => {
@@ -337,6 +339,25 @@ export function CreateInvoiceLineModal({
   }, [onClose, submitting]);
 
   useBodyScrollLock(open, closeModal);
+
+  useEffect(() => {
+    if (!open) {
+      setItemCategories([]);
+      return;
+    }
+    let active = true;
+    fetch(`/api/homes/${homeId}/inventory-item-categories`)
+      .then((res) => (res.ok ? res.json() : { categories: [] }))
+      .then((data: any) => {
+        if (active && data.categories) {
+          setItemCategories(data.categories);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [open, homeId]);
 
   useEffect(() => {
     if (!open) {
@@ -676,15 +697,17 @@ export function EditInvoiceLineModal({
   const [amountDollars, setAmountDollars] = useState("");
   const [serviceMonth, setServiceMonth] = useState("");
   const [customCategoryOptions, setCustomCategoryOptions] = useState<string[]>([]);
+  const [itemCategories, setItemCategories] = useState<{ id: string; name: string }[]>([]);
   const [newCategoryInput, setNewCategoryInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddCategory, setShowAddCategory] = useState(false);
 
   const categoryOptions = useMemo(
-    () => buildCategoryOptions(customCategoryOptions, category),
-    [customCategoryOptions, category],
+    () => buildCategoryOptions([...customCategoryOptions, ...itemCategories.map((c) => c.name)], category),
+    [customCategoryOptions, itemCategories, category],
   );
+
   const monthlyFeeSelected = isMonthlyFeeCategory(category);
 
   const closeModal = useCallback(() => {
@@ -693,6 +716,25 @@ export function EditInvoiceLineModal({
   }, [onClose, submitting]);
 
   useBodyScrollLock(open && line != null, closeModal);
+
+  useEffect(() => {
+    if (!open) {
+      setItemCategories([]);
+      return;
+    }
+    let active = true;
+    fetch(`/api/homes/${homeId}/inventory-item-categories`)
+      .then((res) => (res.ok ? res.json() : { categories: [] }))
+      .then((data: any) => {
+        if (active && data.categories) {
+          setItemCategories(data.categories);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [open, homeId]);
 
   useEffect(() => {
     if (!open || !line) {

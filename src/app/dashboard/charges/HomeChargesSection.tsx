@@ -213,6 +213,10 @@ export function HomeChargesSection({
         listTitle={null}
         filtersCollapsible
         activeFilterCount={chargesActiveFilterCount}
+        loading={
+          isApplyingRange ||
+          (paymentFilter !== "all" && filterFetchState === "loading")
+        }
         toolbar={
           <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
             <div className="min-w-0 flex-1" aria-hidden />
@@ -527,7 +531,18 @@ export function HomeChargesSection({
                 />
               </div>
             </div>
-            <div className="overflow-x-auto rounded-b-3xl">
+            <div
+              className={[
+                "overflow-x-auto rounded-b-3xl",
+                filterFetchState === "loading" &&
+                paymentFilter !== "all" &&
+                rows.length > 0
+                  ? "pointer-events-none opacity-50 transition-opacity duration-150 motion-reduce:transition-none"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
             <table
               aria-label="Monthly charge ledger"
               className="min-w-full border-collapse text-left text-sm"

@@ -614,6 +614,94 @@ export function finalizeInvoice(
   });
 }
 
+function deletePostedInvoiceCharges(
+  tx: AppDb,
+  accountId: string,
+  lines: (typeof invoiceLineItems.$inferSelect)[],
+): void {
+  const sources = lines.map((line) => linePostingSource(accountId, line));
+  const lineItemIds = sources
+    .filter((s) => s.sourceKind === "invoice_line_item")
+    .map((s) => s.sourceId);
+  const monthlyFeeKeys = sources
+    .filter((s) => s.sourceKind === "invoice_monthly_fee")
+    .map((s) => s.sourceId);
+  if (lineItemIds.length > 0) {
+    tx.delete(billingTransactions)
+      .where(
+        and(
+          eq(billingTransactions.sourceKind, "invoice_line_item"),
+          inArray(billingTransactions.sourceId, lineItemIds),
+        ),
+      )
+      .run();
+  }
+  if (monthlyFeeKeys.length > 0) {
+    tx.delete(billingTransactions)
+      .where(
+        and(
+          eq(billingTransactions.sourceKind, "invoice_monthly_fee"),
+          inArray(billingTransactions.sourceId, monthlyFeeKeys),
+        ),
+      )
+      .run();
+  }
+}
+
+/**
+ * Reverts a finalized invoice to draft: removes posted charge ledger rows and
+ * re-runs FIFO settlement for the account.
+ */
+export function revertFinalizedInvoiceToDraft(
+  db: AppDb,
+  actor: SessionActor | undefined,
+  input: { homeId?: string; invoiceId: string; revertedAtUtcMs: number },
+): { invoiceId: string } {
+  requireBillingAdmin(actor);
+  if (input.homeId) {
+    assertActorMayAccessHome(db, actor, input.homeId);
+  }
+
+  return db.transaction((tx) => {
+    const invoice = input.homeId
+      ? getInvoiceForHomeTx(tx, input.homeId, input.invoiceId)
+      : getInvoiceByIdTx(tx, input.invoiceId);
+
+    if (invoice.status === "draft") {
+      return { invoiceId: invoice.id };
+    }
+    if (invoice.status === "paid") {
+      throw new ValidationError("Paid invoices cannot be reverted to draft.");
+    }
+    if (invoice.status !== "finalized") {
+      throw new ValidationError("Only finalized invoices can be reverted to draft.");
+    }
+
+    const lines = tx
+      .select()
+      .from(invoiceLineItems)
+      .where(eq(invoiceLineItems.invoiceId, invoice.id))
+      .all();
+    deletePostedInvoiceCharges(tx, invoice.accountId, lines);
+
+    tx.update(invoices)
+      .set({
+        status: "draft",
+        totalMinorSnapshot: null,
+        updatedAtUtcMs: input.revertedAtUtcMs,
+      })
+      .where(eq(invoices.id, invoice.id))
+      .run();
+
+    settleFinalizedInvoicesFifo(tx, {
+      accountId: invoice.accountId,
+      nowUtcMs: input.revertedAtUtcMs,
+    });
+
+    return { invoiceId: invoice.id };
+  });
+}
+
 /**
  * Trusted internal finalization (e.g. cron) with no session actor.
  * Caller must enforce authentication / scheduling guarantees.

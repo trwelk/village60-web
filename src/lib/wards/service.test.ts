@@ -10,7 +10,8 @@ import { closeDbConnection, getDb } from "@/db/client";
 import { createHome } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/errors";
 import { createUser } from "@/lib/users/service";
-import { createWard, listWardsForHome, updateWard } from "./service";
+import { createResident } from "@/lib/residents/service";
+import { createWard, countActiveResidentsByWardId, isWardAtCapacity, listWardsForHome, updateWard } from "./service";
 
 const STRONG = "ChangeMeNow!1";
 const adminActor = { userId: "admin-actor", role: "admin" as const };
@@ -394,5 +395,44 @@ describe("wards catalog per home (admin vs care)", () => {
     const listed = listWardsForHome(db, { userId: care.id, role: "care" }, home.id);
     expect(listed).toHaveLength(1);
     expect(listed[0]).not.toHaveProperty("monthlyRatePerPersonMinor");
+  });
+
+  it("counts active residents per ward and detects capacity", () => {
+    const db = getDb();
+    const home = createHome(db, "admin", {
+      name: "H",
+      defaultCurrencyCode: "NZD",
+    });
+    const fullWard = createWard(db, adminActor, home.id, {
+      label: "Full",
+      bedCount: 1,
+    });
+    const openWard = createWard(db, adminActor, home.id, {
+      label: "Open",
+      bedCount: 2,
+    });
+    createWard(db, adminActor, home.id, { label: "Uncapped" });
+
+    createResident(db, adminActor, {
+      homeId: home.id,
+      fullName: "Resident One",
+      dob: "1950-01-01",
+      admissionDate: "2024-01-01",
+      wardId: fullWard.id,
+    });
+    createResident(db, adminActor, {
+      homeId: home.id,
+      fullName: "Resident Two",
+      dob: "1951-02-02",
+      admissionDate: "2024-02-01",
+      wardId: openWard.id,
+    });
+
+    const counts = countActiveResidentsByWardId(db, home.id);
+    expect(counts.get(fullWard.id)).toBe(1);
+    expect(counts.get(openWard.id)).toBe(1);
+    expect(isWardAtCapacity(1, 1)).toBe(true);
+    expect(isWardAtCapacity(2, 1)).toBe(false);
+    expect(isWardAtCapacity(null, 99)).toBe(false);
   });
 });

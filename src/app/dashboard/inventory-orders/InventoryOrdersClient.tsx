@@ -16,8 +16,9 @@ import { inventoryStatusPillClass } from "@/lib/inventory/inventoryStatusPillCla
 
 import { formatCents } from "@/lib/money";
 
-const TABLE_OUTLINE_BTN_CLASS =
-  "inline-flex items-center justify-center rounded border border-[color:color-mix(in_srgb,var(--line-strong)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1.5 text-sm font-semibold text-[var(--text-primary)] transition hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_76%,transparent)] disabled:cursor-not-allowed disabled:opacity-40";
+function purchaseOrderDetailHref(homeId: string, purchaseOrderId: string): string {
+  return `/dashboard/inventory-orders/${encodeURIComponent(purchaseOrderId)}?homeId=${encodeURIComponent(homeId)}`;
+}
 
 const MODAL_PRIMARY_BTN_CLASS =
   "inline-flex items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--accent-strong)_78%,transparent)] bg-gradient-to-br from-[color:color-mix(in_srgb,var(--accent)_72%,var(--highlight)_28%)] to-[var(--accent-strong)] px-5 py-2.5 text-sm font-bold text-[var(--bg-elevated)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--highlight)_45%,transparent),0_12px_24px_-16px_color-mix(in_srgb,var(--accent-strong)_78%,transparent)] transition-all duration-150 ease-out hover:-translate-y-px hover:saturate-105 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:saturate-100 min-h-10";
@@ -168,6 +169,7 @@ export function InventoryOrdersClient({
 
   useEffect(() => {
     queueMicrotask(() => {
+      setOrders([]);
       void loadOrders();
 
       void loadSuppliers();
@@ -246,9 +248,7 @@ export function InventoryOrdersClient({
       setCreateOpen(false);
 
       if (createdId) {
-        router.push(
-          `/dashboard/inventory-orders/${encodeURIComponent(createdId)}`,
-        );
+        router.push(purchaseOrderDetailHref(selectedHomeId, createdId));
 
         return;
       }
@@ -276,12 +276,13 @@ export function InventoryOrdersClient({
         filtersCollapsible
         activeFilterCount={activeFilterCount}
         error={error && !createOpen ? error : null}
+        loading={loading}
         toolbar={
           <div className="flex w-full min-w-0 flex-1 flex-wrap items-center justify-between gap-2 sm:gap-3">
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:gap-3">
               <Link
                 href={`/dashboard/inventory-orders/catalog?homeId=${encodeURIComponent(selectedHomeId)}`}
-                className={TABLE_OUTLINE_BTN_CLASS}
+                className="village-btn-secondary shrink-0"
               >
                 Open item catalog
               </Link>
@@ -405,7 +406,16 @@ export function InventoryOrdersClient({
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-b-3xl">
+            <div
+              className={[
+                "overflow-x-auto rounded-b-3xl",
+                loading && filteredOrders.length > 0
+                  ? "pointer-events-none opacity-50 transition-opacity duration-150 motion-reduce:transition-none"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <table
                 aria-label="Inventory purchase orders"
                 className="min-w-full border-collapse text-left text-sm"
@@ -537,8 +547,8 @@ export function InventoryOrdersClient({
 
                         <td className="px-5 py-4 text-right sm:px-6">
                           <Link
-                            href={`/dashboard/inventory-orders/${encodeURIComponent(order.id)}`}
-                            className={TABLE_OUTLINE_BTN_CLASS}
+                            href={purchaseOrderDetailHref(selectedHomeId, order.id)}
+                            className="village-button village-button--compact"
                           >
                             Open order
                           </Link>

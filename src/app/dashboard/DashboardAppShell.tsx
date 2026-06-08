@@ -18,7 +18,7 @@ import {
   isDashboardInventoryCatalogPath,
   isDashboardInventoryOrdersPath,
   isDashboardInventorySuppliersPath,
-  isDashboardLeadsPath,
+  isDashboardWaitingListPath,
   isDashboardPaymentsPath,
   isDashboardHomeAccountPaymentsPath,
   isDashboardResidentsPath,
@@ -59,8 +59,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { LogoutButton } from "./LogoutButton";
+import { NavigationProgress } from "./NavigationProgress";
 
 function DashboardBreadcrumbNav({ crumbs }: { crumbs: NavCrumb[] }) {
   return (
@@ -352,10 +353,10 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
             isActive: isDashboardUsersPath,
           },
           {
-            href: "/dashboard/leads",
-            label: "Leads",
+            href: "/dashboard/waiting-list",
+            label: "Waiting list",
             Icon: Inbox,
-            isActive: isDashboardLeadsPath,
+            isActive: isDashboardWaitingListPath,
           },
           {
             href: "/dashboard/admin/settings",
@@ -811,6 +812,9 @@ export function DashboardAppShell({
 
   return (
     <>
+      <Suspense fallback={null}>
+        <NavigationProgress />
+      </Suspense>
       <a
         href={`#${MAIN_ID}`}
         className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[100] focus:rounded-lg focus:border focus:border-[var(--line-strong)] focus:bg-[var(--bg-elevated)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--text-primary)] focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]"

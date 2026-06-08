@@ -310,6 +310,10 @@ export const invoiceLineItems = sqliteTable(
     invoiceId: text("invoice_id")
       .notNull()
       .references(() => invoices.id, { onDelete: "cascade" }),
+    purchaseOrderLineId: text("purchase_order_line_id").references(
+      () => homePurchaseOrderLines.id,
+      { onDelete: "set null" },
+    ),
     category: text("category").notNull(),
     description: text("description").notNull(),
     amountMinor: integer("amount_minor").notNull(),
@@ -318,7 +322,10 @@ export const invoiceLineItems = sqliteTable(
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
   },
-  (t) => [index("invoice_line_items_invoice_idx").on(t.invoiceId)],
+  (t) => [
+    index("invoice_line_items_invoice_idx").on(t.invoiceId),
+    index("invoice_line_items_po_line_idx").on(t.purchaseOrderLineId),
+  ],
 );
 
 /**

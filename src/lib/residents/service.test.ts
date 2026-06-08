@@ -113,6 +113,46 @@ describe("residents (06 core + directory)", () => {
     }
   });
 
+  it("blocks create when the selected ward is at capacity", () => {
+    const db = getDb();
+    const home = createHome(db, "admin", {
+      name: "H",
+      defaultCurrencyCode: "NZD",
+    });
+    const ward = createWard(db, adminActor, home.id, {
+      label: "North",
+      bedCount: 1,
+    });
+    createResident(db, adminActor, {
+      homeId: home.id,
+      fullName: "Existing Resident",
+      dob: "1950-01-01",
+      admissionDate: "2024-01-01",
+      wardId: ward.id,
+    });
+    expect(() =>
+      createResident(db, adminActor, {
+        homeId: home.id,
+        fullName: "New Resident",
+        dob: "1951-02-02",
+        admissionDate: "2024-02-01",
+        wardId: ward.id,
+      }),
+    ).toThrow(ValidationError);
+    try {
+      createResident(db, adminActor, {
+        homeId: home.id,
+        fullName: "New Resident",
+        dob: "1951-02-02",
+        admissionDate: "2024-02-01",
+        wardId: ward.id,
+      });
+    } catch (e) {
+      expect(e).toBeInstanceOf(ValidationError);
+      expect((e as ValidationError).message).toBe("Ward full.");
+    }
+  });
+
   it("lets a Care user create a resident in an assigned home", async () => {
     const db = getDb();
     const home = createHome(db, "admin", {

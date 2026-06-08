@@ -13,7 +13,7 @@ import {
 
   isDashboardInvoicesPath,
 
-  isDashboardLeadsPath,
+  isDashboardWaitingListPath,
 
   isDashboardLedgerPath,
 
@@ -93,7 +93,7 @@ export function getDashboardContextTitle(
 
   if (isDashboardAdminSettingsPath(pathname)) return "Admin settings";
 
-  if (isDashboardLeadsPath(pathname)) return "Leads";
+  if (isDashboardWaitingListPath(pathname)) return "Waiting list";
 
   return "Dashboard";
 
