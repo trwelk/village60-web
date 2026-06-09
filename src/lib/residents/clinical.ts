@@ -12,6 +12,13 @@ import {
   NotFoundError,
   ValidationError,
 } from "@/lib/homes/errors";
+import {
+  defaultSlotsForServingsPerDay,
+  normalizeScheduledSlotsInput,
+  parseScheduledSlots,
+  serializeScheduledSlots,
+  type MarTimeSlot,
+} from "@/lib/mar/constants";
 import { getResident } from "./service";
 
 export type ResidentConditionRow = typeof residentConditions.$inferSelect;
@@ -29,6 +36,7 @@ export type ResidentMedicationClinicalItem = {
   servingsPerDay: number | null;
   directions: string;
   prn: boolean;
+  scheduledSlots: MarTimeSlot[];
   status: string;
   sortOrder: number;
   createdAtUtcMs: number;
@@ -55,6 +63,7 @@ function mapJoinToClinical(
     servingsPerDay: rm.servingsPerDay,
     directions: rm.directions,
     prn: rm.prn,
+    scheduledSlots: parseScheduledSlots(rm.scheduledSlots),
     status: rm.status,
     sortOrder: rm.sortOrder,
     createdAtUtcMs: rm.createdAtUtcMs,
@@ -413,8 +422,23 @@ export type CreateResidentMedicationInput = {
   directions: string;
   servingsPerDay?: number | null;
   prn?: boolean;
+  scheduledSlots?: MarTimeSlot[] | null;
   itemId: string;
 };
+
+function resolveScheduledSlotsForWrite(input: {
+  prn: boolean;
+  servingsPerDay: number | null;
+  scheduledSlots?: MarTimeSlot[] | null;
+}): string | null {
+  if (input.prn) return null;
+  if (input.scheduledSlots && input.scheduledSlots.length > 0) {
+    return serializeScheduledSlots(input.scheduledSlots);
+  }
+  return serializeScheduledSlots(
+    defaultSlotsForServingsPerDay(input.servingsPerDay),
+  );
+}
 
 function requiredReal(input: unknown, field: string): number {
   if (typeof input !== "number" || Number.isNaN(input)) {
@@ -438,6 +462,16 @@ export function createResidentMedication(
   const directions = normalizeRequiredClinicalText(input.directions, "directions");
   const servingsPerDay = optionalPositiveInt(input.servingsPerDay, "servingsPerDay");
   const prn = input.prn === true;
+  let scheduledSlotsInput: MarTimeSlot[] | null | undefined = input.scheduledSlots;
+  if (input.scheduledSlots !== undefined && input.scheduledSlots !== null) {
+    try {
+      scheduledSlotsInput = normalizeScheduledSlotsInput(input.scheduledSlots, prn);
+    } catch (e) {
+      throw new ValidationError(
+        e instanceof Error ? e.message : "scheduledSlots is invalid.",
+      );
+    }
+  }
 
   const itemId = input.itemId.trim();
   if (!itemId) {
@@ -454,6 +488,11 @@ export function createResidentMedication(
     servingsPerDay,
     directions,
     prn,
+    scheduledSlots: resolveScheduledSlotsForWrite({
+      prn,
+      servingsPerDay,
+      scheduledSlots: scheduledSlotsInput ?? undefined,
+    }),
     status: "active",
     sortOrder: nextSortOrder(db, residentMedications, residentId),
     createdAtUtcMs: now,
@@ -478,6 +517,7 @@ export function updateResidentMedication(
     directions?: string;
     servingsPerDay?: number | null;
     prn?: boolean;
+    scheduledSlots?: MarTimeSlot[] | null;
     /** Item catalog row id; must belong to the resident's home. */
     itemId?: string;
   },
@@ -495,6 +535,7 @@ export function updateResidentMedication(
   let directions = existing.directions;
   let servingsPerDay = existing.servingsPerDay;
   let prn = existing.prn;
+  let scheduledSlots = existing.scheduledSlots;
   let itemId = existing.itemId;
 
   if (input.itemId !== undefined) {
@@ -521,6 +562,30 @@ export function updateResidentMedication(
   if (input.prn !== undefined) {
     prn = input.prn;
   }
+  if ("scheduledSlots" in input) {
+    if (input.scheduledSlots === null) {
+      scheduledSlots = null;
+    } else if (input.scheduledSlots !== undefined) {
+      try {
+        const normalized = normalizeScheduledSlotsInput(input.scheduledSlots, prn);
+        scheduledSlots =
+          normalized === null ? null : serializeScheduledSlots(normalized);
+      } catch (e) {
+        throw new ValidationError(
+          e instanceof Error ? e.message : "scheduledSlots is invalid.",
+        );
+      }
+    }
+  }
+  if (prn) {
+    scheduledSlots = null;
+  } else if (!scheduledSlots) {
+    scheduledSlots = resolveScheduledSlotsForWrite({
+      prn,
+      servingsPerDay,
+      scheduledSlots: undefined,
+    });
+  }
   const now = Date.now();
   try {
     db.update(residentMedications)
@@ -530,6 +595,7 @@ export function updateResidentMedication(
         servingsPerDay,
         directions,
         prn,
+        scheduledSlots,
         updatedAtUtcMs: now,
       })
       .where(eq(residentMedications.id, residentMedicationRowId))

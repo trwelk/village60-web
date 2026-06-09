@@ -655,6 +655,7 @@ async function main() {
           portraitContentType: null,
           portraitSizeBytes: null,
           portraitUpdatedAtUtcMs: null,
+          publicToken: randomUUID(),
           createdAtUtcMs: nowMs,
           updatedAtUtcMs: nowMs,
         })
@@ -1187,6 +1188,7 @@ async function main() {
             servingsPerDay: 4,
             directions: "With food if upset stomach",
             prn: false,
+            scheduledSlots: JSON.stringify(["morning", "afternoon", "evening", "night"]),
             status: "active",
             sortOrder: 0,
             createdAtUtcMs: nowMs,
@@ -1200,6 +1202,7 @@ async function main() {
             servingsPerDay: 3,
             directions: "Complete full course unless stopped by GP",
             prn: false,
+            scheduledSlots: JSON.stringify(["morning", "afternoon", "evening"]),
             status: "active",
             sortOrder: 1,
             createdAtUtcMs: nowMs,

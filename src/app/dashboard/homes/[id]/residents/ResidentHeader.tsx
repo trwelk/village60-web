@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DepartResidentModal } from "./DepartResidentModal";
+import { ResidentQrPanel } from "./ResidentQrPanel";
 
 type WardOption = { id: string; label: string };
 
@@ -280,6 +281,11 @@ export function ResidentHeader({ homeId, resident, wards, userRole }: Props) {
                 </Link>
               </>
             ) : null}
+            <ResidentQrPanel
+              homeId={homeId}
+              residentId={resident.id}
+              publicToken={resident.publicToken}
+            />
             <button
               type="button"
               onClick={() => {

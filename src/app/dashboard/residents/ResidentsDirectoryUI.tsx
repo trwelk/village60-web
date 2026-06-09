@@ -218,6 +218,12 @@ export function ResidentsDirectoryUI({
             {fixedHomeId ? (
               <>
                 <Link
+                  href={`/dashboard/homes/${fixedHomeId}/mar`}
+                  className="village-btn-secondary"
+                >
+                  Daily MAR
+                </Link>
+                <Link
                   href={`/dashboard/homes/${fixedHomeId}/residents/departed`}
                   className="village-btn-secondary"
                 >

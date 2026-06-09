@@ -6,6 +6,12 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { INVOICE_MODAL_PRIMARY_BTN_CLASS as MODAL_PRIMARY_BTN_CLASS } from "@/app/dashboard/invoices/invoiceModalStyles";
+import {
+  defaultSlotsForServingsPerDay,
+  MAR_SLOT_LABELS,
+  MAR_TIME_SLOTS,
+  type MarTimeSlot,
+} from "@/lib/mar/constants";
 
 const MODAL_CLOSE_BTN_CLASS =
   "rounded-lg border border-transparent px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)] sm:py-2.5";
@@ -42,6 +48,7 @@ function defaultFormState() {
     directions: "",
     servingsPerDay: "",
     prn: false,
+    scheduledSlots: ["morning", "afternoon", "evening", "night"] as MarTimeSlot[],
   };
 }
 
@@ -53,6 +60,37 @@ export function AddMedicationModal({ homeId, residentId }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(defaultFormState);
+
+  function toggleSlot(slot: MarTimeSlot) {
+    setForm((current) => {
+      const selected = current.scheduledSlots.includes(slot)
+        ? current.scheduledSlots.filter((entry) => entry !== slot)
+        : [...current.scheduledSlots, slot];
+      return { ...current, scheduledSlots: selected };
+    });
+  }
+
+  function syncSlotsFromServings(raw: string) {
+    const trimmed = raw.trim();
+    if (trimmed === "") {
+      setForm((current) => ({
+        ...current,
+        servingsPerDay: raw,
+        scheduledSlots: [...MAR_TIME_SLOTS],
+      }));
+      return;
+    }
+    const n = Number.parseInt(trimmed, 10);
+    if (Number.isInteger(n) && n >= 1) {
+      setForm((current) => ({
+        ...current,
+        servingsPerDay: raw,
+        scheduledSlots: defaultSlotsForServingsPerDay(n),
+      }));
+    } else {
+      setForm((current) => ({ ...current, servingsPerDay: raw }));
+    }
+  }
 
   const closeModal = useCallback(() => {
     setOpen(false);
@@ -135,6 +173,14 @@ export function AddMedicationModal({ homeId, residentId }: Props) {
         directions: form.directions,
         prn: form.prn,
       };
+      if (!form.prn) {
+        if (form.scheduledSlots.length === 0) {
+          setError("Select at least one time slot.");
+          setSubmitting(false);
+          return;
+        }
+        body.scheduledSlots = form.scheduledSlots;
+      }
       const sp = form.servingsPerDay.trim();
       if (sp !== "") {
         const n = parseInt(sp, 10);
@@ -297,9 +343,7 @@ export function AddMedicationModal({ homeId, residentId }: Props) {
                             className="village-input min-w-0"
                             placeholder="Blank for as directed / PRN"
                             value={form.servingsPerDay}
-                            onChange={(e) =>
-                              setForm((f) => ({ ...f, servingsPerDay: e.target.value }))
-                            }
+                            onChange={(e) => syncSlotsFromServings(e.target.value)}
                             inputMode="numeric"
                             autoComplete="off"
                           />
@@ -324,10 +368,43 @@ export function AddMedicationModal({ homeId, residentId }: Props) {
                           type="checkbox"
                           className="h-4 w-4 rounded border-pine/30 text-pine focus:ring-pine/40"
                           checked={form.prn}
-                          onChange={(e) => setForm((f) => ({ ...f, prn: e.target.checked }))}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              prn: e.target.checked,
+                              scheduledSlots: e.target.checked
+                                ? []
+                                : defaultSlotsForServingsPerDay(
+                                    f.servingsPerDay.trim()
+                                      ? Number.parseInt(f.servingsPerDay, 10)
+                                      : null,
+                                  ),
+                            }))
+                          }
                         />
                         <span>PRN (as needed)</span>
                       </label>
+                      {!form.prn ? (
+                        <fieldset className="flex flex-col gap-3">
+                          <legend className="village-label">Time slots</legend>
+                          <div className="flex flex-wrap gap-3">
+                            {MAR_TIME_SLOTS.map((slot) => (
+                              <label
+                                key={slot}
+                                className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-pine/15 px-3 py-2 text-sm"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 rounded border-pine/30 text-pine focus:ring-pine/40"
+                                  checked={form.scheduledSlots.includes(slot)}
+                                  onChange={() => toggleSlot(slot)}
+                                />
+                                <span>{MAR_SLOT_LABELS[slot]}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      ) : null}
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                         <button
                           form="medications-create-form"

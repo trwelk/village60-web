@@ -30,6 +30,7 @@ const BASE_RESIDENT: ResidentWithoutFee = {
   assignedNurseDisplayOverride: null,
   hasPortrait: false,
   portraitUpdatedAtUtcMs: null,
+  publicToken: "public-token-1",
   createdAtUtcMs: 0,
   updatedAtUtcMs: 0,
 };

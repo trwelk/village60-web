@@ -61,7 +61,6 @@ export default async function ResidentDetailPage({
   return (
     <ResidentDetailShell
       homeId={homeId}
-      homeName={home.name}
       homeDefaultCurrencyCode={home.defaultCurrencyCode}
       userRole={actor.role}
       resident={resident}

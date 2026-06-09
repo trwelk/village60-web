@@ -322,6 +322,7 @@ export function createResident(
     portraitContentType: null,
     portraitSizeBytes: null,
     portraitUpdatedAtUtcMs: null,
+    publicToken: randomUUID(),
     createdAtUtcMs: now,
     updatedAtUtcMs: now,
   };

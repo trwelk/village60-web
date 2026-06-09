@@ -112,8 +112,11 @@ export function isDashboardAnalyticsFinancialPath(pathname: string): boolean {
   );
 }
 
-/**
- * Per-resident record under a home (not the directory list, not `new` or `departed`).
+export function isDashboardMarPath(pathname: string): boolean {
+  return /\/dashboard\/homes\/[^/]+\/mar(\/|$)/.test(pathname);
+}
+
+/** Per-resident record under a home (not the directory list, not `new` or `departed`).
  * Used to defer breadcrumbs to a nested layout (23c).
  */
 export function isHomeResidentDetailPath(pathname: string): boolean {

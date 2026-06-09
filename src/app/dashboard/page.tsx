@@ -84,7 +84,7 @@ export default async function DashboardPage() {
     session.role === "admin" ? listOccupancyHeatmapBoard(db) : null;
 
   return (
-    <main className="flex flex-col gap-8 text-[var(--text-primary)]">
+    <main className="flex flex-col gap-6 text-[var(--text-primary)]">
       <DashboardTodayBirthdaysBanner entries={birthdaysTodayUtc} />
       <DashboardTasksSnapshot
         summary={taskSummary}
@@ -93,14 +93,20 @@ export default async function DashboardPage() {
         email={session.email}
         weekdayUtcLong={weekdayUtcLong}
       />
-      {occupancyBoard ? (
-        <OccupancyHeatmapBoardCard board={occupancyBoard} />
-      ) : null}
-      <ResidentBirthdayBoardCard
-        week={birthdayBoardWeek}
-        month={birthdayBoardMonth}
-        asOfLabel={birthdayBoardAsOfLabel}
-      />
+      <div className="grid gap-6 xl:grid-cols-[1fr_minmax(0,26rem)]">
+        <div className="flex min-w-0 flex-col gap-6">
+          {occupancyBoard ? (
+            <OccupancyHeatmapBoardCard board={occupancyBoard} />
+          ) : null}
+        </div>
+        <div className="flex min-w-0 flex-col gap-6">
+          <ResidentBirthdayBoardCard
+            week={birthdayBoardWeek}
+            month={birthdayBoardMonth}
+            asOfLabel={birthdayBoardAsOfLabel}
+          />
+        </div>
+      </div>
       {lastSignIn ? (
         <LocalTime
           utcMs={lastSignIn.occurredAtUtcMs}

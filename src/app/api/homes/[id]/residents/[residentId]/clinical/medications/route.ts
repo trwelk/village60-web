@@ -2,6 +2,7 @@ import { getDb } from "@/db/client";
 import { requireSessionActor } from "@/lib/authz/sessionActor";
 import { homesErrorResponse } from "@/lib/homes/http";
 import { createResidentMedication } from "@/lib/residents/clinical";
+import { isMarTimeSlot, type MarTimeSlot } from "@/lib/mar/constants";
 import { getSessionOptions, type SessionData } from "@/lib/session";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
@@ -77,6 +78,29 @@ export async function POST(req: Request, { params }: RouteParams) {
     prn = rec.prn;
   }
 
+  let scheduledSlots: MarTimeSlot[] | null | undefined;
+  if ("scheduledSlots" in rec) {
+    if (rec.scheduledSlots === null) {
+      scheduledSlots = null;
+    } else if (Array.isArray(rec.scheduledSlots)) {
+      scheduledSlots = rec.scheduledSlots.filter(
+        (entry): entry is MarTimeSlot =>
+          typeof entry === "string" && isMarTimeSlot(entry),
+      );
+      if (scheduledSlots.length !== rec.scheduledSlots.length) {
+        return NextResponse.json(
+          { error: "scheduledSlots contains an invalid slot." },
+          { status: 400 },
+        );
+      }
+    } else {
+      return NextResponse.json(
+        { error: "scheduledSlots must be an array or null." },
+        { status: 400 },
+      );
+    }
+  }
+
   try {
     const row = createResidentMedication(
       getDb(),
@@ -89,6 +113,7 @@ export async function POST(req: Request, { params }: RouteParams) {
         directions: rec.directions as string,
         servingsPerDay,
         prn,
+        scheduledSlots,
       },
     );
     return NextResponse.json({ medication: row });

@@ -423,6 +423,12 @@ export function HomesAdminUI({
                           Residents
                         </Link>
                         <Link
+                          href={`/dashboard/homes/${h.id}/mar`}
+                          className="village-link"
+                        >
+                          Daily MAR
+                        </Link>
+                        <Link
                           href={`/dashboard/homes/${h.id}/wards`}
                           className="village-link"
                         >
@@ -436,6 +442,12 @@ export function HomesAdminUI({
                           className="village-link"
                         >
                           Residents
+                        </Link>
+                        <Link
+                          href={`/dashboard/homes/${h.id}/mar`}
+                          className="village-link"
+                        >
+                          Daily MAR
                         </Link>
                         {editingId === h.id ? (
                           <>

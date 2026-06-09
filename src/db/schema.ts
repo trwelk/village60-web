@@ -173,6 +173,8 @@ export const residents = sqliteTable(
     portraitContentType: text("portrait_content_type"),
     portraitSizeBytes: integer("portrait_size_bytes"),
     portraitUpdatedAtUtcMs: integer("portrait_updated_at_utc_ms"),
+    /** Unguessable token for public profile page `/r/{publicToken}` and QR codes. */
+    publicToken: text("public_token"),
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
   },
@@ -182,6 +184,7 @@ export const residents = sqliteTable(
       t.dob,
       t.normalizedFullName,
     ),
+    uniqueIndex("residents_public_token_uq").on(t.publicToken),
   ],
 );
 
@@ -516,6 +519,8 @@ export const residentMedications = sqliteTable(
     servingsPerDay: integer("servings_per_day"),
     directions: text("directions").notNull(),
     prn: integer("prn", { mode: "boolean" }).notNull().default(false),
+    /** JSON array of slot ids: morning | afternoon | evening | night */
+    scheduledSlots: text("scheduled_slots"),
     status: text("status").notNull().default("active"),
     sortOrder: integer("sort_order").notNull(),
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
@@ -527,6 +532,41 @@ export const residentMedications = sqliteTable(
       t.residentId,
       t.itemId,
     ),
+  ],
+);
+
+/** Medication administration audit trail (MAR). */
+export const medicationAdministrations = sqliteTable(
+  "medication_administrations",
+  {
+    id: text("id").primaryKey(),
+    homeId: text("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    residentId: text("resident_id")
+      .notNull()
+      .references(() => residents.id, { onDelete: "cascade" }),
+    residentMedicationId: text("resident_medication_id")
+      .notNull()
+      .references(() => residentMedications.id, { onDelete: "cascade" }),
+    slot: text("slot").notNull(),
+    date: text("date").notNull(),
+    administeredByUserId: text("administered_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    notes: text("notes"),
+    administeredAtUtcMs: integer("administered_at_utc_ms").notNull(),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+  },
+  (t) => [
+    index("medication_administrations_home_date_idx").on(t.homeId, t.date),
+    index("medication_administrations_resident_medication_idx").on(
+      t.residentMedicationId,
+      t.date,
+    ),
+    uniqueIndex("medication_administrations_scheduled_uq")
+      .on(t.residentMedicationId, t.slot, t.date)
+      .where(sql`${t.slot} != 'prn'`),
   ],
 );
 

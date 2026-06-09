@@ -22,6 +22,7 @@ import {
   isDashboardPaymentsPath,
   isDashboardHomeAccountPaymentsPath,
   isDashboardResidentsPath,
+  isDashboardMarPath,
   isDashboardTasksPath,
   isDashboardUsersPath,
   isDashboardAdminSettingsPath,
@@ -195,7 +196,7 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
         href: "/dashboard/residents",
         label: "Residents",
         Icon: Users,
-        isActive: isDashboardResidentsPath,
+        isActive: (p) => isDashboardResidentsPath(p) || isDashboardMarPath(p),
       },
       {
         href: "/dashboard/homes",

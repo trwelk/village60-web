@@ -8,7 +8,6 @@ import {
 import type { SessionUserRole } from "@/lib/session";
 import type { ResidentPublic } from "@/lib/residents/service";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { ResidentHeader } from "./ResidentHeader";
 import { ResidentTabs } from "./ResidentTabs";
 import { NokTab } from "./NokTab";
@@ -23,7 +22,6 @@ type CareStaffOption = { id: string; email: string };
 
 type Props = {
   homeId: string;
-  homeName: string;
   homeDefaultCurrencyCode: string;
   userRole: SessionUserRole;
   resident: ResidentPublic;
@@ -33,7 +31,6 @@ type Props = {
 
 export function ResidentDetailShell({
   homeId,
-  homeName,
   homeDefaultCurrencyCode,
   userRole,
   resident,
@@ -51,25 +48,9 @@ export function ResidentDetailShell({
     router.replace(`?${params.toString()}`);
   }
 
-  const breadcrumbLinkClass =
-    "font-semibold text-pine underline decoration-terracotta/35 underline-offset-[5px] transition hover:text-terracotta hover:decoration-terracotta/60";
-
   return (
     <main className="flex flex-col gap-8 text-ink">
-      <div className="village-reveal flex flex-wrap items-center gap-2 text-sm text-ink/75">
-        <Link
-          href={`/dashboard/homes/${homeId}/residents`}
-          className={breadcrumbLinkClass}
-        >
-          Residents at this home
-        </Link>
-        <span className="text-ink/30" aria-hidden>
-          /
-        </span>
-        <span className="font-medium text-ink/85">{homeName}</span>
-      </div>
-
-      <div className="village-reveal village-reveal-delay-1">
+      <div className="village-reveal">
         <ResidentHeader
           homeId={homeId}
           resident={resident}
@@ -78,7 +59,7 @@ export function ResidentDetailShell({
         />
       </div>
 
-      <div className="village-reveal village-reveal-delay-2">
+      <div className="village-reveal village-reveal-delay-1">
         <ResidentTabs
           tabs={tabs}
           activeTab={activeTab}
@@ -88,7 +69,7 @@ export function ResidentDetailShell({
 
       <div
         role="tabpanel"
-        className="village-reveal village-reveal-delay-3 village-card min-h-[12rem] p-6 sm:p-8"
+        className="village-reveal village-reveal-delay-2 village-card min-h-[12rem] p-6 sm:p-8"
       >
         {activeTab === "nok" && (
           <NokTab homeId={homeId} residentId={resident.id} resident={resident} />

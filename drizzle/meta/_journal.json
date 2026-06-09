@@ -400,6 +400,20 @@
       "when": 1779906661632,
       "tag": "0056_add_po_line_to_invoice_line",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "6",
+      "when": 1779906662000,
+      "tag": "0057_resident_public_token",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "6",
+      "when": 1779906662400,
+      "tag": "0058_medication_administrations",
+      "breakpoints": true
     }
   ]
 }

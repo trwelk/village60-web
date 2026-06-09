@@ -26,7 +26,7 @@ import {
   isDashboardInventoryCatalogPath,
   isDashboardInventoryOrdersPath,
   isDashboardInventorySuppliersPath,
-
+  isDashboardMarPath,
 
   isDashboardUsersPath,
 
@@ -65,6 +65,8 @@ export function getDashboardContextTitle(
   if (isDashboardAccountPath(pathname)) return "My account";
 
   if (isDashboardResidentsPath(pathname)) return "Residents";
+
+  if (isDashboardMarPath(pathname)) return "Daily MAR";
 
   if (isDashboardTasksPath(pathname)) return "Tasks";
   if (isDashboardInventoryCatalogPath(pathname)) return "Inventory catalog";
