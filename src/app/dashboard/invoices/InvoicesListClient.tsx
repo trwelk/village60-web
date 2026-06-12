@@ -132,29 +132,29 @@ export function InvoicesListClient({
       {error && !createOpen ? <p className="village-alert-error">{error}</p> : null}
 
       <section className="village-card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4 sm:px-6">
-          <div>
-            <h2 className="text-lg font-semibold">Invoices · {homeName}</h2>
+        <div className="flex flex-col gap-3 border-b border-[var(--line)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold leading-tight">
+              <span className="block break-words sm:truncate">Invoices · {homeName}</span>
+            </h2>
             <p className="text-sm text-[var(--text-secondary)]">
               {filteredInvoices.length} invoice{filteredInvoices.length === 1 ? "" : "s"}
             </p>
           </div>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2 sm:gap-3 sm:flex-initial sm:justify-end">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
-                onClick={() => {
-                  setError(null);
-                  setCreateOpen(true);
-                }}
-              >
-                New invoice
-              </button>
-            </div>
+          <div className="flex shrink-0 items-center gap-2 self-stretch sm:self-auto">
             <button
               type="button"
-              className="village-btn-secondary shrink-0"
+              className="village-btn-primary min-w-0 flex-1 px-3 py-1.5 text-sm sm:flex-initial"
+              onClick={() => {
+                setError(null);
+                setCreateOpen(true);
+              }}
+            >
+              New invoice
+            </button>
+            <button
+              type="button"
+              className="village-btn-secondary min-w-0 flex-1 sm:flex-initial"
               onClick={() => {
                 void loadInvoices();
                 router.refresh();
@@ -201,7 +201,7 @@ export function InvoicesListClient({
         {filteredInvoices.length > 0 ? (
           <div
             className={[
-              "overflow-x-auto",
+              "village-table-wrap rounded-none border-x-0 border-b-0 shadow-none",
               loading
                 ? "pointer-events-none opacity-50 transition-opacity duration-150 motion-reduce:transition-none"
                 : "",
@@ -209,18 +209,18 @@ export function InvoicesListClient({
               .filter(Boolean)
               .join(" ")}
           >
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">
-                  <th className="px-5 py-3 font-medium sm:px-6">Invoice no.</th>
-                  <th className="px-5 py-3 font-medium">Account</th>
-                  <th className="px-5 py-3 font-medium">Invoice date</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium text-right">Total</th>
-                  <th className="px-5 py-3 font-medium text-right sm:px-6">Action</th>
+            <table className="village-table">
+              <thead className="village-thead">
+                <tr>
+                  <th className="village-th">Invoice no.</th>
+                  <th className="village-th">Account</th>
+                  <th className="village-th">Invoice date</th>
+                  <th className="village-th">Status</th>
+                  <th className="village-th text-right">Total</th>
+                  <th className="village-th text-right">Action</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="village-tbody">
                 {filteredInvoices.map((invoice) => {
                   const accountName =
                     invoice.accountType === "home"
@@ -234,23 +234,19 @@ export function InvoicesListClient({
                     );
 
                   return (
-                    <tr key={invoice.id} className="border-b border-[var(--line)]/85 align-middle">
-                      <td className="px-5 py-3 font-mono text-sm tabular-nums text-[var(--text-primary)] sm:px-6">
+                    <tr key={invoice.id}>
+                      <td className="village-td font-mono tabular-nums">
                         {invoice.invNo?.trim() ? invoice.invNo : "—"}
                       </td>
-                      <td className="px-5 py-3 font-medium text-[var(--text-primary)]">
-                        {accountName}
-                      </td>
-                      <td className="px-5 py-3 tabular-nums text-[var(--text-secondary)]">
+                      <td className="village-td font-medium">{accountName}</td>
+                      <td className="village-td-muted tabular-nums">
                         {invoiceDateLabel(invoice.issuedOn)}
                       </td>
-                      <td className="px-5 py-3">
+                      <td className="village-td">
                         <span className={invoiceStatusBadgeClass(invoice.status)}>{invoice.status}</span>
                       </td>
-                      <td className="px-5 py-3 text-right tabular-nums text-[var(--text-secondary)]">
-                        {totalCell}
-                      </td>
-                      <td className="px-5 py-3 text-right sm:px-6">
+                      <td className="village-td-muted text-right tabular-nums">{totalCell}</td>
+                      <td className="village-td text-right">
                         <Link
                           href={invoiceDetailHref(homeId, invoice.id)}
                           className="village-button village-button--compact"

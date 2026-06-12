@@ -1350,6 +1350,8 @@ button.village-table-action {
       color-mix(in srgb, var(--bg-muted) 28%, var(--bg-elevated) 72%)
     );
   box-shadow: var(--shadow-sm);
+  overflow-x: clip;
+  min-width: 0;
 }
 
 .village-occ-board-header {
@@ -1399,6 +1401,54 @@ button.village-table-action {
   padding: 0.6rem 1.25rem;
   border-bottom: 1px solid color-mix(in srgb, var(--line-subtle) 40%, transparent);
   transition: background 120ms ease;
+}
+
+@media (max-width: 767px) {
+  .village-occ-board-header {
+    padding-inline: 1rem;
+  }
+
+  .village-occ-board-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .village-occ-home-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding-inline: 1rem;
+  }
+
+  .village-occ-home-header {
+    min-width: 0;
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+  }
+
+  .village-occ-home-name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    max-width: none;
+  }
+
+  .village-occ-notice {
+    white-space: normal;
+    width: 100%;
+  }
+
+  .village-occ-pills {
+    width: 100%;
+  }
+
+  .village-occ-pill-label,
+  .village-occ-pill-sub {
+    white-space: normal;
+  }
 }
 
 .village-occ-home-row:last-child {

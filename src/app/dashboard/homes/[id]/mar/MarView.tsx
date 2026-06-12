@@ -4,8 +4,6 @@ import type { MarDayView } from "@/lib/mar/service";
 import {
   ChevronLeft,
   ChevronRight,
-  Eye,
-  EyeOff,
   Moon,
   Pill,
   Sun,
@@ -74,7 +72,6 @@ export function MarView({ homeId, homeName, initialDate, initialMar }: Props) {
     );
     return pending?.slot ?? initialMar.slots[0]?.slot ?? "morning";
   });
-  const [hideDone, setHideDone] = useState(false);
   const loadSeqRef = useRef(0);
 
   const totalScheduled = useMemo(
@@ -199,9 +196,8 @@ export function MarView({ homeId, homeName, initialDate, initialMar }: Props) {
         </div>
       </div>
 
-      {/* Slot tabs + hide-done toggle */}
-      <div className="flex items-center gap-2">
-        <nav className="village-tablist flex-1" role="tablist">
+      {/* Slot tabs */}
+      <nav className="village-tablist" role="tablist">
           {mar.slots.map((slot) => {
             const Icon = SLOT_ICONS[slot.slot];
             const isActive = slot.slot === activeSlot;
@@ -234,20 +230,7 @@ export function MarView({ homeId, homeName, initialDate, initialMar }: Props) {
             <span className="hidden sm:inline">PRN</span>
             <span className="text-[0.65rem]">{mar.prnMedications.length}</span>
           </button>
-        </nav>
-
-        {!showPrn && (
-          <button
-            type="button"
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--line-subtle)] px-2.5 text-[0.7rem] font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--bg-muted)]"
-            onClick={() => setHideDone((prev) => !prev)}
-            title={hideDone ? "Show all medications" : "Hide completed medications"}
-          >
-            {hideDone ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">{hideDone ? "Show all" : "Hide done"}</span>
-          </button>
-        )}
-      </div>
+      </nav>
 
       {error && <p className="village-alert-error">{error}</p>}
       {loading && <p className="text-xs text-[var(--text-secondary)]">Loading MAR…</p>}
@@ -269,7 +252,6 @@ export function MarView({ homeId, homeName, initialDate, initialMar }: Props) {
             date={date}
             slotGroup={activeSlotGroup}
             onUpdated={() => void loadMar(date)}
-            hideDone={hideDone}
           />
         ) : null}
       </div>

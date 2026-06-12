@@ -1072,11 +1072,11 @@ export function DashboardAppShell({
             role="banner"
             className="village-dashboard-topbar village-dashboard-topbar-animate sticky top-0 z-30 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_78%,transparent)] shadow-[0_10px_30px_-28px_color-mix(in_srgb,var(--accent-strong)_58%,transparent)] backdrop-blur supports-[backdrop-filter]:bg-[color:color-mix(in_srgb,var(--bg-elevated)_82%,transparent)]"
           >
-            <div className="mx-auto flex w-full max-w-7xl items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
+            <div className="mx-auto flex w-full max-w-7xl items-start gap-2 px-3 py-2.5 sm:items-center sm:gap-3 sm:px-6 sm:py-3 lg:px-8">
               <button
                 ref={menuButtonRef}
                 type="button"
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] text-[var(--text-primary)] shadow-sm hover:border-[color:color-mix(in_srgb,var(--accent)_56%,transparent)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)] lg:hidden"
+                className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] text-[var(--text-primary)] shadow-sm hover:border-[color:color-mix(in_srgb,var(--accent)_56%,transparent)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)] sm:mt-0 lg:hidden"
                 aria-label={t("shell.openMainMenu")}
                 aria-expanded={mobileOpen}
                 aria-controls={menuId}
@@ -1103,7 +1103,7 @@ export function DashboardAppShell({
                 </svg>
               </button>
               <div
-                className="flex min-w-0 flex-1 items-center gap-3"
+                className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3"
                 inert={mobileOpen ? true : undefined}
               >
                 <div className="min-w-0 flex-1">
@@ -1111,29 +1111,32 @@ export function DashboardAppShell({
                     <DashboardBreadcrumbNav crumbs={useCrumbs} />
                   ) : (
                     <h1
-                      className="truncate font-display text-lg font-semibold text-[var(--text-primary)] sm:text-xl"
+                      className="font-display text-lg font-semibold leading-tight text-[var(--text-primary)] sm:truncate sm:text-xl"
                       id="village-dashboard-context-title"
                     >
                       {contextTitle}
                     </h1>
                   )}
                 </div>
-                <div className="village-session-cluster !m-0 shrink-0 !border-0 !p-0">
+                <div className="village-session-cluster !m-0 flex shrink-0 flex-wrap items-center justify-end gap-1.5 self-stretch !border-0 !p-0 sm:justify-start">
                   <LanguageSwitcher compact className="hidden sm:block" />
-                  <p className="village-session-pill">
+                  <p className="village-session-pill hidden max-w-[11rem] truncate min-[400px]:block sm:max-w-none">
                     <strong>{email}</strong>
                     <span className="text-[color:color-mix(in_srgb,var(--text-secondary)_60%,transparent)]"> / </span>
                     <span className="village-session-role uppercase tracking-wide">
                       {roleLabel}
                     </span>
                   </p>
+                  <span className="village-session-role rounded-full bg-[color:color-mix(in_srgb,var(--bg-muted)_55%,transparent)] px-2 py-0.5 text-[0.67rem] font-semibold uppercase tracking-wide text-[var(--text-primary)] min-[400px]:hidden">
+                    {roleLabel}
+                  </span>
                   <LogoutButton className="village-logout-chip shrink-0" />
                 </div>
               </div>
             </div>
           </header>
           <div
-            className="village-dashboard-main mx-auto w-full max-w-7xl flex-1 px-4 pb-14 pt-8 sm:px-6 lg:px-8"
+            className="village-dashboard-main mx-auto w-full max-w-7xl flex-1 px-3 pb-12 pt-6 sm:px-6 sm:pb-14 sm:pt-8 lg:px-8"
             inert={mobileOpen ? true : undefined}
           >
             <main id={MAIN_ID} tabIndex={-1} className="village-reveal outline-none">

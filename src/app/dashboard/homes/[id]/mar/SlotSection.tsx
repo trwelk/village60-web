@@ -20,7 +20,6 @@ type Props = {
   date: string;
   slotGroup: MarSlotGroup;
   onUpdated: () => void;
-  hideDone?: boolean;
 };
 
 async function parseError(res: Response): Promise<string> {
@@ -221,33 +220,23 @@ function ResidentAvatar({
 
 /* ── Slot section (one tab's content) ────────────────────────── */
 
-export function SlotSection({ homeId, date, slotGroup, onUpdated, hideDone = false }: Props) {
+export function SlotSection({ homeId, date, slotGroup, onUpdated }: Props) {
   const residentGroups = groupByResident(slotGroup.medications);
 
-  const displayData = residentGroups
-    .map((g) => {
-      const originalTotal = g.meds.length;
-      const originalGiven = g.meds.filter((m) => m.administration).length;
-      const displayMeds = hideDone ? g.meds.filter((m) => !m.administration) : g.meds;
-      return { ...g, displayMeds, originalTotal, originalGiven };
-    })
-    .filter((g) => g.displayMeds.length > 0);
-
-  if (displayData.length === 0) {
+  if (residentGroups.length === 0) {
     return (
       <div className="village-card flex items-center justify-center py-10 text-sm text-[var(--text-secondary)]">
-        {hideDone
-          ? "All medications in this slot have been administered."
-          : "No medications scheduled for this time slot."}
+        No medications scheduled for this time slot.
       </div>
     );
   }
 
   return (
     <div className="village-card overflow-hidden">
-      {displayData.map((group) => {
-        const allDone =
-          group.originalGiven === group.originalTotal && group.originalTotal > 0;
+      {residentGroups.map((group) => {
+        const total = group.meds.length;
+        const given = group.meds.filter((m) => m.administration).length;
+        const allDone = given === total && total > 0;
 
         return (
           <div key={group.residentId} className="mar-resident-group">
@@ -267,12 +256,12 @@ export function SlotSection({ homeId, date, slotGroup, onUpdated, hideDone = fal
                     : "mar-resident-header__progress--pending"
                 }`}
               >
-                {group.originalGiven}/{group.originalTotal}
+                {given}/{total}
               </span>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {group.displayMeds.map((med) => (
+              {group.meds.map((med) => (
                 <MedicationTile
                   key={`${date}-${med.residentMedicationId}-${slotGroup.slot}`}
                   homeId={homeId}

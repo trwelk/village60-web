@@ -287,7 +287,7 @@ export function VillageList({
           id="village-filter-panel"
           className="animate-[village-filter-in_120ms_ease-out] will-change-[opacity,transform]"
         >
-          <section className="village-region p-5 sm:p-6">
+          <section className="village-region p-4 sm:p-6">
             <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
               {filters}
             </div>
@@ -297,7 +297,7 @@ export function VillageList({
 
       {/* Always-visible filters card (non-collapsible) */}
       {showFilterInline ? (
-        <section className="village-region p-5 sm:p-6">
+        <section className="village-region p-4 sm:p-6">
           <h2 className="village-section-title">Filters</h2>
           <div className="mt-5 flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
             {filters}
@@ -309,7 +309,7 @@ export function VillageList({
       {error ? <p className="village-alert-error">{error}</p> : null}
 
       {/* List / table section */}
-      <section aria-busy={loading} className="village-region p-5 sm:p-6">
+      <section aria-busy={loading} className="village-region p-4 sm:p-6">
         {listTitle ? (
           <h2 className="village-section-title flex flex-wrap items-center gap-2">
             <span>{listTitle}</span>

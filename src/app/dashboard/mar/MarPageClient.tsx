@@ -86,6 +86,7 @@ export function MarPageClient({
         }
       >
         <MarView
+          key={selectedHomeId}
           homeId={selectedHomeId}
           homeName={homeName}
           initialDate={initialDate}
