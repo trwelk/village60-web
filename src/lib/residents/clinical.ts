@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, max } from "drizzle-orm";
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import {
+  inventoryBalances,
   inventoryItems,
   residentAllergies,
   residentConditions,
@@ -39,6 +40,7 @@ export type ResidentMedicationClinicalItem = {
   scheduledSlots: MarTimeSlot[];
   status: string;
   sortOrder: number;
+  onHandBaseUnits: number;
   createdAtUtcMs: number;
   updatedAtUtcMs: number;
 };
@@ -52,6 +54,7 @@ export type ResidentClinicalSnapshot = {
 function mapJoinToClinical(
   rm: ResidentMedicationAssignmentRow,
   item: { name: string; baseUnit: string },
+  onHandBaseUnits: number | null | undefined,
 ): ResidentMedicationClinicalItem {
   return {
     id: rm.id,
@@ -66,6 +69,7 @@ function mapJoinToClinical(
     scheduledSlots: parseScheduledSlots(rm.scheduledSlots),
     status: rm.status,
     sortOrder: rm.sortOrder,
+    onHandBaseUnits: onHandBaseUnits ?? 0,
     createdAtUtcMs: rm.createdAtUtcMs,
     updatedAtUtcMs: rm.updatedAtUtcMs,
   };
@@ -77,9 +81,21 @@ function getClinicalMedicationByRowId(
   residentMedicationRowId: string,
 ): ResidentMedicationClinicalItem {
   const row = db
-    .select({ rm: residentMedications, i: inventoryItems })
+    .select({
+      rm: residentMedications,
+      i: inventoryItems,
+      onHandBaseUnits: inventoryBalances.quantityBaseUnits,
+    })
     .from(residentMedications)
     .innerJoin(inventoryItems, eq(residentMedications.itemId, inventoryItems.id))
+    .leftJoin(
+      inventoryBalances,
+      and(
+        eq(inventoryBalances.ownerType, "RESIDENT"),
+        eq(inventoryBalances.ownerId, residentId),
+        eq(inventoryBalances.itemId, residentMedications.itemId),
+      ),
+    )
     .where(
       and(
         eq(residentMedications.residentId, residentId),
@@ -90,7 +106,7 @@ function getClinicalMedicationByRowId(
   if (!row) {
     throw new NotFoundError();
   }
-  return mapJoinToClinical(row.rm, row.i);
+  return mapJoinToClinical(row.rm, row.i, row.onHandBaseUnits);
 }
 
 function assertItemInResidentHome(
@@ -204,14 +220,26 @@ export function listResidentClinical(
     .orderBy(asc(residentAllergies.sortOrder), asc(residentAllergies.id))
     .all();
   const medicationRows = db
-    .select({ rm: residentMedications, i: inventoryItems })
+    .select({
+      rm: residentMedications,
+      i: inventoryItems,
+      onHandBaseUnits: inventoryBalances.quantityBaseUnits,
+    })
     .from(residentMedications)
     .innerJoin(inventoryItems, eq(residentMedications.itemId, inventoryItems.id))
+    .leftJoin(
+      inventoryBalances,
+      and(
+        eq(inventoryBalances.ownerType, "RESIDENT"),
+        eq(inventoryBalances.ownerId, residentId),
+        eq(inventoryBalances.itemId, residentMedications.itemId),
+      ),
+    )
     .where(eq(residentMedications.residentId, residentId))
     .orderBy(asc(residentMedications.sortOrder), asc(residentMedications.id))
     .all();
-  const medicationsOut = medicationRows.map(({ rm, i }) =>
-    mapJoinToClinical(rm, i),
+  const medicationsOut = medicationRows.map(({ rm, i, onHandBaseUnits }) =>
+    mapJoinToClinical(rm, i, onHandBaseUnits),
   );
   return { conditions, allergies, medications: medicationsOut };
 }

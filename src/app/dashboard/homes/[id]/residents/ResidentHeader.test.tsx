@@ -336,7 +336,7 @@ describe("ResidentHeader", () => {
     const link = screen.getByRole("link", { name: /^medications$/i });
     expect(link).toHaveAttribute(
       "href",
-      "/dashboard/homes/h1/residents/r1/medications",
+      "/dashboard/residents/r1/medications",
     );
   });
 
@@ -351,11 +351,11 @@ describe("ResidentHeader", () => {
     );
     expect(screen.getByRole("link", { name: /^invoices$/i })).toHaveAttribute(
       "href",
-      "/dashboard/homes/h1/invoices?residentId=r1",
+      "/dashboard/invoices?homeId=h1&residentId=r1",
     );
     expect(screen.getByRole("link", { name: /^ledger$/i })).toHaveAttribute(
       "href",
-      "/dashboard/homes/h1/ledger?residentId=r1",
+      "/dashboard/ledger?resident=r1",
     );
   });
 

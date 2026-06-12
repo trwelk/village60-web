@@ -2,6 +2,7 @@
 
 import { VillageSelect } from "@/components/VillageSelect";
 import type { Home } from "@/lib/homes/service";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import type { UserSummary } from "@/lib/users/service";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -15,6 +16,7 @@ export function UsersAdminUI({
   initialUsers,
   initialHomes,
 }: UsersAdminUIProps) {
+  const { t } = useI18n();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [createEmail, setCreateEmail] = useState("");
@@ -321,7 +323,7 @@ export function UsersAdminUI({
                     </td>
                     <td className="village-td align-top">
                       <div className="flex flex-col gap-3">
-                        <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+                        <div className="village-table-actions">
                           {resetUserId === u.id ? (
                             <form
                               className="flex flex-wrap items-end gap-2"
@@ -358,14 +360,14 @@ export function UsersAdminUI({
                           ) : (
                             <button
                               type="button"
-                              className="village-link cursor-pointer border-0 bg-transparent p-0"
+                              className="village-table-action"
                               onClick={() => {
                                 setResetUserId(u.id);
                                 setResetPassword("");
                                 setError(null);
                               }}
                             >
-                              Reset password
+                              {t("buttons.resetPassword")}
                             </button>
                           )}
                           {u.role === "care" ? (
@@ -379,7 +381,7 @@ export function UsersAdminUI({
                                     className="village-field-label text-xs"
                                     htmlFor={`users-admin-edit-primary-${u.id}`}
                                   >
-                                    Primary
+                                    {t("fields.primary")}
                                   </label>
                                   <VillageSelect
                                     id={`users-admin-edit-primary-${u.id}`}
@@ -401,7 +403,7 @@ export function UsersAdminUI({
                                 </div>
                                 <fieldset className="text-xs">
                                   <legend className="village-field-label text-xs">
-                                    Additional
+                                    {t("fields.additional")}
                                   </legend>
                                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-2">
                                     {activeHomes.map((h) => (
@@ -448,10 +450,10 @@ export function UsersAdminUI({
                             ) : (
                               <button
                                 type="button"
-                                className="village-link cursor-pointer border-0 bg-transparent p-0"
+                                className="village-table-action"
                                 onClick={() => startEditCare(u)}
                               >
-                                Edit Care homes
+                                {t("buttons.editCareHomes")}
                               </button>
                             )
                           ) : null}

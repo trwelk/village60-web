@@ -5,6 +5,7 @@ import {
   deleteResidentMedication,
   updateResidentMedication,
 } from "@/lib/residents/clinical";
+import { isMarTimeSlot, type MarTimeSlot } from "@/lib/mar/constants";
 import { getSessionOptions, type SessionData } from "@/lib/session";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
@@ -31,11 +32,12 @@ export async function PATCH(req: Request, { params }: RouteParams) {
   }
   const rec = body as Record<string, unknown>;
   const patch: {
-      quantityPerServing?: number;
-      directions?: string;
-      servingsPerDay?: number | null;
-      prn?: boolean;
-      itemId?: string;
+    quantityPerServing?: number;
+    directions?: string;
+    servingsPerDay?: number | null;
+    prn?: boolean;
+    itemId?: string;
+    scheduledSlots?: MarTimeSlot[] | null;
   } = {};
   if ("quantityPerServing" in rec) {
     if (
@@ -90,6 +92,28 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       );
     }
     patch.prn = rec.prn;
+  }
+  if ("scheduledSlots" in rec) {
+    if (rec.scheduledSlots === null) {
+      patch.scheduledSlots = null;
+    } else if (Array.isArray(rec.scheduledSlots)) {
+      const scheduledSlots = rec.scheduledSlots.filter(
+        (entry): entry is MarTimeSlot =>
+          typeof entry === "string" && isMarTimeSlot(entry),
+      );
+      if (scheduledSlots.length !== rec.scheduledSlots.length) {
+        return NextResponse.json(
+          { error: "scheduledSlots contains an invalid slot." },
+          { status: 400 },
+        );
+      }
+      patch.scheduledSlots = scheduledSlots;
+    } else {
+      return NextResponse.json(
+        { error: "scheduledSlots must be an array or null." },
+        { status: 400 },
+      );
+    }
   }
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No fields to update." }, { status: 400 });

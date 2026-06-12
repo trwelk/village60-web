@@ -1,3 +1,7 @@
+"use client";
+
+import { useI18n } from "@/lib/i18n/I18nProvider";
+import { translateWith } from "@/lib/i18n/messages";
 import Link from "next/link";
 import { AlertTriangle, ClipboardList, ChevronRight } from "lucide-react";
 
@@ -10,6 +14,7 @@ export function DashboardAttentionStrip({
   overduePayments,
   manualDueOrOverdue,
 }: DashboardAttentionStripProps) {
+  const { t, locale } = useI18n();
   const needsAttention = overduePayments > 0 || manualDueOrOverdue > 0;
 
   if (!needsAttention) {
@@ -19,13 +24,29 @@ export function DashboardAttentionStrip({
         role="status"
       >
         <p className="text-sm leading-snug text-[var(--text-secondary)]">
-          <span className="font-semibold text-[var(--success)]">All clear</span>
+          <span className="font-semibold text-[var(--success)]">
+            {t("sections.allClear")}
+          </span>
           {" — "}
-          nothing urgent needs attention right now.
+          {t("dashboard.allClearSuffix")}
         </p>
       </div>
     );
   }
+
+  const manualTaskLabel =
+    manualDueOrOverdue === 1
+      ? t("dashboard.manualTaskDueOne")
+      : translateWith(locale, "dashboard.manualTaskDueMany", {
+          count: manualDueOrOverdue,
+        });
+
+  const overduePaymentLabel =
+    overduePayments === 1
+      ? t("dashboard.overduePaymentOne")
+      : translateWith(locale, "dashboard.overduePaymentMany", {
+          count: overduePayments,
+        });
 
   return (
     <div
@@ -37,7 +58,7 @@ export function DashboardAttentionStrip({
         id="dashboard-attention-heading"
         className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]"
       >
-        Needs attention now
+        {t("sections.needsAttention")}
       </p>
       <ul className="mt-2.5 space-y-2">
         {manualDueOrOverdue > 0 ? (
@@ -54,12 +75,10 @@ export function DashboardAttentionStrip({
               </span>
               <span className="min-w-0 flex-1 pt-0.5">
                 <span className="font-semibold text-[var(--text-primary)]">
-                  {manualDueOrOverdue === 1
-                    ? "1 manual task is due or overdue"
-                    : `${manualDueOrOverdue} manual tasks are due or overdue`}
+                  {manualTaskLabel}
                 </span>
                 <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">
-                  Open your inbox and knock them down.
+                  {t("dashboard.openInboxHint")}
                 </span>
               </span>
               <ChevronRight
@@ -84,12 +103,10 @@ export function DashboardAttentionStrip({
               </span>
               <span className="min-w-0 flex-1 pt-0.5">
                 <span className="font-semibold text-[color-mix(in_srgb,var(--danger)_92%,var(--text-primary)_8%)]">
-                  {overduePayments === 1
-                    ? "1 overdue payment reminder"
-                    : `${overduePayments} overdue payment reminders`}
+                  {overduePaymentLabel}
                 </span>
                 <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">
-                  Review billing items soon.
+                  {t("dashboard.reviewBillingHint")}
                 </span>
               </span>
               <ChevronRight

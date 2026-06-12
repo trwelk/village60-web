@@ -5,8 +5,8 @@ import type {
   MarMedicationEntry,
   MarSlotGroup,
 } from "@/lib/mar/service";
-import { Check, RotateCcw, UserRound } from "lucide-react";
-import { useState } from "react";
+import { Check, CircleCheck, RotateCcw, UserRound } from "lucide-react";
+import { useEffect, useState } from "react";
 
 function formatAdminTime(utcMs: number): string {
   return new Date(utcMs).toLocaleTimeString([], {
@@ -20,6 +20,7 @@ type Props = {
   date: string;
   slotGroup: MarSlotGroup;
   onUpdated: () => void;
+  hideDone?: boolean;
 };
 
 async function parseError(res: Response): Promise<string> {
@@ -30,7 +31,7 @@ async function parseError(res: Response): Promise<string> {
       if (typeof err === "string") return err;
     }
   } catch {
-    // ignore
+    /* ignore */
   }
   return "Request failed.";
 }
@@ -38,7 +39,12 @@ async function parseError(res: Response): Promise<string> {
 function groupByResident(medications: MarMedicationEntry[]) {
   const groups = new Map<
     string,
-    { residentId: string; residentName: string; hasPortrait: boolean; meds: MarMedicationEntry[] }
+    {
+      residentId: string;
+      residentName: string;
+      hasPortrait: boolean;
+      meds: MarMedicationEntry[];
+    }
   >();
   for (const med of medications) {
     const existing = groups.get(med.residentId);
@@ -56,19 +62,19 @@ function groupByResident(medications: MarMedicationEntry[]) {
   return [...groups.values()];
 }
 
-function MedicationCard({
+/* ── Medication tile (grid cell) ────────────────────────────────── */
+
+function MedicationTile({
   homeId,
   date,
   slot,
   med,
-  residentName,
   onUpdated,
 }: {
   homeId: string;
   date: string;
   slot: string;
   med: MarMedicationEntry;
-  residentName: string;
   onUpdated: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -76,6 +82,10 @@ function MedicationCard({
   const [administration, setAdministration] = useState<MarAdministrationRecord | null>(
     med.administration,
   );
+
+  useEffect(() => {
+    setAdministration(med.administration);
+  }, [date, med.residentMedicationId, med.administration]);
 
   async function markGiven() {
     if (busy || administration) return;
@@ -85,11 +95,7 @@ function MedicationCard({
       const res = await fetch(`/api/homes/${homeId}/mar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          residentMedicationId: med.residentMedicationId,
-          slot,
-          date,
-        }),
+        body: JSON.stringify({ residentMedicationId: med.residentMedicationId, slot, date }),
       });
       if (!res.ok) {
         setError(await parseError(res));
@@ -123,76 +129,66 @@ function MedicationCard({
     }
   }
 
-  const doseLabel = `${med.quantityPerServing} ${med.unit}`;
   const isGiven = !!administration;
+  const doseLabel = `${med.quantityPerServing} ${med.unit}`;
 
   return (
-    <div
-      className={`group relative flex flex-col justify-between rounded-xl border p-3 transition-all duration-150 ${
-        isGiven
-          ? "border-success/30 bg-success/[0.06]"
-          : "border-[var(--line-subtle)] bg-[var(--bg-elevated)] hover:border-[var(--accent)]/40 hover:shadow-[0_2px_12px_-4px_rgba(106,61,232,0.12)]"
-      }`}
-      style={{ minHeight: "5.5rem" }}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[0.8rem] font-semibold leading-tight text-[var(--text-primary)]">
-            {med.itemName}
-          </p>
-          <p className="mt-0.5 text-[0.7rem] font-medium text-[var(--accent-strong)]">{doseLabel}</p>
-        </div>
-        {isGiven && (
-          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success text-white">
-            <Check className="h-3 w-3" strokeWidth={3} />
-          </div>
-        )}
+    <div className={`mar-tile ${isGiven ? "mar-tile--given" : "mar-tile--pending"}`}>
+      {/* Drug name + dose */}
+      <div>
+        <p
+          className="mar-tile__name line-clamp-2"
+          title={med.directions ? `${med.itemName} — ${med.directions}` : med.itemName}
+        >
+          {med.itemName}
+        </p>
+        <span className="mar-tile__dose">{doseLabel}</span>
       </div>
 
       {med.directions && (
-        <p className="mt-1 line-clamp-1 text-[0.65rem] leading-snug text-[var(--text-muted)]">
+        <p className="mar-tile__directions line-clamp-2" title={med.directions}>
           {med.directions}
         </p>
       )}
 
-      <div className="mt-2 flex items-center justify-between gap-1">
-        <span className="truncate text-[0.65rem] font-medium text-[var(--text-secondary)]">
-          {residentName.split(" ")[0]}
-        </span>
-
+      {/* Action area */}
+      <div className="mar-tile__footer">
         {isGiven ? (
-          <button
-            type="button"
-            className="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--line-subtle)] px-2 text-[0.65rem] font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--bg-muted)]"
-            onClick={() => void undo()}
-            disabled={busy}
-            aria-label={`Undo ${med.itemName}`}
-          >
-            <RotateCcw className="h-3 w-3" />
-            Undo
-          </button>
+          <>
+            <span className="mar-tile__given-time">
+              <CircleCheck className="h-3.5 w-3.5" />
+              {formatAdminTime(administration.administeredAtUtcMs)}
+            </span>
+            <button
+              type="button"
+              className="mar-tile__undo"
+              onClick={() => void undo()}
+              disabled={busy}
+              aria-label={`Undo ${med.itemName}`}
+            >
+              <RotateCcw className="h-3 w-3" />
+              Undo
+            </button>
+          </>
         ) : (
           <button
             type="button"
-            className="inline-flex h-7 items-center gap-1 rounded-lg bg-[var(--accent)] px-2.5 text-[0.65rem] font-bold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
+            className="mar-tile__give"
             onClick={() => void markGiven()}
             disabled={busy}
           >
-            <Check className="h-3 w-3" strokeWidth={3} />
-            {busy ? "..." : "Give"}
+            <Check className="h-3.5 w-3.5" strokeWidth={3} />
+            {busy ? "Saving…" : "Give"}
           </button>
         )}
       </div>
 
-      {administration && (
-        <p className="mt-1.5 text-[0.6rem] text-success">
-          {formatAdminTime(administration.administeredAtUtcMs)} · {administration.administeredByDisplayName ?? "staff"}
-        </p>
-      )}
-      {error && <p className="mt-1 text-[0.6rem] font-medium text-[var(--danger)]">{error}</p>}
+      {error && <p className="mar-tile__error">{error}</p>}
     </div>
   );
 }
+
+/* ── Resident avatar ─────────────────────────────────────────── */
 
 function ResidentAvatar({
   homeId,
@@ -202,7 +198,6 @@ function ResidentAvatar({
   homeId: string;
   residentId: string;
   hasPortrait: boolean;
-  name: string;
 }) {
   if (hasPortrait) {
     return (
@@ -210,90 +205,87 @@ function ResidentAvatar({
       <img
         src={`/api/homes/${homeId}/residents/${residentId}/photo`}
         alt=""
-        className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-[var(--accent)]/15"
+        className="h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-[var(--accent)]/15"
       />
     );
   }
   return (
     <div
       aria-hidden
-      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/10 text-[var(--accent)]"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/10 text-[var(--accent)]"
     >
-      <UserRound className="h-3.5 w-3.5" />
+      <UserRound className="h-3 w-3" />
     </div>
   );
 }
 
-export function SlotSection({ homeId, date, slotGroup, onUpdated }: Props) {
+/* ── Slot section (one tab's content) ────────────────────────── */
+
+export function SlotSection({ homeId, date, slotGroup, onUpdated, hideDone = false }: Props) {
   const residentGroups = groupByResident(slotGroup.medications);
-  const pctDone =
-    slotGroup.totalCount === 0
-      ? 0
-      : Math.round((slotGroup.administeredCount / slotGroup.totalCount) * 100);
+
+  const displayData = residentGroups
+    .map((g) => {
+      const originalTotal = g.meds.length;
+      const originalGiven = g.meds.filter((m) => m.administration).length;
+      const displayMeds = hideDone ? g.meds.filter((m) => !m.administration) : g.meds;
+      return { ...g, displayMeds, originalTotal, originalGiven };
+    })
+    .filter((g) => g.displayMeds.length > 0);
+
+  if (displayData.length === 0) {
+    return (
+      <div className="village-card flex items-center justify-center py-10 text-sm text-[var(--text-secondary)]">
+        {hideDone
+          ? "All medications in this slot have been administered."
+          : "No medications scheduled for this time slot."}
+      </div>
+    );
+  }
 
   return (
-    <section className="village-card overflow-hidden">
-      {/* Slot header — compact */}
-      <div className="flex items-center justify-between gap-3 border-b border-[var(--line-subtle)]/60 px-4 py-3 sm:px-5">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-bold text-[var(--text-primary)]">{slotGroup.label}</h2>
-          <span className="text-xs text-[var(--text-secondary)]">
-            {slotGroup.administeredCount}/{slotGroup.totalCount}
-          </span>
-        </div>
-        {slotGroup.totalCount > 0 && (
-          <div className="flex items-center gap-2">
-            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--bg-muted)] sm:w-24">
-              <div
-                className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
-                style={{ width: `${pctDone}%` }}
-              />
-            </div>
-            <span className="text-xs font-semibold text-[var(--accent)]">{pctDone}%</span>
-          </div>
-        )}
-      </div>
+    <div className="village-card overflow-hidden">
+      {displayData.map((group) => {
+        const allDone =
+          group.originalGiven === group.originalTotal && group.originalTotal > 0;
 
-      {/* Resident groups with grid of med cards */}
-      <div className="flex flex-col gap-4 p-4 sm:p-5">
-        {residentGroups.length === 0 ? (
-          <p className="text-sm text-[var(--text-secondary)]">
-            No medications scheduled for this time slot.
-          </p>
-        ) : (
-          residentGroups.map((group) => (
-            <div key={group.residentId}>
-              <div className="mb-2 flex items-center gap-2">
-                <ResidentAvatar
-                  homeId={homeId}
-                  residentId={group.residentId}
-                  hasPortrait={group.hasPortrait}
-                  name={group.residentName}
-                />
-                <span className="text-xs font-semibold text-[var(--text-primary)]">
-                  {group.residentName}
-                </span>
-                <span className="text-[0.65rem] text-[var(--text-muted)]">
-                  {group.meds.filter((m) => m.administration).length}/{group.meds.length}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {group.meds.map((med) => (
-                  <MedicationCard
-                    key={`${med.residentMedicationId}-${slotGroup.slot}`}
-                    homeId={homeId}
-                    date={date}
-                    slot={slotGroup.slot}
-                    med={med}
-                    residentName={group.residentName}
-                    onUpdated={onUpdated}
-                  />
-                ))}
-              </div>
+        return (
+          <div key={group.residentId} className="mar-resident-group">
+            <div className="mar-resident-header">
+              <ResidentAvatar
+                homeId={homeId}
+                residentId={group.residentId}
+                hasPortrait={group.hasPortrait}
+              />
+              <span className="mar-resident-header__name">
+                {group.residentName}
+              </span>
+              <span
+                className={`mar-resident-header__progress ${
+                  allDone
+                    ? "mar-resident-header__progress--done"
+                    : "mar-resident-header__progress--pending"
+                }`}
+              >
+                {group.originalGiven}/{group.originalTotal}
+              </span>
             </div>
-          ))
-        )}
-      </div>
-    </section>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {group.displayMeds.map((med) => (
+                <MedicationTile
+                  key={`${date}-${med.residentMedicationId}-${slotGroup.slot}`}
+                  homeId={homeId}
+                  date={date}
+                  slot={slotGroup.slot}
+                  med={med}
+                  onUpdated={onUpdated}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

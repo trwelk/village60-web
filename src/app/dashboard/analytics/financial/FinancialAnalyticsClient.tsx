@@ -7,6 +7,7 @@ import type {
   FinancialPreset,
 } from "@/lib/analytics/financialOverview";
 import { getVillage60ChartPalette, resolveVillage60Theme } from "@/lib/theme/village60Theme";
+import { dashboardResidentHref } from "@/lib/dashboard/dashboardRoutes";
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -957,7 +958,7 @@ function RevenueTab({
                     </td>
                     <td className="py-2.5 text-right">
                       <Link
-                        href={`/dashboard/homes/${row.homeId}/residents/${row.residentId}`}
+                        href={dashboardResidentHref(row.residentId)}
                         className="text-[var(--highlight)] underline decoration-[color:color-mix(in_srgb,var(--highlight)_35%,transparent)] underline-offset-2 hover:decoration-[color:color-mix(in_srgb,var(--highlight)_62%,transparent)]"
                       >
                         Open resident

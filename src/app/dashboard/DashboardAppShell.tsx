@@ -1,8 +1,17 @@
 "use client";
 
 import type { NavCrumb } from "@/lib/dashboard/nestedBreadcrumbs";
+import type { TranslateFn } from "@/lib/i18n/messages";
+import { useI18n } from "@/lib/i18n/I18nProvider";
+import { LanguageSwitcher } from "@/lib/i18n/LanguageSwitcher";
 import type { SessionUserRole } from "@/lib/session";
 import { getDashboardContextTitle } from "@/lib/dashboard/contextTitle";
+import {
+  homeMarNavInjection,
+  mergeNavSubEntryInjections,
+  resolveNavSubEntryInjection,
+  type NavSubEntryInjection,
+} from "@/lib/dashboard/navSubEntries";
 import { useDashboardWayfinding } from "./DashboardWayfinding";
 import {
   isDashboardAccountPath,
@@ -18,14 +27,17 @@ import {
   isDashboardInventoryCatalogPath,
   isDashboardInventoryOrdersPath,
   isDashboardInventorySuppliersPath,
+  isDashboardMedicationReordersPath,
   isDashboardWaitingListPath,
   isDashboardPaymentsPath,
   isDashboardHomeAccountPaymentsPath,
   isDashboardResidentsPath,
-  isDashboardMarPath,
   isDashboardTasksPath,
   isDashboardUsersPath,
   isDashboardAdminSettingsPath,
+  isDashboardMarPath,
+  isDashboardMedicationsPath,
+  isDashboardWardsPath,
 } from "@/lib/dashboard/dashboardPaths";
 import {
   DASHBOARD_SIDEBAR_EXPANDED_KEY,
@@ -57,19 +69,24 @@ import {
   UserCog,
   Users,
   Wallet,
+  Pill,
+  Tablets,
+  BedDouble,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Fragment, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { LogoutButton } from "./LogoutButton";
 import { NavigationProgress } from "./NavigationProgress";
 
 function DashboardBreadcrumbNav({ crumbs }: { crumbs: NavCrumb[] }) {
+  const { t, tl } = useI18n();
   return (
-    <nav aria-label="Breadcrumb" id="village-dashboard-context-title">
+    <nav aria-label={t("shell.breadcrumb")} id="village-dashboard-context-title">
       <ol className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1 text-[var(--text-primary)] sm:gap-x-2">
         {crumbs.map((crumb, i) => {
           const isLast = i === crumbs.length - 1;
+          const label = tl(crumb.label);
           return (
             <li
               key={`${crumb.label}-${i}`}
@@ -88,14 +105,14 @@ function DashboardBreadcrumbNav({ crumbs }: { crumbs: NavCrumb[] }) {
                   href={crumb.href}
                   className="min-w-0 truncate font-medium text-[var(--highlight)] underline decoration-[color:color-mix(in_srgb,var(--highlight)_35%,transparent)] underline-offset-[3px] transition hover:decoration-[color:color-mix(in_srgb,var(--highlight)_62%,transparent)] sm:text-base"
                 >
-                  {crumb.label}
+                  {label}
                 </Link>
               ) : (
                 <span
                   className="min-w-0 truncate font-display text-lg font-semibold sm:text-xl"
                   aria-current={isLast || crumb.currentPage ? "page" : undefined}
                 >
-                  {crumb.label}
+                  {label}
                 </span>
               )}
             </li>
@@ -183,20 +200,46 @@ function flatLeavesForNavGroup(entry: NavGroupItem): NavGroupLeafOnly[] {
   });
 }
 
-function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
-  const homeLabel = role === "admin" ? "Retirement homes" : "Your homes";
+function primaryNavItemsForRole(
+  role: SessionUserRole,
+  t: TranslateFn,
+): NavEntry[] {
+  const homeLabel =
+    role === "admin" ? t("nav.retirementHomes") : t("nav.yourHomes");
 
   const adminGroup: NavGroupItem = {
     kind: "group",
     id: "admin",
-    label: "Admin",
+    label: t("nav.admin"),
     Icon: UserCog,
     items: [
       {
         href: "/dashboard/residents",
-        label: "Residents",
+        label: t("nav.residents"),
         Icon: Users,
-        isActive: (p) => isDashboardResidentsPath(p) || isDashboardMarPath(p),
+        isActive: isDashboardResidentsPath,
+      },
+      {
+        href: "/dashboard/mar",
+        label: t("nav.dailyMar"),
+        Icon: Pill,
+        isActive: (p) =>
+          isDashboardMarPath(p) &&
+          !/^\/dashboard\/homes\/[^/]+\/mar(\/|$)/.test(p),
+      },
+      {
+        href: "/dashboard/medications",
+        label: t("nav.medications"),
+        Icon: Tablets,
+        isActive: isDashboardMedicationsPath,
+      },
+      {
+        href: "/dashboard/wards",
+        label: t("nav.wards"),
+        Icon: BedDouble,
+        isActive: (p) =>
+          isDashboardWardsPath(p) &&
+          !/^\/dashboard\/homes\/[^/]+\/wards$/.test(p),
       },
       {
         href: "/dashboard/homes",
@@ -206,7 +249,7 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
       },
       {
         href: "/dashboard/tasks",
-        label: "Tasks",
+        label: t("nav.tasks"),
         Icon: ClipboardList,
         isActive: isDashboardTasksPath,
       },
@@ -216,24 +259,30 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
   const inventoryGroup: NavGroupItem = {
     kind: "group",
     id: "inventory",
-    label: "Inventory",
+    label: t("nav.inventory"),
     Icon: PackageSearch,
     items: [
       {
         href: "/dashboard/inventory-orders/catalog",
-        label: "Inventory catalog",
+        label: t("nav.inventoryCatalog"),
         Icon: LayoutGrid,
         isActive: isDashboardInventoryCatalogPath,
       },
       {
         href: "/dashboard/inventory-orders",
-        label: "Inventory orders",
+        label: t("nav.inventoryOrders"),
         Icon: ShoppingCart,
         isActive: isDashboardInventoryOrdersPath,
       },
       {
+        href: "/dashboard/medication-reorders",
+        label: t("nav.medicationReorders"),
+        Icon: Pill,
+        isActive: isDashboardMedicationReordersPath,
+      },
+      {
         href: "/dashboard/inventory-orders/suppliers",
-        label: "Suppliers",
+        label: t("nav.suppliers"),
         Icon: Building2,
         isActive: isDashboardInventorySuppliersPath,
       },
@@ -244,7 +293,7 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
     {
       kind: "link",
       href: "/dashboard",
-      label: "Overview",
+      label: t("nav.overview"),
       Icon: LayoutDashboard,
       isActive: (p) => p === "/dashboard",
     },
@@ -254,30 +303,30 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
     items.push({
       kind: "group",
       id: "analytics",
-      label: "Analytics",
+      label: t("nav.analytics"),
       Icon: BarChart3,
       items: [
         {
           href: "/dashboard/analytics/occupancy",
-          label: "Occupancy",
+          label: t("nav.occupancy"),
           Icon: Building2,
           isActive: isDashboardAnalyticsOccupancyPath,
         },
         {
           href: "/dashboard/analytics/financial",
-          label: "Billing overview",
+          label: t("nav.billingOverview"),
           Icon: BarChart3,
           isActive: isDashboardAnalyticsFinancialPath,
         },
         {
           href: "/dashboard/analytics/admissions-departures",
-          label: "Admissions",
+          label: t("nav.admissions"),
           Icon: DoorOpen,
           isActive: isDashboardAnalyticsAdmissionsDeparturesPath,
         },
         {
           href: "/dashboard/analytics/demographics-staff",
-          label: "Demographics",
+          label: t("nav.demographics"),
           Icon: PieChart,
           isActive: isDashboardAnalyticsDemographicsStaffPath,
         },
@@ -292,24 +341,24 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
       {
         kind: "group",
         id: "billing",
-        label: "Billing",
+        label: t("nav.billing"),
         Icon: Receipt,
         items: [
           {
             href: "/dashboard/invoices",
-            label: "Invoices",
+            label: t("nav.invoices"),
             Icon: FileSpreadsheet,
             isActive: isDashboardInvoicesPath,
           },
           {
             href: "/dashboard/charges",
-            label: "Resident charges",
+            label: t("nav.residentCharges"),
             Icon: Receipt,
             isActive: isDashboardChargesPath,
           },
           {
             href: "/dashboard/home-expenses",
-            label: "Home charges",
+            label: t("nav.homeCharges"),
             Icon: Landmark,
             isActive: isDashboardHomeExpensesPath,
           },
@@ -318,24 +367,24 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
       {
         kind: "group",
         id: "ledger",
-        label: "Ledger",
+        label: t("nav.ledger"),
         Icon: BookOpen,
         items: [
           {
             href: "/dashboard/ledger",
-            label: "Ledger",
+            label: t("nav.ledger"),
             Icon: BookOpen,
             isActive: isDashboardLedgerPath,
           },
           {
             href: "/dashboard/home-payments",
-            label: "Home payments",
+            label: t("nav.homePayments"),
             Icon: Banknote,
             isActive: isDashboardHomeAccountPaymentsPath,
           },
           {
             href: "/dashboard/payments",
-            label: "Resident payments",
+            label: t("nav.residentPayments"),
             Icon: Wallet,
             isActive: isDashboardPaymentsPath,
           },
@@ -344,24 +393,24 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
       {
         kind: "group",
         id: "organization",
-        label: "Organization",
+        label: t("nav.organization"),
         Icon: Settings,
         items: [
           {
             href: "/dashboard/users",
-            label: "Staff",
+            label: t("nav.staff"),
             Icon: UserCog,
             isActive: isDashboardUsersPath,
           },
           {
             href: "/dashboard/waiting-list",
-            label: "Waiting list",
+            label: t("nav.waitingList"),
             Icon: Inbox,
             isActive: isDashboardWaitingListPath,
           },
           {
             href: "/dashboard/admin/settings",
-            label: "Admin settings",
+            label: t("nav.adminSettings"),
             Icon: Settings,
             isActive: isDashboardAdminSettingsPath,
           },
@@ -373,7 +422,7 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
   items.push({
     kind: "link",
     href: "/dashboard/account",
-    label: "My account",
+    label: t("nav.myAccount"),
     Icon: UserCircle,
     isActive: isDashboardAccountPath,
   });
@@ -381,9 +430,72 @@ function primaryNavItemsForRole(role: SessionUserRole): NavEntry[] {
   return items;
 }
 
+type NavEntryProbe =
+  | { href: string; isActive: (pathname: string) => boolean }
+  | {
+      kind: "group";
+      items: { href: string; isActive: (pathname: string) => boolean }[];
+    };
+
+function toNavProbes(entries: NavEntry[]): NavEntryProbe[] {
+  return entries.map((entry) => {
+    if (entry.kind === "group") {
+      return {
+        kind: "group" as const,
+        items: entry.items.map((item) => ({
+          href: item.href,
+          isActive: item.isActive,
+        })),
+      };
+    }
+    return {
+      href: entry.href,
+      isActive: entry.isActive,
+    };
+  });
+}
+
+function applyNavSubEntries(
+  items: NavEntry[],
+  injections: NavSubEntryInjection[],
+): NavEntry[] {
+  if (!injections.length) {
+    return items;
+  }
+  const byParent = new Map(
+    injections.map((injection) => [injection.parentHref, injection.children]),
+  );
+  return items.map((entry) => {
+    if (entry.kind !== "group") {
+      return entry;
+    }
+    return {
+      ...entry,
+      items: entry.items.map((sub) => {
+        const children = byParent.get(sub.href);
+        if (!children?.length) {
+          return sub;
+        }
+        const deduped = children.filter((child) => child.href !== sub.href);
+        if (!deduped.length) {
+          return sub;
+        }
+        return {
+          ...sub,
+          children: deduped.map((child) => ({
+            ...child,
+            Icon: sub.Icon,
+          })),
+        };
+      }),
+    };
+  });
+}
+
 type PrimaryNavProps = {
   pathname: string;
   role: SessionUserRole;
+  t: TranslateFn;
   onNavigate?: () => void;
   className?: string;
   "aria-label"?: string;
@@ -395,13 +507,28 @@ type PrimaryNavProps = {
 function PrimaryNav({
   pathname,
   role,
+  t,
   onNavigate,
   className,
-  "aria-label": ariaLabel = "Main navigation",
+  "aria-label": ariaLabel,
   navLinkLayout = "vertical",
   railCollapsed = false,
 }: PrimaryNavProps) {
-  const items = useMemo(() => primaryNavItemsForRole(role), [role]);
+  const { activeBreadcrumbs } = useDashboardWayfinding();
+  const searchParams = useSearchParams();
+  const queryHomeId = searchParams.get("homeId");
+  const baseItems = useMemo(() => primaryNavItemsForRole(role, t), [role, t]);
+  const items = useMemo(() => {
+    const injections = mergeNavSubEntryInjections(
+      resolveNavSubEntryInjection(
+        toNavProbes(baseItems),
+        pathname,
+        activeBreadcrumbs,
+      ),
+      homeMarNavInjection(pathname, t("nav.dailyMar"), queryHomeId),
+    );
+    return applyNavSubEntries(baseItems, injections);
+  }, [baseItems, pathname, activeBreadcrumbs, t, queryHomeId]);
   const iconRail = navLinkLayout === "vertical" && railCollapsed;
   const navPrefix = useId();
 
@@ -521,12 +648,22 @@ function PrimaryNav({
             const GroupIcon = entry.Icon;
 
             const nestedBlocks = entry.items.flatMap((sub) => {
-              const rows: { link: NavGroupLeafOnly; nested: boolean }[] = [
-                { link: sub as NavGroupLeafOnly, nested: false },
+              const parentHasActiveChild =
+                sub.children?.some((c) => c.isActive(pathname)) ?? false;
+              const rows: {
+                link: NavGroupLeafOnly;
+                nested: boolean;
+                parentHasActiveChild: boolean;
+              }[] = [
+                {
+                  link: sub as NavGroupLeafOnly,
+                  nested: false,
+                  parentHasActiveChild,
+                },
               ];
               if (sub.children?.length) {
                 for (const c of sub.children) {
-                  rows.push({ link: c, nested: true });
+                  rows.push({ link: c, nested: true, parentHasActiveChild });
                 }
               }
               return rows;
@@ -560,7 +697,7 @@ function PrimaryNav({
                     strokeWidth={2}
                     aria-hidden
                   />
-                  <span className="min-w-0 flex-1 text-[0.875rem] font-medium leading-snug">
+                  <span className="min-w-0 flex-1 text-sm font-medium leading-snug">
                     {entry.label}
                   </span>
                   <ChevronRight
@@ -578,9 +715,11 @@ function PrimaryNav({
                     id={panelId}
                     className="ml-[1.125rem] flex min-w-0 flex-col gap-0.5 border-l border-[color:color-mix(in_srgb,var(--line-subtle)_55%,var(--accent)_10%)] pl-3"
                   >
-                    {nestedBlocks.map(({ link: leaf, nested }) => {
-                      const active = leaf.isActive(pathname);
-                      const nestedCls = nested ? "text-[0.9375rem]" : "";
+                    {nestedBlocks.map(({ link: leaf, nested, parentHasActiveChild }) => {
+                      const active =
+                        leaf.isActive(pathname) &&
+                        (nested || !parentHasActiveChild);
+                      const nestedCls = nested ? "text-base" : "";
                       return (
                         <Link
                           key={
@@ -635,9 +774,10 @@ function PrimaryNav({
 type BrandLockupProps = {
   collapsed?: boolean;
   className?: string;
+  tagline: string;
 };
 
-function BrandLockup({ collapsed, className }: BrandLockupProps) {
+function BrandLockup({ collapsed, className, tagline }: BrandLockupProps) {
   return (
     <Link
       href="/dashboard"
@@ -655,12 +795,12 @@ function BrandLockup({ collapsed, className }: BrandLockupProps) {
         V60
       </span>
       {collapsed ? (
-        <span className="sr-only">Village60, retirement operations</span>
+        <span className="sr-only">{`Village60, ${tagline}`}</span>
       ) : (
         <span className="min-w-0">
           <span className="village-brand-wordmark block">Village60</span>
           <span className="village-brand-tagline mt-1 block transition-colors">
-            Retirement operations
+            {tagline}
           </span>
         </span>
       )}
@@ -673,6 +813,7 @@ export function DashboardAppShell({
   role,
   children,
 }: DashboardAppShellProps) {
+  const { t } = useI18n();
   const pathname = usePathname() ?? "";
   const [mobileOpen, setMobileOpen] = useState(false);
   const [railExpanded, setRailExpanded] = useState(true);
@@ -681,7 +822,9 @@ export function DashboardAppShell({
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const { activeBreadcrumbs } = useDashboardWayfinding();
-  const contextTitle = getDashboardContextTitle(pathname, role);
+  const contextTitle = getDashboardContextTitle(pathname, role, t);
+  const roleLabel =
+    role === "admin" ? t("roles.admin") : role === "care" ? t("roles.care") : role;
   const useCrumbs =
     activeBreadcrumbs && activeBreadcrumbs.length > 0
       ? activeBreadcrumbs
@@ -820,7 +963,7 @@ export function DashboardAppShell({
         href={`#${MAIN_ID}`}
         className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[100] focus:rounded-lg focus:border focus:border-[var(--line-strong)] focus:bg-[var(--bg-elevated)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--text-primary)] focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]"
       >
-        Skip to main content
+        {t("shell.skipToMain")}
       </a>
       <div
         className={[
@@ -834,7 +977,7 @@ export function DashboardAppShell({
             asideWidthClass,
             asidePadClass,
           ].join(" ")}
-          aria-label="Primary"
+          aria-label={t("shell.primary")}
         >
           <div
             className={[
@@ -847,9 +990,7 @@ export function DashboardAppShell({
               onClick={toggleRailExpanded}
               aria-pressed={railExpanded}
               aria-label={
-                railExpanded
-                  ? "Collapse navigation rail"
-                  : "Expand navigation rail"
+                railExpanded ? t("shell.collapseRail") : t("shell.expandRail")
               }
               className={[
                 "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--line-strong)_68%,var(--accent)_12%)] bg-[color:color-mix(in_srgb,var(--bg-canvas)_88%,var(--accent)_4%)] text-[var(--text-primary)] transition hover:border-[color:color-mix(in_srgb,var(--accent)_40%,var(--line-strong)_60%)] hover:bg-[color:color-mix(in_srgb,var(--bg-canvas)_78%,var(--accent)_8%)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)]",
@@ -867,11 +1008,14 @@ export function DashboardAppShell({
             <BrandLockup
               collapsed={!railExpanded}
               className={railExpanded ? "min-w-0 flex-1" : ""}
+              tagline={t("brand.tagline")}
             />
           </div>
           <PrimaryNav
             pathname={pathname}
             role={role}
+            t={t}
+            aria-label={t("shell.mainNavigation")}
             className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
             railCollapsed={!railExpanded}
           />
@@ -879,7 +1023,7 @@ export function DashboardAppShell({
         {mobileOpen ? (
           <button
             type="button"
-            aria-label="Close menu"
+            aria-label={t("shell.closeMenu")}
             className="fixed inset-0 z-40 cursor-default bg-[color:color-mix(in_srgb,var(--bg-canvas)_56%,var(--text-primary)_44%)] lg:hidden"
             onClick={() => {
               closeMobile();
@@ -894,11 +1038,11 @@ export function DashboardAppShell({
             id={menuId}
             role="dialog"
             aria-modal="true"
-            aria-label="Main navigation"
+            aria-label={t("shell.mainNavigation")}
           >
             <div className="mb-3 flex items-center justify-between gap-2">
               <span className="font-display text-lg font-semibold text-[var(--text-primary)]">
-                Menu
+                {t("shell.menu")}
               </span>
               <button
                 type="button"
@@ -908,15 +1052,16 @@ export function DashboardAppShell({
                   menuButtonRef.current?.focus();
                 }}
               >
-                Close
+                {t("shell.close")}
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               <PrimaryNav
                 pathname={pathname}
                 role={role}
+                t={t}
                 onNavigate={closeMobile}
-                aria-label="Main navigation"
+                aria-label={t("shell.mainNavigation")}
                 railCollapsed={false}
               />
             </div>
@@ -932,7 +1077,7 @@ export function DashboardAppShell({
                 ref={menuButtonRef}
                 type="button"
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_68%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] text-[var(--text-primary)] shadow-sm hover:border-[color:color-mix(in_srgb,var(--accent)_56%,transparent)] focus-visible:outline focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--accent)_45%,transparent)] lg:hidden"
-                aria-label="Open main menu"
+                aria-label={t("shell.openMainMenu")}
                 aria-expanded={mobileOpen}
                 aria-controls={menuId}
                 onClick={() => {
@@ -944,7 +1089,7 @@ export function DashboardAppShell({
                   }
                 }}
               >
-                <span className="sr-only">Menu</span>
+                <span className="sr-only">{t("shell.menu")}</span>
                 <svg
                   width="20"
                   height="20"
@@ -974,11 +1119,12 @@ export function DashboardAppShell({
                   )}
                 </div>
                 <div className="village-session-cluster !m-0 shrink-0 !border-0 !p-0">
+                  <LanguageSwitcher compact className="hidden sm:block" />
                   <p className="village-session-pill">
                     <strong>{email}</strong>
                     <span className="text-[color:color-mix(in_srgb,var(--text-secondary)_60%,transparent)]"> / </span>
                     <span className="village-session-role uppercase tracking-wide">
-                      {role}
+                      {roleLabel}
                     </span>
                   </p>
                   <LogoutButton className="village-logout-chip shrink-0" />

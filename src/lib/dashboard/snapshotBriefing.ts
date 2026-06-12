@@ -1,3 +1,5 @@
+import type { AppLocale } from "@/lib/i18n/locales";
+import { createTranslator, translateWith } from "@/lib/i18n/messages";
 import type { TasksDashboardSummary } from "@/lib/tasks/service";
 
 /** Local-part token before @, first segment after splitting on common separators. */
@@ -26,37 +28,53 @@ export function utcWeekdayLong(asOfDateUtc: string): string {
 export function buildDashboardSnapshotSummary(
   summary: TasksDashboardSummary,
   opts: { occupancyPercent: number | null; isAdmin: boolean },
+  locale: AppLocale,
 ): string {
+  const t = createTranslator(locale);
   const parts: string[] = [];
 
   if (summary.birthdaysInNext7Days === 0) {
-    parts.push("No birthdays in the next 7 days");
+    parts.push(t("dashboard.snapshotNoBirthdays7Days"));
   } else if (summary.birthdaysInNext7Days === 1) {
-    parts.push("1 resident has a birthday in the next 7 days");
+    parts.push(t("dashboard.snapshotBirthdayOne"));
   } else {
     parts.push(
-      `${summary.birthdaysInNext7Days} residents have birthdays in the next 7 days`,
+      translateWith(locale, "dashboard.snapshotBirthdayMany", {
+        count: summary.birthdaysInNext7Days,
+      }),
     );
   }
 
   if (summary.manualDueOrOverdue === 1) {
-    parts.push("1 manual task needs attention");
+    parts.push(t("dashboard.snapshotManualTaskOne"));
   } else if (summary.manualDueOrOverdue > 1) {
-    parts.push(`${summary.manualDueOrOverdue} manual tasks need attention`);
+    parts.push(
+      translateWith(locale, "dashboard.snapshotManualTaskMany", {
+        count: summary.manualDueOrOverdue,
+      }),
+    );
   } else {
-    parts.push("No manual tasks are due or overdue");
+    parts.push(t("dashboard.snapshotNoManualTasks"));
   }
 
   if (summary.overduePayments === 1) {
-    parts.push("1 overdue payment reminder");
+    parts.push(t("dashboard.overduePaymentOne"));
   } else if (summary.overduePayments > 1) {
-    parts.push(`${summary.overduePayments} overdue payment reminders`);
+    parts.push(
+      translateWith(locale, "dashboard.overduePaymentMany", {
+        count: summary.overduePayments,
+      }),
+    );
   } else {
-    parts.push("No overdue payment reminders");
+    parts.push(t("dashboard.noOverduePayments"));
   }
 
   if (opts.isAdmin && opts.occupancyPercent != null) {
-    parts.push(`portfolio occupancy is ${opts.occupancyPercent}%`);
+    parts.push(
+      translateWith(locale, "dashboard.snapshotPortfolioOccupancy", {
+        percent: opts.occupancyPercent,
+      }),
+    );
   }
 
   return parts.join(" · ");

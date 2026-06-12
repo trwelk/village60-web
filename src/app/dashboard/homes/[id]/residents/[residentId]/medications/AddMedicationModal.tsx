@@ -1,6 +1,6 @@
 "use client";
 
-import { VillageSelect } from "@/components/VillageSelect";
+import { VillageCombobox } from "@/components/VillageCombobox";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -304,14 +304,20 @@ export function AddMedicationModal({ homeId, residentId }: Props) {
                           className="flex max-w-2xl flex-col gap-2"
                         >
                           <span className="village-label">Catalog item</span>
-                          <VillageSelect
+                          <VillageCombobox
                             id="medications-create-item"
-                            value={form.itemId}
-                            onChange={(itemId) => setForm((f) => ({ ...f, itemId }))}
+                            value={form.itemId || null}
+                            onChange={(itemId) =>
+                              setForm((f) => ({ ...f, itemId: itemId ?? "" }))
+                            }
                             options={items.map((i) => ({
                               value: i.id,
                               label: `${i.name} (${i.baseUnit}) · ${i.categoryName}`,
                             }))}
+                            placeholder="Search catalog…"
+                            emptyMessage="No matching catalog items."
+                            clearAriaLabel="Clear catalog item"
+                            ariaLabel="Catalog item"
                           />
                         </label>
                       )}

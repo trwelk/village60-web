@@ -23,6 +23,7 @@ export const users = sqliteTable("users", {
   displayName: text("display_name"),
   phone: text("phone"),
   avatarUrl: text("avatar_url"),
+  preferredLocale: text("preferred_locale").notNull().default("en"),
 });
 
 export const authEvents = sqliteTable("auth_events", {
@@ -39,6 +40,20 @@ export const homes = sqliteTable("homes", {
   /** Physical / postal site address for public enquiry copy; nullable. */
   address: text("address"),
   defaultCurrencyCode: text("default_currency_code").notNull(),
+  /** Scheduled meds: flag when days of stock remaining fall below this. */
+  medLowStockDaysThreshold: integer("med_low_stock_days_threshold")
+    .notNull()
+    .default(5),
+  /** PRN meds: flag when servings remaining fall below this. */
+  medLowStockServingsThreshold: integer("med_low_stock_servings_threshold")
+    .notNull()
+    .default(5),
+  /** Scheduled meds: suggested PO qty targets this many days of supply. */
+  medReorderDaysSupply: integer("med_reorder_days_supply").notNull().default(14),
+  /** PRN meds: suggested PO qty targets this many servings. */
+  medReorderServingsSupply: integer("med_reorder_servings_supply")
+    .notNull()
+    .default(10),
   archivedAtUtcMs: integer("archived_at_utc_ms"),
   createdAtUtcMs: integer("created_at_utc_ms").notNull(),
   updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),

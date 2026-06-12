@@ -113,13 +113,69 @@ export function isDashboardAnalyticsFinancialPath(pathname: string): boolean {
 }
 
 export function isDashboardMarPath(pathname: string): boolean {
-  return /\/dashboard\/homes\/[^/]+\/mar(\/|$)/.test(pathname);
+  return (
+    pathname === "/dashboard/mar" ||
+    /\/dashboard\/homes\/[^/]+\/mar(\/|$)/.test(pathname)
+  );
 }
 
-/** Per-resident record under a home (not the directory list, not `new` or `departed`).
- * Used to defer breadcrumbs to a nested layout (23c).
- */
+export function isDashboardWardsPath(pathname: string): boolean {
+  return (
+    pathname === "/dashboard/wards" ||
+    /\/dashboard\/homes\/[^/]+\/wards$/.test(pathname)
+  );
+}
+
+export function isDashboardDepartedResidentsPath(pathname: string): boolean {
+  return (
+    pathname === "/dashboard/residents/departed" ||
+    /\/dashboard\/homes\/[^/]+\/residents\/departed$/.test(pathname)
+  );
+}
+
+export function isDashboardMedicationReordersPath(pathname: string): boolean {
+  return pathname === "/dashboard/medication-reorders";
+}
+
+export function isDashboardMedicationsPath(pathname: string): boolean {
+  return (
+    pathname === "/dashboard/medications" ||
+    /^\/dashboard\/residents\/([^/]+)\/medications$/.test(pathname) ||
+    /\/dashboard\/homes\/[^/]+\/residents\/[^/]+\/medications$/.test(pathname)
+  );
+}
+
+/** @deprecated Use isDashboardMedicationsPath */
+export const isDashboardResidentMedicationsPath = isDashboardMedicationsPath;
+
+/** Home id from `/dashboard/homes/[id]/*`; null on the homes hub list. */
+export function extractDashboardHomeIdFromPathname(
+  pathname: string,
+): string | null {
+  const m = /^\/dashboard\/homes\/([^/]+)/.exec(pathname);
+  return m?.[1] ?? null;
+}
+
+/** Resident id from flat `/dashboard/residents/[residentId]` routes. */
+export function extractDashboardResidentIdFromPathname(
+  pathname: string,
+): string | null {
+  const detail = /^\/dashboard\/residents\/([^/]+)$/.exec(pathname);
+  if (detail && detail[1] !== "new" && detail[1] !== "departed") {
+    return detail[1]!;
+  }
+  const medications =
+    /^\/dashboard\/residents\/([^/]+)\/medications$/.exec(pathname);
+  return medications?.[1] ?? null;
+}
+
+/** Per-resident record (flat or legacy nested), excluding list/new/departed/medications-only. */
 export function isHomeResidentDetailPath(pathname: string): boolean {
+  if (
+    /^\/dashboard\/residents\/(?!new$|departed$)([^/]+)$/.test(pathname)
+  ) {
+    return true;
+  }
   return /\/dashboard\/homes\/[^/]+\/residents\/(?!new$|departed$)([^/]+)$/.test(
     pathname,
   );

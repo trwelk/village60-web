@@ -2,13 +2,15 @@
 
 import type { Home } from "@/lib/homes/service";
 import type { WardListItem } from "@/lib/wards/service";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 type WardsAdminUIProps = {
   home: Home;
   initialWards: WardListItem[];
+  createModalOpen?: boolean;
+  onCloseCreateModal?: () => void;
 };
 
 function formatMinorAsHomeCurrency(minor: number, currencyCode: string): string {
@@ -18,16 +20,36 @@ function formatMinorAsHomeCurrency(minor: number, currencyCode: string): string 
   }).format(minor / 100);
 }
 
-const navLinkClass =
-  "self-start text-sm font-semibold text-pine underline decoration-terracotta/35 underline-offset-[5px] transition hover:text-terracotta hover:decoration-terracotta/60 sm:self-center";
-
-export function WardsAdminUI({ home, initialWards }: WardsAdminUIProps) {
+export function WardsAdminUI({
+  home,
+  initialWards,
+  createModalOpen = false,
+  onCloseCreateModal,
+}: WardsAdminUIProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [createLabel, setCreateLabel] = useState("");
   const [createSort, setCreateSort] = useState("");
   const [createBeds, setCreateBeds] = useState("");
   const [createMonthlyRate, setCreateMonthlyRate] = useState("");
+
+  const closeCreateModal = useCallback(() => {
+    onCloseCreateModal?.();
+  }, [onCloseCreateModal]);
+
+  useEffect(() => {
+    if (!createModalOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeCreateModal();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [createModalOpen, closeCreateModal]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editSort, setEditSort] = useState("");
@@ -118,6 +140,7 @@ export function WardsAdminUI({ home, initialWards }: WardsAdminUIProps) {
     setCreateSort("");
     setCreateBeds("");
     setCreateMonthlyRate("");
+    closeCreateModal();
     router.refresh();
   }
 
@@ -210,71 +233,8 @@ export function WardsAdminUI({ home, initialWards }: WardsAdminUIProps) {
   }
 
   return (
-    <main className="flex flex-col gap-8 text-ink">
-      <header className="flex flex-wrap justify-end">
-        <Link href="/dashboard/homes" className={navLinkClass}>
-          Back to homes
-        </Link>
-      </header>
-
-      {error ? <p className="village-alert-error">{error}</p> : null}
-
-      <section className="village-card p-6 sm:p-8">
-        <h2 className="village-section-title">Add a ward or unit</h2>
-        <form
-          onSubmit={onCreate}
-          className="mt-5 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end"
-        >
-          <label className="flex min-w-[12rem] flex-1 flex-col gap-1.5 text-sm">
-            <span className="village-field-label">Label</span>
-            <input
-              className="village-input"
-              value={createLabel}
-              onChange={(e) => setCreateLabel(e.target.value)}
-              required
-              autoComplete="off"
-            />
-          </label>
-          <label className="flex w-full flex-col gap-1.5 text-sm sm:w-36">
-            <span className="village-field-label">Sort</span>
-            <input
-              className="village-input"
-              value={createSort}
-              onChange={(e) => setCreateSort(e.target.value)}
-              placeholder="optional"
-              inputMode="numeric"
-              autoComplete="off"
-            />
-          </label>
-          <label className="flex w-full flex-col gap-1.5 text-sm sm:w-36">
-            <span className="village-field-label">Beds</span>
-            <input
-              className="village-input"
-              value={createBeds}
-              onChange={(e) => setCreateBeds(e.target.value)}
-              placeholder="optional"
-              inputMode="numeric"
-              autoComplete="off"
-            />
-          </label>
-          <label className="flex min-w-[10rem] flex-1 flex-col gap-1.5 text-sm sm:max-w-xs">
-            <span className="village-field-label">
-              Monthly rate / person (minor)
-            </span>
-            <input
-              className="village-input"
-              value={createMonthlyRate}
-              onChange={(e) => setCreateMonthlyRate(e.target.value)}
-              placeholder="optional"
-              inputMode="numeric"
-              autoComplete="off"
-            />
-          </label>
-          <button type="submit" className="village-btn-primary">
-            Add
-          </button>
-        </form>
-      </section>
+    <>
+      {error && !createModalOpen ? <p className="village-alert-error">{error}</p> : null}
 
       <section className="village-card p-6 sm:p-8">
         <h2 className="village-section-title">Wards for this home</h2>
@@ -294,7 +254,7 @@ export function WardsAdminUI({ home, initialWards }: WardsAdminUIProps) {
               {initialWards.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="village-td-muted py-10 text-center">
-                    No wards yet. Add one above.
+                    No wards yet.
                   </td>
                 </tr>
               ) : (
@@ -422,6 +382,130 @@ export function WardsAdminUI({ home, initialWards }: WardsAdminUIProps) {
           </table>
         </div>
       </section>
-    </main>
+
+      {createModalOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 pb-[env(safe-area-inset-bottom,0px)] sm:items-center sm:p-6 sm:pb-6">
+              <button
+                type="button"
+                className="absolute inset-0 bg-[color:color-mix(in_srgb,var(--text-primary)_42%,transparent)] backdrop-blur-[2px]"
+                aria-label="Dismiss add ward dialog"
+                onClick={closeCreateModal}
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="wards-create-modal-heading"
+                className="relative z-10 flex max-h-[min(calc(100dvh-env(safe-area-inset-bottom,0px)-0.75rem),52rem)] w-full min-h-0 max-w-4xl flex-col overflow-hidden rounded-t-2xl border border-[color-mix(in_srgb,var(--line-strong)_50%,transparent)] bg-[color-mix(in_srgb,var(--bg-muted)_35%,var(--bg-elevated)_65%)] shadow-[0_-8px_40px_-12px_color-mix(in_srgb,var(--text-primary)_35%,transparent)] sm:max-h-[min(92dvh,56rem)] sm:rounded-2xl sm:shadow-[0_22px_60px_-24px_color-mix(in_srgb,var(--text-primary)_38%,transparent)]"
+              >
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                  <section className="village-card overflow-hidden border-0 p-0 shadow-none">
+                    <div className="border-b border-pine/10 bg-[linear-gradient(135deg,rgba(26,77,58,0.09),rgba(184,71,50,0.08)_48%,rgba(250,247,241,0.15))] px-5 py-5 sm:px-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-col gap-1">
+                          <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-[var(--text-muted)]">
+                            New ward
+                          </p>
+                          <h2
+                            id="wards-create-modal-heading"
+                            className="font-display text-xl font-normal tracking-tight text-[var(--text-primary)]"
+                          >
+                            Add a ward or unit
+                          </h2>
+                          <p className="text-sm leading-6 text-[var(--text-secondary)]">
+                            Create a ward for {home.name}.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="rounded-lg border border-transparent px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)]"
+                          onClick={closeCreateModal}
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                    <form
+                      className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-4"
+                      onSubmit={onCreate}
+                    >
+                      <div className="flex flex-col gap-2">
+                        <label htmlFor="ward-label" className="village-label">
+                          Label
+                        </label>
+                        <input
+                          id="ward-label"
+                          className="village-input"
+                          value={createLabel}
+                          onChange={(e) => setCreateLabel(e.target.value)}
+                          required
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label htmlFor="ward-sort" className="village-label">
+                          Sort
+                        </label>
+                        <input
+                          id="ward-sort"
+                          className="village-input"
+                          value={createSort}
+                          onChange={(e) => setCreateSort(e.target.value)}
+                          placeholder="optional"
+                          inputMode="numeric"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label htmlFor="ward-beds" className="village-label">
+                          Beds
+                        </label>
+                        <input
+                          id="ward-beds"
+                          className="village-input"
+                          value={createBeds}
+                          onChange={(e) => setCreateBeds(e.target.value)}
+                          placeholder="optional"
+                          inputMode="numeric"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label htmlFor="ward-rate" className="village-label">
+                          Monthly rate / person (minor)
+                        </label>
+                        <input
+                          id="ward-rate"
+                          className="village-input"
+                          value={createMonthlyRate}
+                          onChange={(e) => setCreateMonthlyRate(e.target.value)}
+                          placeholder="optional"
+                          inputMode="numeric"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-3 sm:col-span-2 sm:flex-row sm:items-center lg:col-span-4">
+                        <button
+                          className="village-btn-primary min-h-10 px-5"
+                          type="submit"
+                          disabled={!createLabel.trim()}
+                        >
+                          Add ward
+                        </button>
+                        {error ? (
+                          <p className="text-sm font-medium text-[var(--danger)]">
+                            {error}
+                          </p>
+                        ) : null}
+                      </div>
+                    </form>
+                  </section>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }

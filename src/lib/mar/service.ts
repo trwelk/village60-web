@@ -4,11 +4,13 @@ import type { SessionActor } from "@/lib/authz/sessionActor";
 import { assertActorMayAccessHome } from "@/lib/authz/homeScope";
 import {
   inventoryItems,
+  inventoryTransactions,
   medicationAdministrations,
   residentMedications,
   residents,
   users,
 } from "@/db/schema";
+import { recordInventoryTransaction } from "@/lib/inventory/service";
 import {
   ForbiddenError,
   NotFoundError,
@@ -357,21 +359,48 @@ function insertAdministration(
   }
 
   try {
-    db.insert(medicationAdministrations)
-      .values({
-        id,
-        homeId,
-        residentId: medication.resident.id,
-        residentMedicationId: input.residentMedicationId,
-        slot: input.slot,
-        date: input.date,
-        administeredByUserId: actor.userId,
-        notes,
-        administeredAtUtcMs: now,
-        createdAtUtcMs: now,
-      })
-      .run();
+    db.transaction((trx) => {
+      try {
+        trx.insert(medicationAdministrations)
+          .values({
+            id,
+            homeId,
+            residentId: medication.resident.id,
+            residentMedicationId: input.residentMedicationId,
+            slot: input.slot,
+            date: input.date,
+            administeredByUserId: actor.userId,
+            notes,
+            administeredAtUtcMs: now,
+            createdAtUtcMs: now,
+          })
+          .run();
+      } catch (e) {
+        if (isSqliteUniqueViolation(e)) {
+          throw new ValidationError("This dose has already been recorded.");
+        }
+        throw e;
+      }
+
+      recordInventoryTransaction(
+        trx as unknown as AppDb,
+        actor,
+        {
+          ownerType: "RESIDENT",
+          ownerId: medication.resident.id,
+          itemId: medication.rm.itemId,
+          transactionType: "MAR_DISPENSE",
+          quantityDeltaBaseUnits: -medication.rm.quantityPerServing,
+          sourceType: "MAR_ADMINISTRATION",
+          sourceId: id,
+        },
+        now,
+      );
+    });
   } catch (e) {
+    if (e instanceof ValidationError) {
+      throw e;
+    }
     if (isSqliteUniqueViolation(e)) {
       throw new ValidationError("This dose has already been recorded.");
     }
@@ -446,7 +475,39 @@ export function undoAdministration(
     throw new ForbiddenError("Only today's administrations can be undone.");
   }
 
-  db.delete(medicationAdministrations)
-    .where(eq(medicationAdministrations.id, administrationId))
-    .run();
+  const now = Date.now();
+  db.transaction((trx) => {
+    const originalTx = trx
+      .select()
+      .from(inventoryTransactions)
+      .where(
+        and(
+          eq(inventoryTransactions.sourceType, "MAR_ADMINISTRATION"),
+          eq(inventoryTransactions.sourceId, administrationId),
+        ),
+      )
+      .get();
+
+    if (originalTx) {
+      recordInventoryTransaction(
+        trx as unknown as AppDb,
+        actor,
+        {
+          ownerType:
+            originalTx.ownerType === "RESIDENT" ? "RESIDENT" : "HOME",
+          ownerId: originalTx.ownerId,
+          itemId: originalTx.itemId,
+          transactionType: "MAR_DISPENSE_REVERSAL",
+          quantityDeltaBaseUnits: -originalTx.quantityDeltaBaseUnits,
+          sourceType: "MAR_ADMINISTRATION_UNDO",
+          sourceId: administrationId,
+        },
+        now,
+      );
+    }
+
+    trx.delete(medicationAdministrations)
+      .where(eq(medicationAdministrations.id, administrationId))
+      .run();
+  });
 }

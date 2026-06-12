@@ -1,3 +1,6 @@
+"use client";
+
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import type { Tab, TabId } from "@/lib/residents/tabs";
 
 type Props = {
@@ -7,8 +10,14 @@ type Props = {
 };
 
 export function ResidentTabs({ tabs, activeTab, onTabChange }: Props) {
+  const { t } = useI18n();
+
   return (
-    <div className="village-tablist" role="tablist" aria-label="Resident sections">
+    <div
+      className="village-tablist"
+      role="tablist"
+      aria-label={t("sections.residentSections")}
+    >
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -21,7 +30,7 @@ export function ResidentTabs({ tabs, activeTab, onTabChange }: Props) {
           }
           onClick={() => onTabChange(tab.id)}
         >
-          {tab.label}
+          {t(tab.labelKey)}
         </button>
       ))}
     </div>

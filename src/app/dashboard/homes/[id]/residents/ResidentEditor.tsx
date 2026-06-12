@@ -3,6 +3,11 @@
 import { LocalTime } from "@/components/LocalTime";
 import { VillageSelect } from "@/components/VillageSelect";
 import type { ResidentPublic } from "@/lib/residents/service";
+import {
+  dashboardNewResidentHref,
+  dashboardResidentHref,
+  dashboardResidentsHref,
+} from "@/lib/dashboard/dashboardRoutes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -161,7 +166,7 @@ export function ResidentEditor({
       onCloseCreate();
       return;
     }
-    router.push(`/dashboard/homes/${homeId}/residents`);
+    router.push(dashboardResidentsHref(homeId));
   }
 
   function validationMessageForStep(step: CreateWizardStep): string | null {
@@ -352,13 +357,13 @@ export function ResidentEditor({
           setError(
             "Resident was created, but one or more clinical items failed to save. Use Manage medications and the Clinical tabs to add them.",
           );
-          router.push(`/dashboard/homes/${homeId}/residents/${id}`);
+          router.push(dashboardResidentHref(id));
           router.refresh();
           return;
         }
       }
       setCreateSubmitting(false);
-      router.push(`/dashboard/homes/${homeId}/residents/${id}`);
+      router.push(dashboardResidentHref(id));
       router.refresh();
       return;
     }
@@ -464,7 +469,7 @@ export function ResidentEditor({
           </div>
           <div className="mt-5 flex flex-wrap gap-4 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_78%,transparent)] pt-4 text-sm">
             <Link
-              href={`/dashboard/homes/${homeId}/residents`}
+              href={dashboardResidentsHref(homeId)}
               className="village-link-subtle"
             >
               Residents at this home

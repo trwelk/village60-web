@@ -13,6 +13,7 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { closeDbConnection, getDb } from "@/db/client";
+import { DEFAULT_INVENTORY_CATALOG_CATEGORY_NAMES } from "@/lib/inventory/defaultCatalogCategories";
 import {
   accounts,
   authEvents,
@@ -322,15 +323,6 @@ const SUPPLIER_DEFS = [
   },
 ];
 
-const CATEGORY_NAMES = [
-  "medicine",
-  "Continence",
-  "Nutrition",
-  "Wound care",
-  "General consumables",
-  "Linens & laundry",
-];
-
 async function main() {
   if (!RESET) {
     closeDbConnection();
@@ -479,7 +471,7 @@ async function main() {
 
   const homeItems = new Map<string, ItemSeed[]>();
   for (const h of HOME_DEFS) {
-    const catIds = CATEGORY_NAMES.map((name, idx) => {
+    const catIds = DEFAULT_INVENTORY_CATALOG_CATEGORY_NAMES.map((name, idx) => {
       const id = `seed-cat-${h.id}-${idx}`;
       const now = t0 + 2 + idx;
       db.insert(inventoryItemCategories)
@@ -524,50 +516,50 @@ async function main() {
         unitClass: "countable",
       },
       {
-        id: `seed-item-${h.id}-slip-m`,
-        categoryIdx: 1,
-        name: "Adult slip — medium",
-        baseUnit: "each",
-        unitClass: "countable",
-      },
-      {
-        id: `seed-item-${h.id}-ensure`,
-        categoryIdx: 2,
-        name: "Oral nutrition supplement — vanilla",
-        baseUnit: "bottle",
-        unitClass: "countable",
-      },
-      {
         id: `seed-item-${h.id}-saline`,
-        categoryIdx: 3,
+        categoryIdx: 0,
         name: "Sterile saline 0.9% 500ml",
         baseUnit: "bottle",
         unitClass: "countable",
       },
       {
+        id: `seed-item-${h.id}-ensure`,
+        categoryIdx: 1,
+        name: "Oral nutrition supplement — vanilla",
+        baseUnit: "bottle",
+        unitClass: "countable",
+      },
+      {
+        id: `seed-item-${h.id}-slip-m`,
+        categoryIdx: 2,
+        name: "Adult slip — medium",
+        baseUnit: "each",
+        unitClass: "countable",
+      },
+      {
         id: `seed-item-${h.id}-glove`,
-        categoryIdx: 4,
+        categoryIdx: 2,
         name: "Nitrile gloves — small",
         baseUnit: "each",
         unitClass: "countable",
       },
       {
         id: `seed-item-${h.id}-glove-m`,
-        categoryIdx: 4,
+        categoryIdx: 2,
         name: "Nitrile gloves — medium",
         baseUnit: "each",
         unitClass: "countable",
       },
       {
         id: `seed-item-${h.id}-purigel`,
-        categoryIdx: 4,
+        categoryIdx: 2,
         name: "Hand sanitiser gel 1L",
         baseUnit: "bottle",
         unitClass: "measurable",
       },
       {
         id: `seed-item-${h.id}-sheet`,
-        categoryIdx: 5,
+        categoryIdx: 2,
         name: "Flat sheet — single",
         baseUnit: "each",
         unitClass: "countable",

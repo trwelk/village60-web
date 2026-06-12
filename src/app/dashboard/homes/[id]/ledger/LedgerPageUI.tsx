@@ -2,6 +2,7 @@
 
 import { ResidentCombobox } from "@/components/ResidentCombobox";
 import type { ResidentBillingAccountSummary } from "@/lib/billing/paymentsLifecycle";
+import { dashboardLedgerHref, dashboardResidentsHref } from "@/lib/dashboard/dashboardRoutes";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
@@ -41,7 +42,7 @@ export function LedgerPageUI({
         params.delete("residentId");
       }
       const qs = params.toString();
-      router.replace(qs ? `?${qs}` : `/dashboard/homes/${homeId}/ledger`);
+      router.replace(qs ? `/dashboard/ledger?${qs}` : dashboardLedgerHref(homeId));
     },
     [homeId, router, searchParams],
   );
@@ -60,7 +61,7 @@ export function LedgerPageUI({
     <main className="flex flex-col gap-8 text-ink">
       <div className="village-reveal flex flex-wrap items-center gap-2 text-sm text-ink/75">
         <Link
-          href={`/dashboard/homes/${homeId}/residents`}
+          href={dashboardResidentsHref(homeId)}
           className="font-semibold text-pine underline decoration-terracotta/35 underline-offset-[5px] transition hover:text-terracotta hover:decoration-terracotta/60"
         >
           Residents at this home

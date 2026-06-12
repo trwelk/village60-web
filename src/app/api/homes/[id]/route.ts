@@ -29,6 +29,10 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     defaultCurrencyCode?: string;
     archived?: boolean;
     address?: string | null;
+    medLowStockDaysThreshold?: number;
+    medLowStockServingsThreshold?: number;
+    medReorderDaysSupply?: number;
+    medReorderServingsSupply?: number;
   } = {};
 
   if ("name" in rec) {
@@ -64,12 +68,52 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     }
     input.address = rec.address === null ? null : rec.address;
   }
+  if ("medLowStockDaysThreshold" in rec) {
+    if (typeof rec.medLowStockDaysThreshold !== "number") {
+      return NextResponse.json(
+        { error: "medLowStockDaysThreshold must be a number." },
+        { status: 400 },
+      );
+    }
+    input.medLowStockDaysThreshold = rec.medLowStockDaysThreshold;
+  }
+  if ("medLowStockServingsThreshold" in rec) {
+    if (typeof rec.medLowStockServingsThreshold !== "number") {
+      return NextResponse.json(
+        { error: "medLowStockServingsThreshold must be a number." },
+        { status: 400 },
+      );
+    }
+    input.medLowStockServingsThreshold = rec.medLowStockServingsThreshold;
+  }
+  if ("medReorderDaysSupply" in rec) {
+    if (typeof rec.medReorderDaysSupply !== "number") {
+      return NextResponse.json(
+        { error: "medReorderDaysSupply must be a number." },
+        { status: 400 },
+      );
+    }
+    input.medReorderDaysSupply = rec.medReorderDaysSupply;
+  }
+  if ("medReorderServingsSupply" in rec) {
+    if (typeof rec.medReorderServingsSupply !== "number") {
+      return NextResponse.json(
+        { error: "medReorderServingsSupply must be a number." },
+        { status: 400 },
+      );
+    }
+    input.medReorderServingsSupply = rec.medReorderServingsSupply;
+  }
 
   if (
     input.name === undefined &&
     input.defaultCurrencyCode === undefined &&
     input.archived === undefined &&
-    input.address === undefined
+    input.address === undefined &&
+    input.medLowStockDaysThreshold === undefined &&
+    input.medLowStockServingsThreshold === undefined &&
+    input.medReorderDaysSupply === undefined &&
+    input.medReorderServingsSupply === undefined
   ) {
     return NextResponse.json({ error: "No updates provided." }, { status: 400 });
   }

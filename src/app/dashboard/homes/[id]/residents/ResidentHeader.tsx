@@ -4,6 +4,7 @@ import { VillageSelect } from "@/components/VillageSelect";
 import { calculateAge } from "@/lib/residents/age";
 import type { ResidentPublic } from "@/lib/residents/service";
 import type { SessionUserRole } from "@/lib/session";
+import { dashboardResidentMedicationsHref } from "@/lib/dashboard/dashboardRoutes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -259,7 +260,7 @@ export function ResidentHeader({ homeId, resident, wards, userRole }: Props) {
           <div className="flex shrink-0 flex-wrap gap-2 self-start">
             {!isDeparted ? (
               <Link
-                href={`/dashboard/homes/${homeId}/residents/${resident.id}/medications`}
+                href={dashboardResidentMedicationsHref(resident.id)}
                 className="village-btn-primary"
               >
                 Medications
@@ -268,7 +269,7 @@ export function ResidentHeader({ homeId, resident, wards, userRole }: Props) {
             {userRole === "admin" ? (
               <>
                 <Link
-                  href={`/dashboard/homes/${homeId}/invoices?residentId=${encodeURIComponent(resident.id)}`}
+                  href={`/dashboard/invoices?homeId=${encodeURIComponent(homeId)}&residentId=${encodeURIComponent(resident.id)}`}
                   className="village-btn-secondary"
                 >
                   Invoices

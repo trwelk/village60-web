@@ -6,7 +6,10 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { asc, eq } from "drizzle-orm";
 import { closeDbConnection, getDb } from "@/db/client";
+import { inventoryItemCategories } from "@/db/schema";
+import { DEFAULT_INVENTORY_CATALOG_CATEGORY_NAMES } from "@/lib/inventory/defaultCatalogCategories";
 import { createHome, updateHome } from "./service";
 
 function runMigrations(file: string) {
@@ -56,6 +59,25 @@ describe("homes service — address", () => {
       address: "   ",
     });
     expect(c.address).toBeNull();
+  });
+
+  it("createHome seeds default inventory catalog categories", () => {
+    const db = getDb();
+    const home = createHome(db, "admin", {
+      name: "Oak",
+      defaultCurrencyCode: "NZD",
+    });
+    const categories = db
+      .select({ name: inventoryItemCategories.name })
+      .from(inventoryItemCategories)
+      .where(eq(inventoryItemCategories.homeId, home.id))
+      .orderBy(asc(inventoryItemCategories.name))
+      .all()
+      .map((row) => row.name);
+    expect(categories).toHaveLength(DEFAULT_INVENTORY_CATALOG_CATEGORY_NAMES.length);
+    expect(categories).toEqual(
+      expect.arrayContaining([...DEFAULT_INVENTORY_CATALOG_CATEGORY_NAMES]),
+    );
   });
 
   it("updateHome sets or clears address without touching other fields unnecessarily", () => {
