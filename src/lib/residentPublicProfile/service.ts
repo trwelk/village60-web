@@ -1,10 +1,40 @@
 import fs from "node:fs";
 import path from "node:path";
-import { eq } from "drizzle-orm";
-import { homes, residents, wards } from "@/db/schema";
+import { and, asc, eq } from "drizzle-orm";
+import {
+  homes,
+  inventoryItems,
+  residentAllergies,
+  residentConditions,
+  residentMedications,
+  residents,
+  wards,
+} from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
 import { NotFoundError } from "@/lib/homes/errors";
+import {
+  MAR_SLOT_LABELS,
+  resolveMedicationSlots,
+} from "@/lib/mar/constants";
 import { resolveResidentPortraitsDir } from "@/lib/residentPortraits/service";
+
+export type PublicProfileAllergy = {
+  allergen: string;
+  notes: string | null;
+};
+
+export type PublicProfileCondition = {
+  label: string;
+};
+
+export type PublicProfileMedication = {
+  name: string;
+  quantityPerServing: number;
+  unit: string;
+  directions: string;
+  prn: boolean;
+  scheduleLabel: string;
+};
 
 export type ResidentPublicProfile = {
   fullName: string;
@@ -16,7 +46,82 @@ export type ResidentPublicProfile = {
   homeName: string;
   hasPortrait: boolean;
   portraitUpdatedAtUtcMs: number | null;
+  allergies: PublicProfileAllergy[];
+  conditions: PublicProfileCondition[];
+  medications: PublicProfileMedication[];
 };
+
+function formatMedicationScheduleLabel(input: {
+  prn: boolean;
+  scheduledSlots: string | null;
+  servingsPerDay: number | null;
+}): string {
+  if (input.prn) {
+    return "As needed (PRN)";
+  }
+  const slots = resolveMedicationSlots(input);
+  if (slots.length === 0) {
+    return "Scheduled";
+  }
+  return slots.map((slot) => MAR_SLOT_LABELS[slot]).join(" · ");
+}
+
+function listPublicClinicalForResident(
+  db: AppDb,
+  residentId: string,
+): Pick<
+  ResidentPublicProfile,
+  "allergies" | "conditions" | "medications"
+> {
+  const allergies = db
+    .select({
+      allergen: residentAllergies.allergen,
+      notes: residentAllergies.notes,
+    })
+    .from(residentAllergies)
+    .where(eq(residentAllergies.residentId, residentId))
+    .orderBy(asc(residentAllergies.sortOrder), asc(residentAllergies.id))
+    .all();
+
+  const conditions = db
+    .select({ label: residentConditions.label })
+    .from(residentConditions)
+    .where(eq(residentConditions.residentId, residentId))
+    .orderBy(asc(residentConditions.sortOrder), asc(residentConditions.id))
+    .all();
+
+  const medicationRows = db
+    .select({
+      name: inventoryItems.name,
+      unit: inventoryItems.baseUnit,
+      quantityPerServing: residentMedications.quantityPerServing,
+      directions: residentMedications.directions,
+      prn: residentMedications.prn,
+      scheduledSlots: residentMedications.scheduledSlots,
+      servingsPerDay: residentMedications.servingsPerDay,
+    })
+    .from(residentMedications)
+    .innerJoin(inventoryItems, eq(residentMedications.itemId, inventoryItems.id))
+    .where(
+      and(
+        eq(residentMedications.residentId, residentId),
+        eq(residentMedications.status, "active"),
+      ),
+    )
+    .orderBy(asc(residentMedications.sortOrder), asc(residentMedications.id))
+    .all();
+
+  const medications = medicationRows.map((row) => ({
+    name: row.name,
+    quantityPerServing: row.quantityPerServing,
+    unit: row.unit,
+    directions: row.directions,
+    prn: row.prn,
+    scheduleLabel: formatMedicationScheduleLabel(row),
+  }));
+
+  return { allergies, conditions, medications };
+}
 
 function assertResidentByPublicToken(
   db: AppDb,
@@ -57,6 +162,8 @@ export function getResidentPublicProfile(
     wardLabel = ward?.label ?? null;
   }
 
+  const clinical = listPublicClinicalForResident(db, resident.id);
+
   return {
     fullName: resident.fullName,
     dob: resident.dob,
@@ -67,6 +174,7 @@ export function getResidentPublicProfile(
     homeName: home.name,
     hasPortrait: Boolean(resident.portraitStoredRelativePath?.trim()),
     portraitUpdatedAtUtcMs: resident.portraitUpdatedAtUtcMs,
+    ...clinical,
   };
 }
 

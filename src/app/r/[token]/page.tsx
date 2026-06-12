@@ -4,6 +4,7 @@ import { calculateAge } from "@/lib/residents/age";
 import { getResidentPublicProfile } from "@/lib/residentPublicProfile/service";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { PublicProfileClinicalSections } from "./PublicProfileClinicalSections";
 
 export const dynamic = "force-dynamic";
 
@@ -74,8 +75,8 @@ export default async function ResidentPublicProfilePage({ params }: PageParams) 
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_420px_at_-10%_-10%,color-mix(in_srgb,var(--accent)_20%,transparent),transparent_58%),radial-gradient(860px_420px_at_110%_0%,color-mix(in_srgb,var(--highlight)_18%,transparent),transparent_60%),radial-gradient(700px_400px_at_50%_115%,color-mix(in_srgb,var(--partner-green)_15%,transparent),transparent_52%)]"
       />
-      <div className="relative z-10 mx-auto flex min-h-[100dvh] max-w-lg flex-col justify-center px-5 py-10 sm:px-8">
-        <article className="village-hero-card relative overflow-hidden px-6 py-8 backdrop-blur sm:px-10 sm:py-10">
+      <div className="relative z-10 mx-auto flex min-h-[100dvh] max-w-lg flex-col justify-center px-5 py-10 sm:max-w-xl sm:px-8">
+        <article className="village-hero-card village-reveal relative overflow-hidden px-6 py-8 backdrop-blur sm:px-10 sm:py-10">
           <div
             aria-hidden
             className="pointer-events-none absolute -right-16 top-0 h-48 w-48 rounded-full bg-[color:color-mix(in_srgb,var(--accent)_14%,transparent)] blur-2xl"
@@ -142,6 +143,12 @@ export default async function ResidentPublicProfilePage({ params }: PageParams) 
                 </div>
               ) : null}
             </dl>
+
+            <PublicProfileClinicalSections
+              allergies={profile.allergies}
+              conditions={profile.conditions}
+              medications={profile.medications}
+            />
           </div>
         </article>
       </div>
