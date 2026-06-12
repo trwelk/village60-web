@@ -1965,6 +1965,179 @@ a.village-occ-pill:focus-visible {
   box-shadow: var(--ring-focus);
 }
 
+/* Public resident profile (/r/[token]) — QR-facing share page */
+.village-public-profile-card {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 78%, transparent),
+    0 32px 80px -52px color-mix(in srgb, var(--accent-strong) 55%, transparent),
+    0 40px 72px -48px color-mix(in srgb, var(--partner-green) 20%, transparent);
+}
+
+.village-public-profile-card::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 82%, var(--highlight) 18%),
+    color-mix(in srgb, var(--partner-green) 72%, var(--accent) 28%),
+    color-mix(in srgb, var(--highlight) 68%, transparent)
+  );
+  opacity: 0.88;
+}
+
+.village-public-profile-portrait {
+  position: relative;
+  isolation: isolate;
+}
+
+.village-public-profile-portrait::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: calc(var(--radius-xl) + 0.35rem);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--accent) 42%, transparent),
+    color-mix(in srgb, var(--partner-green) 34%, transparent) 52%,
+    color-mix(in srgb, var(--highlight) 38%, transparent)
+  );
+  opacity: 0.55;
+  filter: blur(10px);
+  z-index: -2;
+}
+
+.village-public-profile-portrait::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: calc(var(--radius-xl) + 0.1rem);
+  padding: 1px;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 55%, transparent),
+    color-mix(in srgb, var(--partner-green) 40%, transparent) 45%,
+    color-mix(in srgb, var(--highlight) 48%, transparent)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.village-public-profile-stat {
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 78%, transparent);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(
+      180px 100px at 100% 100%,
+      color-mix(in srgb, var(--partner-green) 8%, transparent),
+      transparent 68%
+    ),
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--bg-elevated) 94%, transparent),
+      color-mix(in srgb, var(--bg-muted) 72%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 72%, transparent),
+    0 10px 28px -22px color-mix(in srgb, var(--text-primary) 28%, transparent);
+  padding: 0.85rem 1rem;
+  text-align: left;
+}
+
+.village-public-profile-clinical {
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 72%, transparent);
+  border-radius: calc(var(--radius-xl) + 0.1rem);
+  background:
+    radial-gradient(
+      520px 220px at 0% 0%,
+      color-mix(in srgb, var(--accent) 7%, transparent),
+      transparent 62%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-muted) 52%, var(--bg-elevated) 48%),
+      color-mix(in srgb, var(--bg-elevated) 88%, transparent)
+    );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 70%, transparent);
+}
+
+.village-public-profile-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+
+.village-public-profile-section-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.village-public-profile-section-icon--allergy {
+  color: color-mix(in srgb, var(--danger) 78%, var(--text-primary) 22%);
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg-elevated) 90%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.village-public-profile-section-icon--condition {
+  color: color-mix(in srgb, var(--accent-strong) 78%, var(--text-primary) 22%);
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-elevated) 91%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.village-public-profile-section-icon--medication {
+  color: color-mix(in srgb, var(--success) 72%, var(--text-primary) 28%);
+  background: color-mix(in srgb, var(--success) 10%, var(--bg-elevated) 90%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 18%, transparent);
+}
+
+.village-public-profile-med-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 76%, transparent);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--bg-elevated) 96%, transparent),
+      color-mix(in srgb, var(--bg-muted) 78%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 72%, transparent),
+    var(--shadow-sm);
+}
+
+.village-public-profile-med-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 72%, var(--highlight) 28%),
+    color-mix(in srgb, var(--partner-green) 62%, var(--accent) 38%)
+  );
+}
+
+.village-public-profile-med-card--prn::before {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--highlight) 78%, var(--accent) 22%),
+    color-mix(in srgb, var(--accent-strong) 68%, var(--highlight) 32%)
+  );
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

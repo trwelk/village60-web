@@ -34,6 +34,40 @@ function portraitSrc(
   return base;
 }
 
+function formatPublicDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  if (!year || !month || !day) return isoDate;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function ProfileStat({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
+  return (
+    <div className="village-public-profile-stat">
+      <dt className="village-field-label">{label}</dt>
+      <dd className="mt-1.5 text-[0.95rem] font-semibold leading-snug text-ink">
+        {value}
+        {detail ? (
+          <span className="mt-0.5 block text-sm font-medium text-ink/55">
+            {detail}
+          </span>
+        ) : null}
+      </dd>
+    </div>
+  );
+}
+
 export async function generateMetadata({
   params,
 }: PageParams): Promise<Metadata> {
@@ -70,36 +104,41 @@ export default async function ResidentPublicProfilePage({ params }: PageParams) 
   );
 
   return (
-    <main className="village-app-bg relative isolate min-h-screen overflow-hidden text-[var(--text-primary)]">
+    <main className="village-app-bg village-grain relative isolate min-h-screen overflow-hidden text-[var(--text-primary)]">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_420px_at_-10%_-10%,color-mix(in_srgb,var(--accent)_20%,transparent),transparent_58%),radial-gradient(860px_420px_at_110%_0%,color-mix(in_srgb,var(--highlight)_18%,transparent),transparent_60%),radial-gradient(700px_400px_at_50%_115%,color-mix(in_srgb,var(--partner-green)_15%,transparent),transparent_52%)]"
       />
-      <div className="relative z-10 mx-auto flex min-h-[100dvh] max-w-lg flex-col justify-center px-5 py-10 sm:max-w-xl sm:px-8">
-        <article className="village-hero-card village-reveal relative overflow-hidden px-6 py-8 backdrop-blur sm:px-10 sm:py-10">
+      <div className="relative z-10 mx-auto flex min-h-[100dvh] max-w-2xl flex-col justify-center px-5 py-10 sm:px-8 sm:py-12">
+        <article className="village-hero-card village-public-profile-card village-reveal village-shimmer relative overflow-hidden px-6 py-9 backdrop-blur sm:px-10 sm:py-11">
           <div
             aria-hidden
-            className="pointer-events-none absolute -right-16 top-0 h-48 w-48 rounded-full bg-[color:color-mix(in_srgb,var(--accent)_14%,transparent)] blur-2xl"
+            className="pointer-events-none absolute -right-20 -top-16 h-56 w-56 rounded-full bg-[color:color-mix(in_srgb,var(--accent)_16%,transparent)] blur-3xl"
           />
-          <div className="relative flex flex-col items-center text-center">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-24 -left-16 h-48 w-48 rounded-full bg-[color:color-mix(in_srgb,var(--partner-green)_14%,transparent)] blur-3xl"
+          />
+
+          <header className="relative flex flex-col items-center text-center">
             <p className="village-kicker">{profile.homeName}</p>
 
-            <div className="mt-6">
+            <div className="village-public-profile-portrait village-reveal village-reveal-delay-1 mt-7">
               {imgSrc ? (
                 <img
                   src={imgSrc}
                   alt={`Portrait of ${profile.fullName}`}
-                  className="mx-auto h-36 w-36 rounded-3xl object-cover ring-2 ring-pine/15 shadow-lg"
-                  width={144}
-                  height={144}
+                  className="relative h-40 w-40 rounded-[1.35rem] object-cover shadow-[0_18px_40px_-22px_color-mix(in_srgb,var(--text-primary)_35%,transparent)] sm:h-44 sm:w-44"
+                  width={176}
+                  height={176}
                 />
               ) : (
                 <div
-                  className="mx-auto flex h-36 w-36 items-center justify-center rounded-3xl bg-pine/8 text-pine-2 ring-2 ring-pine/15 shadow-lg"
+                  className="relative flex h-40 w-40 items-center justify-center rounded-[1.35rem] bg-[linear-gradient(145deg,color-mix(in_srgb,var(--accent)_8%,var(--bg-muted)_92%),color-mix(in_srgb,var(--partner-green)_6%,var(--bg-elevated)_94%))] shadow-[0_18px_40px_-22px_color-mix(in_srgb,var(--text-primary)_35%,transparent)] sm:h-44 sm:w-44"
                   aria-label="No portrait"
                 >
                   <span
-                    className="font-display text-4xl font-normal text-ink/45"
+                    className="font-display text-[clamp(2.5rem,6vw,3rem)] font-normal tracking-[-0.04em] text-ink/40"
                     aria-hidden
                   >
                     {residentInitials(profile.fullName)}
@@ -108,48 +147,50 @@ export default async function ResidentPublicProfilePage({ params }: PageParams) 
               )}
             </div>
 
-            <h1 className="mt-6 font-display text-[clamp(1.75rem,4vw,2.25rem)] font-normal tracking-[-0.03em] text-[var(--text-primary)]">
+            <h1 className="village-reveal village-reveal-delay-2 mt-7 font-display text-[clamp(2rem,4.8vw,2.65rem)] font-normal leading-[1.02] tracking-[-0.045em] text-[var(--text-primary)]">
               {profile.fullName}
             </h1>
 
             {profile.status === "departed" ? (
-              <span className="mt-3 inline-flex items-center rounded-full bg-cream-muted px-3 py-1 text-xs font-semibold text-ink/70 ring-1 ring-pine/15">
+              <span className="village-reveal village-reveal-delay-2 mt-4 inline-flex items-center rounded-full bg-cream-muted px-3.5 py-1 text-xs font-semibold text-ink/70 ring-1 ring-pine/15">
                 Former resident
               </span>
-            ) : null}
+            ) : (
+              <p className="village-reveal village-reveal-delay-2 mt-3 max-w-sm text-sm leading-relaxed text-ink/55">
+                A shared profile for family and care partners
+              </p>
+            )}
+          </header>
 
-            <dl className="mt-8 w-full space-y-4 border-t border-pine/12 pt-8 text-left text-sm">
-              <div className="flex items-baseline justify-between gap-4">
-                <dt className="village-field-label">Date of birth</dt>
-                <dd className="font-medium text-ink">
-                  {profile.dob}{" "}
-                  <span className="text-ink/60">(age {age})</span>
-                </dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-4">
-                <dt className="village-field-label">Admitted</dt>
-                <dd className="font-medium text-ink">{profile.admissionDate}</dd>
-              </div>
-              {profile.wardLabel ? (
-                <div className="flex items-baseline justify-between gap-4">
-                  <dt className="village-field-label">Ward</dt>
-                  <dd className="font-medium text-ink">{profile.wardLabel}</dd>
-                </div>
-              ) : null}
-              {profile.roomText ? (
-                <div className="flex items-baseline justify-between gap-4">
-                  <dt className="village-field-label">Room</dt>
-                  <dd className="font-medium text-ink">{profile.roomText}</dd>
-                </div>
-              ) : null}
-            </dl>
-
-            <PublicProfileClinicalSections
-              allergies={profile.allergies}
-              conditions={profile.conditions}
-              medications={profile.medications}
+          <dl className="village-reveal village-reveal-delay-3 mt-9 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <ProfileStat
+              label="Date of birth"
+              value={formatPublicDate(profile.dob)}
+              detail={`Age ${age}`}
             />
-          </div>
+            <ProfileStat
+              label="Admitted"
+              value={formatPublicDate(profile.admissionDate)}
+            />
+            {profile.wardLabel ? (
+              <ProfileStat label="Ward" value={profile.wardLabel} />
+            ) : null}
+            {profile.roomText ? (
+              <ProfileStat label="Room" value={profile.roomText} />
+            ) : null}
+          </dl>
+
+          <PublicProfileClinicalSections
+            allergies={profile.allergies}
+            conditions={profile.conditions}
+            medications={profile.medications}
+          />
+
+          <footer className="village-reveal village-reveal-delay-5 mt-10 border-t border-pine/10 pt-6 text-center">
+            <p className="text-[0.68rem] font-bold uppercase tracking-[0.24em] text-ink/35">
+              Village60
+            </p>
+          </footer>
         </article>
       </div>
     </main>

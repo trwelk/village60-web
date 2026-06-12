@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>TRGAKI — Village60 Cost Summary &amp; Quotation</title>
+<title>TRAGAKI — Village60 Cost Summary &amp; Quotation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Archivo:wght@300;400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -50,16 +50,26 @@
   }
 
   @media print {
-    body { background: none; }
+    html, body {
+      background: none;
+      margin: 0;
+      padding: 0;
+    }
     .sheet {
       margin: 0;
       box-shadow: none;
-      page-break-after: always;
-      width: auto;
-      min-height: 0;
-      height: 296mm;
+      width: 210mm;
+      height: 297mm;
+      min-height: 297mm;
+      max-height: 297mm;
+      overflow: hidden;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
-    .sheet:last-child { page-break-after: auto; }
+    .module {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
   }
   @page { size: A4; margin: 0; }
 
@@ -391,6 +401,50 @@
     color: var(--gold);
     font-weight: 500;
   }
+  table.cost th.pct, table.cost td.pct {
+    text-align: right;
+    width: 16mm;
+    white-space: nowrap;
+  }
+  table.cost td.pct {
+    font-family: var(--mono);
+    font-size: 8pt;
+    color: var(--ink-faint);
+    letter-spacing: 0.04em;
+  }
+  table.cost.compact td { padding: 3.2mm 0; }
+  table.cost.compact td .item-name { font-size: 11pt; }
+  table.cost.compact td .item-name .ref {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--gold);
+    margin-right: 2mm;
+  }
+  table.cost.compact td .item-desc {
+    font-size: 8.5pt;
+    margin-top: 1mm;
+    max-width: 128mm;
+  }
+  table.cost.compact td.amt { font-size: 11pt; }
+  table.cost tr.subtotal td {
+    border-top: 1.5px solid var(--ink);
+    padding-top: 4mm;
+    padding-bottom: 4mm;
+  }
+  table.cost tr.subtotal td .item-name {
+    font-family: var(--mono);
+    font-size: 8pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--pine);
+    font-weight: 500;
+  }
+  table.cost tr.subtotal td.amt {
+    font-family: var(--serif);
+    font-size: 13pt;
+    font-weight: 600;
+    color: var(--pine);
+  }
 
   .total-band {
     margin-top: 6mm;
@@ -515,7 +569,7 @@
   <div class="cover-ornament"></div>
 
   <header>
-    <div class="cover-brand">TRGAKI</div>
+    <div class="cover-brand">TRAGAKI</div>
     <div class="cover-brand-sub">Software Design &amp; Engineering</div>
   </header>
 
@@ -532,7 +586,7 @@
   <div class="cover-meta">
     <div>
       <div class="label">Prepared by</div>
-      <div class="value">TRGAKI</div>
+      <div class="value">TRAGAKI</div>
     </div>
     <div>
       <div class="label">Date</div>
@@ -555,15 +609,15 @@
   </div>
 
   <footer class="footer">
-    <span>TRGAKI · Cost Summary &amp; Quotation</span>
-    <span>Page 1 of 4</span>
+    <span>TRAGAKI · Cost Summary &amp; Quotation</span>
+    <span>Page 1 of 6</span>
   </footer>
 </section>
 
 <!-- ============ PAGE 2 · THE APPLICATION ============ -->
 <section class="sheet">
   <div class="runner">
-    <span class="brand">TRGAKI</span>
+    <span class="brand">TRAGAKI</span>
     <span>Village60 · Cost Summary &amp; Quotation</span>
   </div>
 
@@ -578,8 +632,8 @@
 
   <p class="body">
     Resident records, clinical care, medication rounds, inventory and purchasing,
-    monthly billing, payment tracking, occupancy reports, and enquiries from
-    prospective families all live in one place. Administrators can see across the
+    monthly billing, payment tracking, salary management, occupancy reports, and
+    enquiries from prospective families all live in one place. Administrators can see across the
     whole organisation; care staff only see the homes they work in.
   </p>
   <p class="body">
@@ -614,15 +668,15 @@
   </p>
 
   <footer class="footer">
-    <span>TRGAKI · Cost Summary &amp; Quotation</span>
-    <span>Page 2 of 4</span>
+    <span>TRAGAKI · Cost Summary &amp; Quotation</span>
+    <span>Page 2 of 6</span>
   </footer>
 </section>
 
 <!-- ============ PAGE 3 · SCOPE OF DELIVERY ============ -->
 <section class="sheet">
   <div class="runner">
-    <span class="brand">TRGAKI</span>
+    <span class="brand">TRAGAKI</span>
     <span>Village60 · Cost Summary &amp; Quotation</span>
   </div>
 
@@ -665,6 +719,21 @@
     </div>
   </div>
 
+  <footer class="footer">
+    <span>TRAGAKI · Cost Summary &amp; Quotation</span>
+    <span>Page 3 of 6</span>
+  </footer>
+</section>
+
+<!-- ============ PAGE 4 · SCOPE OF DELIVERY (continued) ============ -->
+<section class="sheet">
+  <div class="runner">
+    <span class="brand">TRAGAKI</span>
+    <span>Village60 · Cost Summary &amp; Quotation</span>
+  </div>
+
+  <div class="eyebrow">02 — Scope of Delivery (continued)</div>
+
   <div class="module">
     <div class="idx">v.</div>
     <div>
@@ -687,25 +756,130 @@
     <div class="idx">vii.</div>
     <div>
       <h3>Administration &amp; Daily Operations</h3>
-      <p>Administrators can manage staff with per-home assignments and floaters, configure organisation settings, and track tasks with priorities and due dates. The main dashboard highlights overdue payments, tasks that need attention, and upcoming resident birthdays — the things that matter most on a busy morning.</p>
-      <div class="chips"><span class="chip">Staff management</span><span class="chip">Tasks &amp; reminders</span><span class="chip">Dashboard</span><span class="chip">Settings</span></div>
+      <p>Administrators can manage staff with per-home assignments and floaters, configure organisation settings, and track tasks with priorities and due dates. Salary profiles, compensation schedules with allowances and deductions, and payroll payment recording give finance teams a clear view of staff costs alongside resident billing. The main dashboard highlights overdue payments, tasks that need attention, and upcoming resident birthdays — the things that matter most on a busy morning.</p>
+      <div class="chips"><span class="chip">Staff management</span><span class="chip">Salary &amp; payroll</span><span class="chip">Tasks &amp; reminders</span><span class="chip">Dashboard</span></div>
     </div>
   </div>
 
   <footer class="footer">
-    <span>TRGAKI · Cost Summary &amp; Quotation</span>
-    <span>Page 3 of 4</span>
+    <span>TRAGAKI · Cost Summary &amp; Quotation</span>
+    <span>Page 4 of 6</span>
   </footer>
 </section>
 
-<!-- ============ PAGE 4 · COST SUMMARY ============ -->
+<!-- ============ PAGE 5 · IMPLEMENTATION BREAKDOWN ============ -->
 <section class="sheet">
   <div class="runner">
-    <span class="brand">TRGAKI</span>
+    <span class="brand">TRAGAKI</span>
     <span>Village60 · Cost Summary &amp; Quotation</span>
   </div>
 
-  <div class="eyebrow">03 — Cost Summary</div>
+  <div class="eyebrow">03 — Implementation Breakdown</div>
+  <h2 class="section-title">Cost by feature area</h2>
+
+  <p class="body" style="margin-bottom: 5mm;">
+    The implementation fee covers design, development, testing, and delivery of all
+    seven scope areas on the previous page. Amounts below reflect the relative
+    complexity and breadth of each area — including data model, screens, APIs,
+    and automated tests — and sum to the implementation total quoted on the
+    following page.
+  </p>
+
+  <table class="cost compact">
+    <thead>
+      <tr>
+        <th>Feature area</th>
+        <th class="pct">Share</th>
+        <th class="amt">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div class="item-name"><span class="ref">i.</span>Platform Foundation</div>
+          <div class="item-desc">Authentication, roles and permissions, trilingual interface, responsive layout, deployment pipeline, daily backups, and operations runbook.</div>
+        </td>
+        <td class="pct">16%</td>
+        <td class="amt"><span class="ccy">LKR</span>170,000</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="item-name"><span class="ref">ii.</span>Homes, Wards &amp; Residents</div>
+          <div class="item-desc">Multi-site homes and wards, resident lifecycle, intake and duplicate checking, portraits, next of kin, power of attorney, departures, and QR public profiles.</div>
+        </td>
+        <td class="pct">12%</td>
+        <td class="amt"><span class="ccy">LKR</span>125,000</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="item-name"><span class="ref">iii.</span>Clinical Care &amp; Medication</div>
+          <div class="item-desc">Scheduled and PRN medications, conditions and allergies, daily MAR with administration audit trail, and automatic stock deduction on dose recording.</div>
+        </td>
+        <td class="pct">15%</td>
+        <td class="amt"><span class="ccy">LKR</span>155,000</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="item-name"><span class="ref">iv.</span>Inventory &amp; Procurement</div>
+          <div class="item-desc">Home item catalog, stock ledger and adjustments, supplier directory, purchase order workflow, receiving, and medication reorder suggestions.</div>
+        </td>
+        <td class="pct">16%</td>
+        <td class="amt"><span class="ccy">LKR</span>170,000</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="item-name"><span class="ref">v.</span>Billing &amp; Finance</div>
+          <div class="item-desc">Automated monthly charges, multi-currency support, resident and home invoices, payment recording with FIFO allocation, registration fees, deposits, and unified ledger.</div>
+        </td>
+        <td class="pct">17%</td>
+        <td class="amt"><span class="ccy">LKR</span>180,000</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="item-name"><span class="ref">vi.</span>Analytics &amp; Growth</div>
+          <div class="item-desc">Occupancy and census dashboards, cash flow and expense analytics, admissions and demographics, staff workload, and waiting-list pipeline with conversion metrics.</div>
+        </td>
+        <td class="pct">8%</td>
+        <td class="amt"><span class="ccy">LKR</span>85,000</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="item-name"><span class="ref">vii.</span>Administration &amp; Daily Operations</div>
+          <div class="item-desc">Staff management with per-home assignments, organisation settings, task tracking with priorities, salary profiles and payroll recording, and the operational dashboard with alerts and reminders.</div>
+        </td>
+        <td class="pct">16%</td>
+        <td class="amt"><span class="ccy">LKR</span>160,000</td>
+      </tr>
+      <tr class="subtotal">
+        <td>
+          <div class="item-name">Implementation subtotal</div>
+        </td>
+        <td class="pct">100%</td>
+        <td class="amt"><span class="ccy">LKR</span>1,045,000</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="body" style="margin-top: 7mm;">
+    Cross-cutting work — security hardening, audit logging, shared list and search
+    patterns, internationalisation, and the automated test suite — is included
+    within the feature areas above rather than listed separately.
+  </p>
+
+  <footer class="footer">
+    <span>TRAGAKI · Cost Summary &amp; Quotation</span>
+    <span>Page 5 of 6</span>
+  </footer>
+</section>
+
+<!-- ============ PAGE 6 · COST SUMMARY ============ -->
+<section class="sheet">
+  <div class="runner">
+    <span class="brand">TRAGAKI</span>
+    <span>Village60 · Cost Summary &amp; Quotation</span>
+  </div>
+
+  <div class="eyebrow">04 — Cost Summary</div>
   <h2 class="section-title">Investment</h2>
 
   <table class="cost">
@@ -721,9 +895,10 @@
           <div class="item-name">Implementation &amp; Delivery</div>
           <div class="item-desc">
             Design, development, and delivery of the full Village60 platform — all
-            seven feature areas described in the Scope of Delivery, including the
-            data model, security, trilingual interface, automated tests, and
-            everything needed to go live.
+            seven feature areas itemised on the previous page (Platform Foundation
+            through Administration &amp; Daily Operations), including the data model,
+            security, trilingual interface, automated tests, and everything needed
+            to go live.
           </div>
         </td>
         <td class="amt"><span class="ccy">LKR</span>1,045,000</td>
@@ -797,7 +972,7 @@
   <div class="sign-row">
     <div class="sign-block">
       <div class="rule"></div>
-      <div class="who">TRGAKI — Authorised Signatory</div>
+      <div class="who">TRAGAKI — Authorised Signatory</div>
     </div>
     <div class="sign-block">
       <div class="rule"></div>
@@ -806,8 +981,8 @@
   </div>
 
   <footer class="footer">
-    <span>TRGAKI · Cost Summary &amp; Quotation</span>
-    <span>Page 4 of 4</span>
+    <span>TRAGAKI · Cost Summary &amp; Quotation</span>
+    <span>Page 6 of 6</span>
   </footer>
 </section>
 
