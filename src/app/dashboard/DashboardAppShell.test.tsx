@@ -2,10 +2,13 @@
 
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
+import { useLayoutEffect } from "react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DASHBOARD_SIDEBAR_EXPANDED_KEY } from "@/lib/dashboard/sidebarExpandedStorage";
+import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import { DashboardWayfindingProvider } from "./DashboardWayfinding";
+import { useDashboardWayfinding } from "./DashboardWayfinding";
 import { DashboardAppShell } from "./DashboardAppShell";
 
 beforeAll(() => {
@@ -30,12 +33,51 @@ const pathRef = { current: "/dashboard" };
 vi.mock("next/navigation", () => ({
   usePathname: () => pathRef.current,
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 function renderShell(ui: ReactElement) {
   return render(
-    <DashboardWayfindingProvider>{ui}</DashboardWayfindingProvider>,
+    <I18nProvider initialLocale="en">
+      <DashboardWayfindingProvider>{ui}</DashboardWayfindingProvider>
+    </I18nProvider>,
   );
+}
+
+function MarBreadcrumbFixture({ children }: { children: ReactElement }) {
+  const { setHomeBreadcrumbs } = useDashboardWayfinding();
+  useLayoutEffect(() => {
+    setHomeBreadcrumbs([
+      { label: "Retirement homes", href: "/dashboard/homes" },
+      {
+        label: "Alpine View Lodge",
+        href: "/dashboard/homes/h1/residents",
+      },
+      { label: "Daily MAR", currentPage: true },
+    ]);
+    return () => {
+      setHomeBreadcrumbs(null);
+    };
+  }, [setHomeBreadcrumbs]);
+  return children;
+}
+
+function WardsBreadcrumbFixture({ children }: { children: ReactElement }) {
+  const { setHomeBreadcrumbs } = useDashboardWayfinding();
+  useLayoutEffect(() => {
+    setHomeBreadcrumbs([
+      { label: "Retirement homes", href: "/dashboard/homes" },
+      {
+        label: "Alpine View Lodge",
+        href: "/dashboard/residents?homeId=h1",
+      },
+      { label: "Wards", currentPage: true },
+    ]);
+    return () => {
+      setHomeBreadcrumbs(null);
+    };
+  }, [setHomeBreadcrumbs]);
+  return children;
 }
 
 describe("DashboardAppShell", () => {
@@ -69,18 +111,20 @@ describe("DashboardAppShell", () => {
       top.getByRole("heading", { level: 1, name: "Overview" }),
     ).toBeInTheDocument();
 
-    pathRef.current = "/dashboard/homes/xyz/wards";
+    pathRef.current = "/dashboard/wards";
     rerender(
-      <DashboardWayfindingProvider>
-        <DashboardAppShell email="a@b.c" role="admin">
-          <p>content</p>
-        </DashboardAppShell>
-      </DashboardWayfindingProvider>,
+      <I18nProvider initialLocale="en">
+        <DashboardWayfindingProvider>
+          <DashboardAppShell email="a@b.c" role="admin">
+            <p>content</p>
+          </DashboardAppShell>
+        </DashboardWayfindingProvider>
+      </I18nProvider>,
     );
     expect(
       within(screen.getByRole("banner")).getByRole("heading", {
         level: 1,
-        name: "Retirement homes",
+        name: "Wards",
       }),
     ).toBeInTheDocument();
   });
@@ -234,6 +278,102 @@ describe("DashboardAppShell", () => {
       name: "Billing overview",
     });
     expect(link).toHaveAttribute("aria-current", "page");
+  });
+
+  it("shows daily MAR under retirement homes on any home sub-route", () => {
+    pathRef.current = "/dashboard/homes/h1/residents";
+    renderShell(
+      <DashboardAppShell email="a@b.c" role="admin">
+        <p>content</p>
+      </DashboardAppShell>,
+    );
+    const rail = screen.getByRole("complementary", { name: "Primary" });
+    const mainNav = within(rail).getByRole("navigation", {
+      name: "Main navigation",
+    });
+    expect(
+      within(mainNav).getByRole("button", { name: "Admin" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    const marShortcut = within(mainNav)
+      .getAllByRole("link", { name: "Daily MAR" })
+      .find((link) => link.getAttribute("href") === "/dashboard/mar?homeId=h1");
+    expect(marShortcut).toBeDefined();
+  });
+
+  it("shows a nested sidebar entry for invoice detail under invoices", () => {
+    pathRef.current = "/dashboard/invoices/inv-1";
+    renderShell(
+      <DashboardAppShell email="a@b.c" role="admin">
+        <p>content</p>
+      </DashboardAppShell>,
+    );
+    const rail = screen.getByRole("complementary", { name: "Primary" });
+    const mainNav = within(rail).getByRole("navigation", {
+      name: "Main navigation",
+    });
+    expect(
+      within(mainNav).getByRole("button", { name: "Billing" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(mainNav).getByRole("link", { name: "Invoice" }),
+    ).toHaveAttribute("href", "/dashboard/invoices/inv-1");
+  });
+
+  it("highlights only one wards row on the flat wards route", () => {
+    pathRef.current = "/dashboard/wards";
+    renderShell(
+      <WardsBreadcrumbFixture>
+        <DashboardAppShell email="a@b.c" role="admin">
+          <p>content</p>
+        </DashboardAppShell>
+      </WardsBreadcrumbFixture>,
+    );
+    const rail = screen.getByRole("complementary", { name: "Primary" });
+    const mainNav = within(rail).getByRole("navigation", {
+      name: "Main navigation",
+    });
+    const wardsLinks = within(mainNav).getAllByRole("link", { name: "Wards" });
+    expect(wardsLinks).toHaveLength(1);
+    expect(wardsLinks[0]).toHaveAttribute("aria-current", "page");
+  });
+
+  it("highlights only one daily MAR row on the flat MAR route", () => {
+    pathRef.current = "/dashboard/mar";
+    renderShell(
+      <MarBreadcrumbFixture>
+        <DashboardAppShell email="a@b.c" role="admin">
+          <p>content</p>
+        </DashboardAppShell>
+      </MarBreadcrumbFixture>,
+    );
+    const rail = screen.getByRole("complementary", { name: "Primary" });
+    const mainNav = within(rail).getByRole("navigation", {
+      name: "Main navigation",
+    });
+    const marLinks = within(mainNav).getAllByRole("link", { name: "Daily MAR" });
+    expect(marLinks).toHaveLength(1);
+    expect(marLinks[0]).toHaveAttribute("aria-current", "page");
+    expect(marLinks[0]).toHaveAttribute("href", "/dashboard/mar");
+  });
+
+  it("shows a nested sidebar entry for daily MAR on a home detail route", () => {
+    pathRef.current = "/dashboard/homes/h1/mar";
+    renderShell(
+      <MarBreadcrumbFixture>
+        <DashboardAppShell email="a@b.c" role="admin">
+          <p>content</p>
+        </DashboardAppShell>
+      </MarBreadcrumbFixture>,
+    );
+    const rail = screen.getByRole("complementary", { name: "Primary" });
+    const mainNav = within(rail).getByRole("navigation", {
+      name: "Main navigation",
+    });
+    const activeMar = within(mainNav)
+      .getAllByRole("link", { name: "Daily MAR" })
+      .find((link) => link.getAttribute("aria-current") === "page");
+    expect(activeMar).toBeDefined();
+    expect(activeMar).toHaveAttribute("href", "/dashboard/homes/h1/mar");
   });
 
   it("opens the mobile drawer, traps focus, and dismisses on Escape", async () => {

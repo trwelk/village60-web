@@ -572,6 +572,30 @@ export function listDepartedResidentsForHome(
   return rows.map((r) => mergeResident(r.resident, r.departure));
 }
 
+export function getResidentById(
+  db: AppDb,
+  actor: SessionActor | undefined,
+  residentId: string,
+): Resident {
+  const row = db
+    .select({
+      resident: residents,
+      departure: residentDepartureDetails,
+    })
+    .from(residents)
+    .leftJoin(
+      residentDepartureDetails,
+      eq(residents.id, residentDepartureDetails.residentId),
+    )
+    .where(eq(residents.id, residentId))
+    .get();
+  if (!row) {
+    throw new NotFoundError();
+  }
+  requireResidentAccess(db, actor, row.resident.homeId);
+  return mergeResident(row.resident, row.departure ?? undefined);
+}
+
 export function getResident(
   db: AppDb,
   actor: SessionActor | undefined,

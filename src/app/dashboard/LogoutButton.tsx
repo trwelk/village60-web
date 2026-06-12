@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -8,6 +9,7 @@ type LogoutButtonProps = {
 };
 
 export function LogoutButton({ className }: LogoutButtonProps) {
+  const { t } = useI18n();
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
@@ -34,7 +36,7 @@ export function LogoutButton({ className }: LogoutButtonProps) {
         .filter(Boolean)
         .join(" ")}
     >
-      {pending ? "Signing out…" : "Sign out"}
+      {pending ? t("auth.signingOut") : t("auth.signOut")}
     </button>
   );
 }

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDashboardWayfinding } from "@/app/dashboard/DashboardWayfinding";
+import { buildHubDetailBreadcrumbTrail } from "@/lib/dashboard/nestedBreadcrumbs";
+import { VillageCombobox } from "@/components/VillageCombobox";
 import { VillageSelect } from "@/components/VillageSelect";
 import { Ban, CheckCircle2, PackagePlus, Plus } from "lucide-react";
 import { inventoryStatusPillClass } from "@/lib/inventory/inventoryStatusPillClass";
@@ -141,10 +143,13 @@ export function PurchaseOrderDetailClient({
     const ordersHref = selectedHomeId
       ? `/dashboard/inventory-orders?homeId=${encodeURIComponent(selectedHomeId)}`
       : "/dashboard/inventory-orders";
-    setHomeBreadcrumbs([
-      { label: "Inventory orders", href: ordersHref, currentPage: false },
-      { label: activeOrder?.poNumber ?? "Purchase order", currentPage: true },
-    ]);
+    setHomeBreadcrumbs(
+      buildHubDetailBreadcrumbTrail(
+        "Inventory orders",
+        ordersHref,
+        activeOrder?.poNumber ?? "Purchase order",
+      ),
+    );
     return () => {
       setHomeBreadcrumbs(null);
     };
@@ -642,7 +647,18 @@ export function PurchaseOrderDetailClient({
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <label className="flex min-w-0 flex-col gap-2">
                           <span className="village-label">Item</span>
-                          <VillageSelect value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: `${i.name} (${i.baseUnit})` }))} />
+                          <VillageCombobox
+                            value={itemId || null}
+                            onChange={(next) => setItemId(next ?? "")}
+                            options={items.map((i) => ({
+                              value: i.id,
+                              label: `${i.name} (${i.baseUnit})`,
+                            }))}
+                            placeholder="Search items…"
+                            emptyMessage="No matching items."
+                            clearAriaLabel="Clear item"
+                            ariaLabel="Item"
+                          />
                         </label>
                         <label className="flex min-w-0 flex-col gap-2">
                           <span className="village-label">Purchase unit type</span>

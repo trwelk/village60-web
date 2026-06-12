@@ -10,6 +10,12 @@ import type { SessionActor } from "@/lib/authz/sessionActor";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/errors";
 import { validatePasswordPolicy } from "@/lib/iam/passwordPolicy";
 import { hashPassword, verifyPassword } from "@/lib/iam/password";
+import {
+  DEFAULT_LOCALE,
+  isAppLocale,
+  parseAppLocale,
+  type AppLocale,
+} from "@/lib/i18n/locales";
 import type { SessionUserRole } from "@/lib/session";
 
 export type AppDb = BetterSQLite3Database<typeof schema>;
@@ -28,6 +34,7 @@ export type OwnProfile = {
   displayName: string | null;
   phone: string | null;
   avatarUrl: string | null;
+  preferredLocale: AppLocale;
 };
 
 export type CreateUserInput = {
@@ -191,6 +198,7 @@ const MAX_PHONE_LEN = 50;
 export type PatchOwnProfileInput = {
   displayName?: string | null;
   phone?: string | null;
+  preferredLocale?: AppLocale;
 };
 
 function normalizeProfileDisplayName(
@@ -235,12 +243,19 @@ export function updateOwnProfile(
   const set: {
     displayName?: string | null;
     phone?: string | null;
+    preferredLocale?: AppLocale;
   } = {};
   if (input.displayName !== undefined) {
     set.displayName = normalizeProfileDisplayName(input.displayName);
   }
   if (input.phone !== undefined) {
     set.phone = normalizeProfilePhone(input.phone);
+  }
+  if (input.preferredLocale !== undefined) {
+    if (!isAppLocale(input.preferredLocale)) {
+      throw new ValidationError("preferredLocale must be en, si, or ta.");
+    }
+    set.preferredLocale = input.preferredLocale;
   }
   if (Object.keys(set).length > 0) {
     db.update(users).set(set).where(eq(users.id, userId)).run();
@@ -256,6 +271,7 @@ export function getOwnProfile(db: AppDb, userId: string): OwnProfile | null {
       displayName: users.displayName,
       phone: users.phone,
       avatarUrl: users.avatarUrl,
+      preferredLocale: users.preferredLocale,
     })
     .from(users)
     .where(eq(users.id, userId))
@@ -269,6 +285,7 @@ export function getOwnProfile(db: AppDb, userId: string): OwnProfile | null {
     displayName: row.displayName ?? null,
     phone: row.phone ?? null,
     avatarUrl: row.avatarUrl ?? null,
+    preferredLocale: parseAppLocale(row.preferredLocale) ?? DEFAULT_LOCALE,
   };
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildHomeAreaBreadcrumbTrail,
+  buildHubDetailBreadcrumbTrail,
   buildResidentDetailBreadcrumbTrail,
 } from "./nestedBreadcrumbs";
 import { isHomeResidentDetailPath } from "./dashboardPaths";
@@ -14,6 +15,12 @@ describe("isHomeResidentDetailPath", () => {
     ).toBe(true);
   });
 
+  it("is true for flat resident detail routes", () => {
+    expect(isHomeResidentDetailPath("/dashboard/residents/r1")).toBe(true);
+    expect(isHomeResidentDetailPath("/dashboard/residents/new")).toBe(false);
+    expect(isHomeResidentDetailPath("/dashboard/residents/departed")).toBe(false);
+  });
+
   it("is false for the residents list and special sub-routes", () => {
     expect(
       isHomeResidentDetailPath("/dashboard/homes/h-1/residents"),
@@ -24,6 +31,25 @@ describe("isHomeResidentDetailPath", () => {
     expect(
       isHomeResidentDetailPath("/dashboard/homes/h-1/residents/departed"),
     ).toBe(false);
+  });
+});
+
+describe("buildHubDetailBreadcrumbTrail", () => {
+  it("builds a linked hub and a current detail segment", () => {
+    expect(
+      buildHubDetailBreadcrumbTrail(
+        "Inventory orders",
+        "/dashboard/inventory-orders",
+        "PO-1001",
+      ),
+    ).toEqual([
+      {
+        label: "Inventory orders",
+        href: "/dashboard/inventory-orders",
+        currentPage: false,
+      },
+      { label: "PO-1001", currentPage: true },
+    ]);
   });
 });
 
@@ -42,7 +68,7 @@ describe("buildHomeAreaBreadcrumbTrail", () => {
       { label: "Retirement homes", href: "/dashboard/homes" },
       {
         label: "Sunrise Villa",
-        href: "/dashboard/homes/h1/residents",
+        href: "/dashboard/residents?homeId=h1",
         currentPage: false,
       },
       { label: "Wards", currentPage: true },
@@ -68,7 +94,7 @@ describe("buildHomeAreaBreadcrumbTrail", () => {
       { label: "Retirement homes", href: "/dashboard/homes" },
       {
         label: "Sunrise Villa",
-        href: "/dashboard/homes/h1/residents",
+        href: "/dashboard/residents?homeId=h1",
         currentPage: false,
       },
       { label: "Invoices", currentPage: true },
@@ -84,7 +110,7 @@ describe("buildHomeAreaBreadcrumbTrail", () => {
       { label: "Retirement homes", href: "/dashboard/homes" },
       {
         label: "Sunrise Villa",
-        href: "/dashboard/homes/h1/residents",
+        href: "/dashboard/residents?homeId=h1",
         currentPage: false,
       },
       { label: "Ledger", currentPage: true },
@@ -124,11 +150,12 @@ describe("buildResidentDetailBreadcrumbTrail", () => {
     });
     expect(trail[2]).toEqual({
       label: "Residents",
-      href: "/dashboard/homes/h1/residents",
+      href: "/dashboard/residents?homeId=h1",
       currentPage: false,
     });
     expect(trail[3]).toEqual({
       label: "Jamie River",
+      href: "/dashboard/residents/r1",
       currentPage: true,
     });
   });

@@ -1,4 +1,10 @@
 import type { Metadata } from "next";
+import "@fontsource/noto-sans-sinhala/400.css";
+import "@fontsource/noto-sans-sinhala/500.css";
+import "@fontsource/noto-sans-sinhala/600.css";
+import "@fontsource/noto-sans-tamil/400.css";
+import "@fontsource/noto-sans-tamil/500.css";
+import "@fontsource/noto-sans-tamil/600.css";
 import "@fontsource/source-sans-3/400.css";
 import "@fontsource/source-sans-3/500.css";
 import "@fontsource/source-sans-3/600.css";

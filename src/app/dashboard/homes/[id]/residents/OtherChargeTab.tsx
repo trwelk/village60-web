@@ -3,6 +3,7 @@
 import {
   type ResidentOtherChargeListItem,
 } from "@/lib/billing/otherCharges";
+import { dashboardLedgerHref } from "@/lib/dashboard/dashboardRoutes";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -188,7 +189,7 @@ export function OtherChargeTab({
             </p>
           </div>
           <Link
-            href={`/dashboard/homes/${homeId}/ledger?residentId=${encodeURIComponent(residentId)}`}
+            href={dashboardLedgerHref(homeId, residentId)}
             className="village-btn-secondary px-4 py-2 text-sm whitespace-nowrap"
           >
             View resident charges

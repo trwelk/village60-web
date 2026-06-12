@@ -7,6 +7,7 @@ import { VillageSelect } from "@/components/VillageSelect";
 import { buildDashboardHomePaymentsPath } from "@/lib/billing/dashboardHomePaymentsPath";
 import type { HomeAccountPaymentLedgerRow } from "@/lib/billing/homeAccounts";
 import type { DashboardHomeOption } from "@/lib/dashboard/charts";
+import { dashboardLedgerHref } from "@/lib/dashboard/dashboardRoutes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type FormEvent } from "react";
@@ -227,7 +228,7 @@ export function HomeAccountPaymentsLedgerSection({
           </span>
           {selectedHomeId ? (
             <Link
-              href={`/dashboard/homes/${encodeURIComponent(selectedHomeId)}/ledger`}
+              href={dashboardLedgerHref(selectedHomeId)}
               className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--accent-strong)] underline-offset-4 transition hover:text-[var(--accent)]"
             >
               Home operating ledger

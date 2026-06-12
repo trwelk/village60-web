@@ -4,6 +4,10 @@
   color-scheme: light;
   --font-geist-sans:
     "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-sinhala:
+    "Noto Sans Sinhala", "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-tamil:
+    "Noto Sans Tamil", "Source Sans 3", "Segoe UI", system-ui, sans-serif;
   --font-village-display: "Source Serif 4", Georgia, "Times New Roman", serif;
   --font-geist-mono:
     "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
@@ -72,6 +76,29 @@
   --surface-wash: color-mix(in srgb, var(--bg-elevated) 78%, var(--bg-muted) 22%);
   --surface-pressed: color-mix(in srgb, var(--bg-muted) 74%, var(--accent) 10%);
   --ornament: color-mix(in srgb, var(--accent) 24%, transparent);
+  --locale-type-scale: 1;
+}
+
+html[lang="si"] {
+  --font-geist-sans: var(--font-sinhala);
+}
+
+html[lang="ta"] {
+  --font-geist-sans: var(--font-tamil);
+}
+
+/* Noto Sans Sinhala/Tamil metrics run larger than Source Sans 3 at the same rem size. */
+html[lang="si"],
+html[lang="ta"] {
+  --locale-type-scale: 0.9375;
+  --text-xs: calc(0.75rem * var(--locale-type-scale));
+  --text-sm: calc(0.875rem * var(--locale-type-scale));
+  --text-base: calc(1rem * var(--locale-type-scale));
+  --text-lg: calc(1.125rem * var(--locale-type-scale));
+  --text-xl: calc(1.25rem * var(--locale-type-scale));
+  --text-2xl: calc(1.5rem * var(--locale-type-scale));
+  --text-3xl: calc(1.875rem * var(--locale-type-scale));
+  --text-4xl: calc(2.25rem * var(--locale-type-scale));
 }
 
 html.light {
@@ -192,9 +219,233 @@ body {
     var(--shadow-sm);
 }
 
+/* ── MAR — medication tile ───────────────────────────────────── */
+
+.mar-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem 0.75rem;
+  border: 1px solid var(--line-subtle);
+  border-left: 2.5px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  box-shadow: 0 2px 6px -3px color-mix(in srgb, var(--text-primary) 10%, transparent);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 120ms ease;
+}
+
+.mar-tile--pending:hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line-subtle) 62%);
+  box-shadow:
+    0 6px 16px -6px color-mix(in srgb, var(--accent) 16%, transparent);
+  transform: translateY(-1px);
+}
+
+.mar-tile--given {
+  border-color: color-mix(in srgb, var(--success) 18%, var(--line-subtle) 82%);
+  border-left-color: var(--success);
+  background:
+    linear-gradient(
+      168deg,
+      color-mix(in srgb, var(--success) 3%, var(--bg-elevated) 97%),
+      var(--bg-elevated) 70%
+    );
+}
+
+/* ── Name row ────────────────────────────────────────────────── */
+
+.mar-tile__name {
+  margin: 0;
+  font-size: calc(0.875rem * var(--locale-type-scale));
+  font-weight: 620;
+  line-height: 1.32;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+}
+
+.mar-tile--given .mar-tile__name {
+  color: var(--text-muted);
+}
+
+.mar-tile__dose {
+  display: block;
+  margin-top: 0.125rem;
+  font-size: calc(0.75rem * var(--locale-type-scale));
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--accent-strong);
+}
+
+.mar-tile--given .mar-tile__dose {
+  color: color-mix(in srgb, var(--success) 68%, var(--text-muted) 32%);
+}
+
+/* ── Directions ──────────────────────────────────────────────── */
+
+.mar-tile__directions {
+  margin: 0;
+  font-size: calc(0.7rem * var(--locale-type-scale));
+  font-style: italic;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* ── Footer / actions ────────────────────────────────────────── */
+
+.mar-tile__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.25rem;
+}
+
+/* Give button — uses brand purple from village-btn-primary */
+.mar-tile__give {
+  display: inline-flex;
+  width: 100%;
+  min-height: 2.125rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: 1px solid color-mix(in srgb, var(--accent-strong) 78%, transparent);
+  border-radius: 0.625rem;
+  background: linear-gradient(
+    150deg,
+    color-mix(in srgb, var(--accent) 82%, var(--highlight) 18%),
+    var(--accent-strong)
+  );
+  padding: 0.375rem 0.75rem;
+  font-size: calc(0.8rem * var(--locale-type-scale));
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--highlight) 35%, transparent),
+    0 3px 10px -4px color-mix(in srgb, var(--accent-strong) 52%, transparent);
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+
+.mar-tile__give:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--highlight) 35%, transparent),
+    0 6px 16px -5px color-mix(in srgb, var(--accent-strong) 44%, transparent);
+}
+
+.mar-tile__give:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.mar-tile__give:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Given-state footer */
+.mar-tile__given-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: calc(0.72rem * var(--locale-type-scale));
+  font-weight: 600;
+  color: var(--success);
+}
+
+.mar-tile__undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: none;
+  border-radius: 0.375rem;
+  background: transparent;
+  padding: 0.2rem 0.45rem;
+  font-size: calc(0.68rem * var(--locale-type-scale));
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.mar-tile__undo:hover {
+  background: color-mix(in srgb, var(--bg-muted) 90%, transparent);
+  color: var(--text-secondary);
+}
+
+/* Error */
+.mar-tile__error {
+  margin: 0;
+  font-size: calc(0.625rem * var(--locale-type-scale));
+  font-weight: 600;
+  color: var(--danger);
+}
+
+/* ── MAR — resident group rows (break monotony) ─────────────── */
+
+.mar-resident-group {
+  padding: 0.75rem;
+}
+
+.mar-resident-group:nth-child(even) {
+  background: color-mix(in srgb, var(--bg-muted) 35%, transparent);
+}
+
+.mar-resident-group + .mar-resident-group {
+  border-top: 1px solid var(--line-subtle);
+}
+
+.mar-resident-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.25rem 0.625rem;
+}
+
+.mar-resident-header__name {
+  font-size: calc(0.8125rem * var(--locale-type-scale));
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.mar-resident-header__progress {
+  font-size: calc(0.6875rem * var(--locale-type-scale));
+  font-weight: 600;
+}
+
+.mar-resident-header__progress--done {
+  color: var(--success);
+}
+
+.mar-resident-header__progress--pending {
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mar-tile,
+  .mar-tile__give {
+    transition: none;
+  }
+
+  .mar-tile--pending:hover,
+  .mar-tile__give:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
 .village-section-title {
   color: var(--text-primary);
-  font-size: 1.05rem;
+  font-size: calc(1.05rem * var(--locale-type-scale));
   font-weight: 700;
   letter-spacing: -0.02em;
   text-wrap: balance;
@@ -211,7 +462,7 @@ body {
 
 .village-page-title {
   color: var(--text-primary);
-  font-size: clamp(1.7rem, 2.6vw, 2.35rem);
+  font-size: clamp(calc(1.7rem * var(--locale-type-scale)), 2.6vw, calc(2.35rem * var(--locale-type-scale)));
   font-family: var(--font-village-display);
   font-weight: 400;
   letter-spacing: -0.045em;
@@ -225,7 +476,7 @@ body {
 
 .village-kicker {
   color: color-mix(in srgb, var(--accent-strong) 82%, var(--partner-green) 18%);
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--locale-type-scale));
   font-weight: 800;
   letter-spacing: 0.26em;
   text-transform: uppercase;
@@ -356,14 +607,14 @@ body {
 
 .village-field-label {
   color: var(--text-secondary);
-  font-size: 0.78rem;
+  font-size: calc(0.78rem * var(--locale-type-scale));
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
 .village-label {
   color: var(--text-secondary);
-  font-size: 0.82rem;
+  font-size: calc(0.82rem * var(--locale-type-scale));
   font-weight: 700;
 }
 
@@ -379,7 +630,7 @@ body {
     );
   color: var(--text-primary);
   padding: 0.68rem 0.78rem;
-  font-size: 0.92rem;
+  font-size: calc(0.92rem * var(--locale-type-scale));
   line-height: 1.2;
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 75%, transparent);
   transition:
@@ -417,21 +668,47 @@ body {
   color: var(--text-primary);
   min-height: 2.55rem;
   padding: 0.58rem 0.72rem;
-  font-size: 0.92rem;
+  font-size: calc(0.92rem * var(--locale-type-scale));
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 75%, transparent);
 }
 
 .village-btn-primary,
 .village-btn-secondary {
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   padding: 0.45rem 0.9rem;
-  font-size: 0.82rem;
+  font-size: calc(0.82rem * var(--locale-type-scale));
   font-weight: 700;
   text-decoration: none;
-  transition: all 150ms ease;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease,
+    color 150ms ease,
+    filter 150ms ease,
+    background 150ms ease;
+}
+
+.village-btn-primary:focus-visible,
+.village-btn-secondary:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+.village-btn-primary:active:not(:disabled),
+.village-btn-secondary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.village-btn-primary:disabled,
+.village-btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+  filter: none;
 }
 
 .village-btn-primary {
@@ -447,24 +724,53 @@ body {
     0 12px 24px -16px color-mix(in srgb, var(--accent-strong) 90%, transparent);
 }
 
-.village-btn-primary:hover {
+.village-btn-primary:hover:not(:disabled) {
   transform: translateY(-1px);
   filter: saturate(105%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--highlight) 40%, transparent),
+    0 14px 28px -14px color-mix(in srgb, var(--accent-strong) 78%, transparent);
+}
+
+.village-btn-primary:focus-visible {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--highlight) 40%, transparent),
+    0 12px 24px -16px color-mix(in srgb, var(--accent-strong) 55%, transparent),
+    var(--ring-focus);
 }
 
 .village-btn-secondary {
   border: 1px solid color-mix(in srgb, var(--line-strong) 72%, transparent);
-  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-elevated) 96%, transparent),
+      color-mix(in srgb, var(--bg-muted) 42%, var(--bg-elevated) 58%)
+    );
   color: var(--text-secondary);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 78%, transparent),
+    0 2px 8px -3px color-mix(in srgb, var(--text-primary) 14%, transparent);
 }
 
-.village-btn-secondary:hover {
+.village-btn-secondary:hover:not(:disabled) {
   border-color: color-mix(
     in srgb,
     var(--accent) 48%,
     color-mix(in srgb, var(--partner-green) 52%, transparent)
   );
   color: var(--text-primary);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 78%, transparent),
+    0 6px 18px -6px color-mix(in srgb, var(--accent-strong) 28%, transparent);
+}
+
+.village-btn-secondary:focus-visible {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 78%, transparent),
+    0 2px 8px -3px color-mix(in srgb, var(--text-primary) 14%, transparent),
+    var(--ring-focus);
 }
 
 /*
@@ -481,7 +787,7 @@ body {
   border-radius: 999px;
   min-height: 2.5rem;
   padding: 0.5rem 1rem;
-  font-size: 0.8125rem;
+  font-size: calc(0.8125rem * var(--locale-type-scale));
   font-weight: 700;
   letter-spacing: 0.01em;
   line-height: 1.2;
@@ -533,7 +839,7 @@ body {
 .village-button.village-button--compact {
   min-height: 2rem;
   padding: 0.1875rem 0.5625rem;
-  font-size: 0.6875rem;
+  font-size: calc(0.6875rem * var(--locale-type-scale));
   gap: 0.25rem;
   line-height: 1.15;
 }
@@ -609,7 +915,7 @@ body {
   background: color-mix(in srgb, var(--danger) 10%, var(--bg-elevated) 90%);
   color: var(--danger);
   padding: 0.75rem 0.9rem;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--locale-type-scale));
 }
 
 .village-table-wrap {
@@ -640,7 +946,7 @@ body {
 .village-th {
   text-align: left;
   white-space: nowrap;
-  font-size: 0.78rem;
+  font-size: calc(0.78rem * var(--locale-type-scale));
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--text-secondary);
@@ -659,7 +965,7 @@ body {
 .village-td,
 .village-td-muted {
   padding: 0.72rem 0.85rem;
-  font-size: 0.92rem;
+  font-size: calc(0.92rem * var(--locale-type-scale));
   line-height: 1.32;
   vertical-align: middle;
 }
@@ -694,6 +1000,124 @@ body {
 
 .village-link-subtle:hover {
   color: var(--text-primary);
+}
+
+/** Compact pill actions for table rows — navigation and inline triggers. */
+.village-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+}
+
+.village-table-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.22rem 0.68rem;
+  font-size: calc(0.75rem * var(--locale-type-scale));
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 58%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-elevated) 94%, transparent),
+    color-mix(in srgb, var(--bg-muted) 42%, var(--bg-elevated) 58%)
+  );
+  color: var(--text-secondary);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 78%, transparent);
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease,
+    background 150ms ease;
+  cursor: pointer;
+}
+
+button.village-table-action {
+  font-family: inherit;
+}
+
+.village-table-action:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--accent) 44%,
+    color-mix(in srgb, var(--partner-green) 38%, var(--line-strong))
+  );
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-elevated) 93%);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--bg-elevated) 78%, transparent),
+    0 5px 14px -7px color-mix(in srgb, var(--accent-strong) 38%, transparent);
+}
+
+.village-table-action:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+
+.village-table-action--accent {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line-subtle) 70%);
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--accent) 9%, var(--bg-elevated) 91%),
+    color-mix(in srgb, var(--accent) 5%, var(--bg-muted) 95%)
+  );
+  color: var(--accent-strong);
+}
+
+.village-table-action--accent:hover {
+  border-color: color-mix(in srgb, var(--accent-strong) 58%, transparent);
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--accent) 14%, var(--bg-elevated) 86%),
+    color-mix(in srgb, var(--accent) 8%, var(--bg-muted) 92%)
+  );
+  color: var(--accent);
+}
+
+.village-table-row--selectable {
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.village-table-row--selectable:hover {
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg-elevated) 96%);
+}
+
+.village-table-row--selected {
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg-elevated) 91%);
+  box-shadow: inset 3px 0 0 var(--accent-strong);
+}
+
+.village-table-row--selected:hover {
+  background: color-mix(in srgb, var(--accent) 11%, var(--bg-elevated) 89%);
+}
+
+.village-list-selection-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--line-subtle) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-muted) 38%, var(--bg-elevated) 62%);
+}
+
+@media (min-width: 640px) {
+  .village-list-selection-bar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 
 .village-list-row {
@@ -810,7 +1234,7 @@ body {
   background: transparent;
   color: var(--text-secondary);
   padding: 0.45rem 0.82rem;
-  font-size: 0.84rem;
+  font-size: calc(0.84rem * var(--locale-type-scale));
   font-weight: 700;
   transition: all 140ms ease;
 }
@@ -950,7 +1374,7 @@ body {
   list-style: none;
   padding: 0;
   margin: 0;
-  font-size: 0.7rem;
+  font-size: calc(0.7rem * var(--locale-type-scale));
   font-weight: 500;
   color: var(--text-muted);
 }
@@ -1009,7 +1433,7 @@ body {
 
 .village-occ-home-name {
   font-family: var(--font-village-display);
-  font-size: 0.88rem;
+  font-size: calc(0.88rem * var(--locale-type-scale));
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
@@ -1026,7 +1450,7 @@ body {
 }
 
 .village-occ-home-summary {
-  font-size: 0.7rem;
+  font-size: calc(0.7rem * var(--locale-type-scale));
   font-weight: 600;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -1038,7 +1462,7 @@ body {
 }
 
 .village-occ-notice {
-  font-size: 0.68rem;
+  font-size: calc(0.68rem * var(--locale-type-scale));
   color: var(--text-muted);
   font-weight: 500;
   white-space: nowrap;
@@ -1062,7 +1486,7 @@ body {
   padding: 0.28rem 0.55rem;
   border-radius: 0.45rem;
   border: 1px solid transparent;
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--locale-type-scale));
   line-height: 1.35;
   text-decoration: none;
   transition: all 140ms ease;
@@ -1080,13 +1504,13 @@ a.village-occ-pill:focus-visible {
 }
 
 .village-occ-pill-label {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
 }
 
 .village-occ-pill-sub {
-  font-size: 0.62rem;
+  font-size: calc(0.62rem * var(--locale-type-scale));
   font-weight: 500;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -1126,6 +1550,7 @@ a.village-occ-pill:focus-visible {
 
 .village-dashboard-shell-rail {
   contain: layout style;
+  overflow-x: clip;
   background:
     linear-gradient(
       180deg,
@@ -1149,7 +1574,7 @@ a.village-occ-pill:focus-visible {
   color: var(--text-secondary);
   border: none;
   border-radius: 0.375rem;
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--locale-type-scale));
   font-weight: 500;
   transition:
     color 120ms ease,
@@ -1257,7 +1682,7 @@ a.village-occ-pill:focus-visible {
   border: 1px solid transparent;
   border-radius: calc(var(--radius-md) - 2px);
   padding: 0.55rem 0.75rem;
-  font-size: 0.92rem;
+  font-size: calc(0.92rem * var(--locale-type-scale));
   font-weight: 600;
   transition: all 160ms ease;
 }
@@ -1312,7 +1737,7 @@ a.village-occ-pill:focus-visible {
     color-mix(in srgb, var(--accent-strong) 90%, var(--text-primary) 10%)
   );
   color: var(--bg-elevated);
-  font-size: 0.8rem;
+  font-size: calc(0.8rem * var(--locale-type-scale));
   font-weight: 800;
   letter-spacing: 0.06em;
   box-shadow:
@@ -1323,14 +1748,14 @@ a.village-occ-pill:focus-visible {
 
 .village-brand-wordmark {
   color: var(--text-primary);
-  font-size: 1.02rem;
+  font-size: calc(1.02rem * var(--locale-type-scale));
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .village-brand-tagline {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: calc(0.72rem * var(--locale-type-scale));
   font-weight: 600;
   letter-spacing: 0.02em;
 }
@@ -1354,13 +1779,13 @@ a.village-occ-pill:focus-visible {
   color: var(--text-secondary);
   border-radius: 999px;
   padding: 0.15rem 0.45rem;
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--locale-type-scale));
   line-height: 1.1;
 }
 
 .village-session-role {
   color: var(--text-primary);
-  font-size: 0.67rem;
+  font-size: calc(0.67rem * var(--locale-type-scale));
 }
 
 .village-logout-chip {

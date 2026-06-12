@@ -8,18 +8,21 @@ export type TabId =
   | "allergies"
   | "other-charge";
 
-export type Tab = { id: TabId; label: string };
+export type Tab = { id: TabId; labelKey: string };
 
 /** Tabs shown to all roles (Care and Admin). */
 export const RESIDENT_CORE_TABS: Tab[] = [
-  { id: "nok", label: "Next of Kin" },
-  { id: "poa", label: "POA" },
-  { id: "assigned-nurse", label: "Assigned Nurse" },
-  { id: "conditions", label: "Conditions" },
-  { id: "allergies", label: "Allergies" },
+  { id: "nok", labelKey: "tabs.nextOfKin" },
+  { id: "poa", labelKey: "tabs.poa" },
+  { id: "assigned-nurse", labelKey: "tabs.assignedNurse" },
+  { id: "conditions", labelKey: "tabs.conditions" },
+  { id: "allergies", labelKey: "tabs.allergies" },
 ];
 
-const OTHER_CHARGE_TAB: Tab = { id: "other-charge", label: "Other charges" };
+const OTHER_CHARGE_TAB: Tab = {
+  id: "other-charge",
+  labelKey: "tabs.otherCharges",
+};
 
 export function residentDetailTabsForRole(role: SessionUserRole): Tab[] {
   if (role === "admin") {
