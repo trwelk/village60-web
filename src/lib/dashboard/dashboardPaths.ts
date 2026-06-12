@@ -1,6 +1,7 @@
 /** Shared path predicates for primary nav and hub titles (kept in sync with 23a/23c). */
 
 export function isDashboardResidentsPath(pathname: string): boolean {
+  if (isDashboardMedicationsPath(pathname)) return false;
   if (pathname === "/dashboard/residents") return true;
   if (pathname.startsWith("/dashboard/residents/")) return true;
   return /\/dashboard\/homes\/[^/]+\/residents(\/|$)/.test(pathname);

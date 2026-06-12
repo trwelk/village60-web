@@ -7,6 +7,7 @@ import {
   isDashboardAccountPath,
   isDashboardHomesPath,
   isDashboardInventoryOrdersPath,
+  isDashboardMedicationsPath,
   isDashboardResidentsPath,
 } from "./dashboardPaths";
 
@@ -94,6 +95,20 @@ describe("existing path predicates are unaffected", () => {
     expect(isDashboardResidentsPath("/dashboard/residents")).toBe(true);
     expect(isDashboardResidentsPath("/dashboard/residents/new")).toBe(true);
     expect(isDashboardResidentsPath("/dashboard/analytics")).toBe(false);
+  });
+
+  it("isDashboardResidentsPath excludes resident medication routes", () => {
+    expect(
+      isDashboardResidentsPath("/dashboard/residents/r1/medications"),
+    ).toBe(false);
+    expect(
+      isDashboardResidentsPath(
+        "/dashboard/homes/h1/residents/r1/medications",
+      ),
+    ).toBe(false);
+    expect(isDashboardMedicationsPath("/dashboard/residents/r1/medications")).toBe(
+      true,
+    );
   });
 
   it("isDashboardInventoryOrdersPath works", () => {

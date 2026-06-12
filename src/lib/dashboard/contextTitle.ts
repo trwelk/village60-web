@@ -18,6 +18,7 @@ import {
   isDashboardInventoryOrdersPath,
   isDashboardInventorySuppliersPath,
   isDashboardMarPath,
+  isDashboardMedicationsPath,
   isDashboardWardsPath,
   isDashboardUsersPath,
   isDashboardAdminSettingsPath,
@@ -36,6 +37,7 @@ export function getDashboardContextTitle(
   if (isDashboardAnalyticsPath(pathname)) return t("nav.analytics");
   if (isDashboardAccountPath(pathname)) return t("nav.myAccount");
   if (isDashboardResidentsPath(pathname)) return t("nav.residents");
+  if (isDashboardMedicationsPath(pathname)) return t("nav.medications");
   if (isDashboardMarPath(pathname)) return t("nav.dailyMar");
   if (isDashboardWardsPath(pathname)) return t("nav.wards");
   if (isDashboardTasksPath(pathname)) return t("nav.tasks");
