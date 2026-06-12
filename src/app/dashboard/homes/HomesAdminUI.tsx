@@ -7,7 +7,16 @@ import {
 } from "@/components/VillageList";
 import { VillageSelect } from "@/components/VillageSelect";
 import { DEFAULT_CURRENCY_CODE } from "@/lib/homes/defaultCurrencyCode";
-import type { Home } from "@/lib/homes/service";
+import {
+  DEFAULT_MED_LOW_STOCK_DAYS_THRESHOLD,
+  DEFAULT_MED_LOW_STOCK_SERVINGS_THRESHOLD,
+  type Home,
+} from "@/lib/homes/service";
+import {
+  dashboardMarHref,
+  dashboardResidentsHref,
+  dashboardWardsHref,
+} from "@/lib/dashboard/dashboardRoutes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -62,11 +71,16 @@ export function HomesAdminUI({
   const [editName, setEditName] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editCurrency, setEditCurrency] = useState("");
+  const [editMedLowStockDaysThreshold, setEditMedLowStockDaysThreshold] =
+    useState(String(DEFAULT_MED_LOW_STOCK_DAYS_THRESHOLD));
+  const [editMedLowStockServingsThreshold, setEditMedLowStockServingsThreshold] =
+    useState(String(DEFAULT_MED_LOW_STOCK_SERVINGS_THRESHOLD));
   const [homeSearchQuery, setHomeSearchQuery] = useState("");
   const [homeStatusFilter, setHomeStatusFilter] = useState<
     "all" | "active" | "archived"
   >("all");
   const [homeCurrencyFilter, setHomeCurrencyFilter] = useState<string>("all");
+  const [selectedHomeId, setSelectedHomeId] = useState<string | null>(null);
 
   const closeCreateHomeModal = useCallback(() => {
     setCreateModalOpen(false);
@@ -137,10 +151,13 @@ export function HomesAdminUI({
   }
 
   function startEdit(h: Home) {
+    setSelectedHomeId(h.id);
     setEditingId(h.id);
     setEditName(h.name);
     setEditAddress(h.address ?? "");
     setEditCurrency(h.defaultCurrencyCode);
+    setEditMedLowStockDaysThreshold(String(h.medLowStockDaysThreshold));
+    setEditMedLowStockServingsThreshold(String(h.medLowStockServingsThreshold));
     setError(null);
   }
 
@@ -149,10 +166,33 @@ export function HomesAdminUI({
     setEditName("");
     setEditAddress("");
     setEditCurrency("");
+    setEditMedLowStockDaysThreshold(String(DEFAULT_MED_LOW_STOCK_DAYS_THRESHOLD));
+    setEditMedLowStockServingsThreshold(
+      String(DEFAULT_MED_LOW_STOCK_SERVINGS_THRESHOLD),
+    );
+  }
+
+  function toggleHomeSelection(homeId: string) {
+    setSelectedHomeId((current) => {
+      if (current === homeId) {
+        if (editingId === homeId) cancelEdit();
+        return null;
+      }
+      if (editingId != null && editingId !== homeId) cancelEdit();
+      return homeId;
+    });
   }
 
   async function onSaveEdit(homeId: string) {
     setError(null);
+    const medLowStockDaysThreshold = Number.parseInt(
+      editMedLowStockDaysThreshold,
+      10,
+    );
+    const medLowStockServingsThreshold = Number.parseInt(
+      editMedLowStockServingsThreshold,
+      10,
+    );
     const res = await fetch(`/api/homes/${homeId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -160,6 +200,8 @@ export function HomesAdminUI({
         name: editName,
         defaultCurrencyCode: editCurrency,
         address: editAddress.trim() === "" ? null : editAddress,
+        medLowStockDaysThreshold,
+        medLowStockServingsThreshold,
       }),
     });
     if (!res.ok) {
@@ -212,6 +254,21 @@ export function HomesAdminUI({
       );
     });
   }, [initialHomes, homeSearchQuery, homeStatusFilter, homeCurrencyFilter]);
+
+  const selectedHome = useMemo(
+    () => filteredHomes.find((h) => h.id === selectedHomeId) ?? null,
+    [filteredHomes, selectedHomeId],
+  );
+
+  useEffect(() => {
+    if (
+      selectedHomeId != null &&
+      !filteredHomes.some((h) => h.id === selectedHomeId)
+    ) {
+      setSelectedHomeId(null);
+      if (editingId === selectedHomeId) cancelEdit();
+    }
+  }, [filteredHomes, selectedHomeId, editingId]);
 
   const activeDirectoryFilterCount =
     (homeSearchQuery.trim() ? 1 : 0) +
@@ -328,24 +385,111 @@ export function HomesAdminUI({
             Filters apply to the homes listed on this page only.
           </p>
         ) : null}
+        {selectedHome ? (
+          <div
+            className="village-list-selection-bar"
+            data-testid="homes-directory-selection-bar"
+          >
+            <div className="min-w-0">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-ink/50">
+                Selected home
+              </p>
+              <p className="truncate font-semibold text-pine-2">
+                {selectedHome.name}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={dashboardResidentsHref(selectedHome.id)}
+                className="village-button village-button--compact"
+              >
+                Residents
+              </Link>
+              <Link
+                href={dashboardMarHref(selectedHome.id)}
+                className="village-button village-button--compact"
+              >
+                Daily MAR
+              </Link>
+              <Link
+                href={dashboardWardsHref(selectedHome.id)}
+                className="village-button village-button--compact"
+              >
+                Wards
+              </Link>
+              {variant === "admin" ? (
+                editingId === selectedHome.id ? (
+                  <>
+                    <button
+                      type="button"
+                      className="village-button village-button-primary village-button--compact"
+                      onClick={() => onSaveEdit(selectedHome.id)}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="village-button village-button--compact"
+                      onClick={cancelEdit}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="village-button village-button--compact"
+                    onClick={() => startEdit(selectedHome)}
+                  >
+                    Edit
+                  </button>
+                )
+              ) : null}
+              {variant === "admin" ? (
+                selectedHome.archivedAtUtcMs != null ? (
+                  <button
+                    type="button"
+                    className="village-button village-button--compact"
+                    onClick={() => setArchived(selectedHome.id, false)}
+                  >
+                    Restore
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="village-button village-button-danger village-button--compact"
+                    onClick={() => setArchived(selectedHome.id, true)}
+                  >
+                    Archive
+                  </button>
+                )
+              ) : null}
+            </div>
+          </div>
+        ) : filteredHomes.length > 0 ? (
+          <p className="mb-4 text-sm text-ink/55">
+            Select a row to open residents, MAR, wards, and other actions.
+          </p>
+        ) : null}
         <table className="village-table">
           <thead className="village-thead">
             <tr>
               <th className="village-th">Name</th>
               <th className="village-th">Address</th>
               <th className="village-th">Default currency</th>
+              {variant === "admin" ? (
+                <>
+                  <th className="village-th">Low stock (days)</th>
+                  <th className="village-th">Low stock (servings)</th>
+                </>
+              ) : null}
               <th className="village-th">Status</th>
-              <th className="village-th">
-                {variant === "admin"
-                  ? "Residents / actions"
-                  : "Residents / wards"}
-              </th>
             </tr>
           </thead>
           <tbody className="village-tbody">
             {initialHomes.length === 0 ? (
               <VillageListEmpty
-                colSpan={5}
+                colSpan={variant === "admin" ? 6 : 4}
                 message={
                   variant === "admin"
                     ? "No homes yet. Use Add a home to create one."
@@ -354,157 +498,120 @@ export function HomesAdminUI({
               />
             ) : filteredHomes.length === 0 ? (
               <VillageListEmpty
-                colSpan={5}
+                colSpan={variant === "admin" ? 6 : 4}
                 message="No homes match these filters."
               />
             ) : (
-              filteredHomes.map((h) => (
-                <tr key={h.id}>
-                  <td className="village-td font-medium">
-                    {editingId === h.id ? (
-                      <input
-                        className="village-input w-full min-w-[10rem]"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                      />
-                    ) : (
-                      h.name
-                    )}
-                  </td>
-                  <td className="village-td-muted max-w-[14rem] align-top text-sm">
-                    {editingId === h.id ? (
-                      <textarea
-                        className="village-input min-h-[4.5rem] w-full resize-y text-sm"
-                        value={editAddress}
-                        onChange={(e) => setEditAddress(e.target.value)}
-                        rows={3}
-                        autoComplete="street-address"
-                      />
-                    ) : h.address ? (
-                      <span className="whitespace-pre-wrap text-ink/85">
-                        {h.address}
-                      </span>
-                    ) : (
-                      <span className="text-ink/45">—</span>
-                    )}
-                  </td>
-                  <td className="village-td-muted">
-                    {editingId === h.id ? (
-                      <input
-                        className="village-input w-24 uppercase"
-                        value={editCurrency}
-                        onChange={(e) =>
-                          setEditCurrency(e.target.value.toUpperCase())
-                        }
-                        maxLength={3}
-                      />
-                    ) : (
-                      h.defaultCurrencyCode
-                    )}
-                  </td>
-                  <td className="village-td-muted">
-                    {h.archivedAtUtcMs != null ? (
-                      <span className="inline-flex items-center rounded-full bg-[color-mix(in_srgb,var(--text-muted)_14%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--text-secondary)]">
-                        Archived
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full bg-success-muted px-2 py-0.5 text-xs font-semibold text-success">
-                        Active
-                      </span>
-                    )}
-                  </td>
-                  <td className="village-td">
-                    {variant === "care" ? (
-                      <div className="flex flex-wrap gap-x-4 gap-y-2">
-                        <Link
-                          href={`/dashboard/homes/${h.id}/residents`}
-                          className="village-link"
-                        >
-                          Residents
-                        </Link>
-                        <Link
-                          href={`/dashboard/homes/${h.id}/mar`}
-                          className="village-link"
-                        >
-                          Daily MAR
-                        </Link>
-                        <Link
-                          href={`/dashboard/homes/${h.id}/wards`}
-                          className="village-link"
-                        >
-                          Wards
-                        </Link>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                        <Link
-                          href={`/dashboard/homes/${h.id}/residents`}
-                          className="village-link"
-                        >
-                          Residents
-                        </Link>
-                        <Link
-                          href={`/dashboard/homes/${h.id}/mar`}
-                          className="village-link"
-                        >
-                          Daily MAR
-                        </Link>
-                        {editingId === h.id ? (
-                          <>
-                            <button
-                              type="button"
-                              className="village-button village-button-primary village-button--compact"
-                              onClick={() => onSaveEdit(h.id)}
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              className="village-button village-button--compact"
-                              onClick={cancelEdit}
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <Link
-                              href={`/dashboard/homes/${h.id}/wards`}
-                              className="village-link"
-                            >
-                              Wards
-                            </Link>
-                            <button
-                              type="button"
-                              className="village-link-subtle cursor-pointer border-0 bg-transparent p-0"
-                              onClick={() => startEdit(h)}
-                            >
-                              Edit
-                            </button>
-                          </>
-                        )}
-                        {h.archivedAtUtcMs != null ? (
-                          <button
-                            type="button"
-                            className="village-button village-button--compact"
-                            onClick={() => setArchived(h.id, false)}
-                          >
-                            Restore
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="village-button village-button-danger village-button--compact"
-                            onClick={() => setArchived(h.id, true)}
-                          >
-                            Archive
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))
+              filteredHomes.map((h) => {
+                const isSelected = selectedHomeId === h.id;
+                const isEditing = editingId === h.id;
+                return (
+                  <tr
+                    key={h.id}
+                    className={[
+                      "village-table-row--selectable",
+                      isSelected ? "village-table-row--selected" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    aria-selected={isSelected}
+                    onClick={() => toggleHomeSelection(h.id)}
+                  >
+                    <td className="village-td font-medium">
+                      {isEditing ? (
+                        <input
+                          className="village-input w-full min-w-[10rem]"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        h.name
+                      )}
+                    </td>
+                    <td className="village-td-muted max-w-[14rem] align-top text-sm">
+                      {isEditing ? (
+                        <textarea
+                          className="village-input min-h-[4.5rem] w-full resize-y text-sm"
+                          value={editAddress}
+                          onChange={(e) => setEditAddress(e.target.value)}
+                          rows={3}
+                          autoComplete="street-address"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : h.address ? (
+                        <span className="whitespace-pre-wrap text-ink/85">
+                          {h.address}
+                        </span>
+                      ) : (
+                        <span className="text-ink/45">—</span>
+                      )}
+                    </td>
+                    <td className="village-td-muted">
+                      {isEditing ? (
+                        <input
+                          className="village-input w-24 uppercase"
+                          value={editCurrency}
+                          onChange={(e) =>
+                            setEditCurrency(e.target.value.toUpperCase())
+                          }
+                          maxLength={3}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        h.defaultCurrencyCode
+                      )}
+                    </td>
+                    {variant === "admin" ? (
+                      <>
+                        <td className="village-td-muted">
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={1}
+                              className="village-input w-20 tabular-nums"
+                              value={editMedLowStockDaysThreshold}
+                              onChange={(e) =>
+                                setEditMedLowStockDaysThreshold(e.target.value)
+                              }
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            h.medLowStockDaysThreshold
+                          )}
+                        </td>
+                        <td className="village-td-muted">
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              min={1}
+                              className="village-input w-20 tabular-nums"
+                              value={editMedLowStockServingsThreshold}
+                              onChange={(e) =>
+                                setEditMedLowStockServingsThreshold(e.target.value)
+                              }
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            h.medLowStockServingsThreshold
+                          )}
+                        </td>
+                      </>
+                    ) : null}
+                    <td className="village-td-muted">
+                      {h.archivedAtUtcMs != null ? (
+                        <span className="inline-flex items-center rounded-full bg-[color-mix(in_srgb,var(--text-muted)_14%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--text-secondary)]">
+                          Archived
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-success-muted px-2 py-0.5 text-xs font-semibold text-success">
+                          Active
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

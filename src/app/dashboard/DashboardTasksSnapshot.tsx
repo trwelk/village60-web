@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -6,13 +8,12 @@ import {
   ClipboardList,
   ChevronRight,
 } from "lucide-react";
-import {
-  buildDashboardSnapshotSummary,
-  displayFirstNameFromEmail,
-} from "@/lib/dashboard/snapshotBriefing";
+import { displayFirstNameFromEmail } from "@/lib/dashboard/snapshotBriefing";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import type { TasksDashboardSummary } from "@/lib/tasks/service";
 import { DashboardAttentionStrip } from "./DashboardAttentionStrip";
 import { DashboardBriefingLead } from "./DashboardBriefingLead";
+import { DashboardSnapshotSummary } from "./DashboardSnapshotSummary";
 
 type DashboardTasksSnapshotProps = {
   summary: TasksDashboardSummary;
@@ -44,13 +45,10 @@ export function DashboardTasksSnapshot({
   email,
   weekdayUtcLong,
 }: DashboardTasksSnapshotProps) {
+  const { t } = useI18n();
   const payAttention = summary.overduePayments > 0;
   const tasksAttention = summary.manualDueOrOverdue > 0;
   const firstName = displayFirstNameFromEmail(email);
-  const snapshotSummaryLine = buildDashboardSnapshotSummary(summary, {
-    occupancyPercent,
-    isAdmin,
-  });
 
   return (
     <section
@@ -67,9 +65,11 @@ export function DashboardTasksSnapshot({
             firstName={firstName}
             weekdayUtcLong={weekdayUtcLong}
           />
-          <p className="max-w-3xl text-sm leading-relaxed text-[var(--text-secondary)]">
-            {snapshotSummaryLine}
-          </p>
+          <DashboardSnapshotSummary
+            summary={summary}
+            occupancyPercent={occupancyPercent}
+            isAdmin={isAdmin}
+          />
           <DashboardAttentionStrip
             overduePayments={summary.overduePayments}
             manualDueOrOverdue={summary.manualDueOrOverdue}
@@ -83,18 +83,17 @@ export function DashboardTasksSnapshot({
               id="dashboard-tasks-snapshot-heading"
               className="font-display text-xl font-normal tracking-tight text-[var(--text-primary)] sm:text-[1.35rem]"
             >
-              Tasks & reminders
+              {t("sections.tasksReminders")}
             </h2>
             <p className="village-muted mt-2 max-w-xl text-sm leading-relaxed">
-              Tap a tile to jump into the matching queue. Counts follow the same
-              rules as your open task inbox.
+              {t("dashboard.tasksRemindersHint")}
             </p>
           </div>
           <Link
             href="/dashboard/tasks"
             className="village-btn-primary inline-flex min-h-10 shrink-0 items-center gap-1.5 self-start no-underline sm:self-center"
           >
-            View all tasks
+            {t("buttons.viewAllTasks")}
             <ChevronRight className="h-4 w-4 opacity-90" aria-hidden strokeWidth={2.25} />
           </Link>
         </div>
@@ -117,7 +116,7 @@ export function DashboardTasksSnapshot({
             <span className="min-w-0 flex-1">
               <span className="flex items-start justify-between gap-2">
                 <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  Tasks due / overdue
+                  {t("dashboard.tasksDueOverdue")}
                 </span>
                 <ChevronRight
                   className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-muted)] opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100"
@@ -129,7 +128,7 @@ export function DashboardTasksSnapshot({
                 {summary.manualDueOrOverdue}
               </span>
               <span className="mt-2 block text-xs leading-snug text-[var(--text-secondary)]">
-                Manual tasks that need action
+                {t("dashboard.manualTasksNeedAction")}
               </span>
             </span>
           </Link>
@@ -149,7 +148,7 @@ export function DashboardTasksSnapshot({
             <span className="min-w-0 flex-1">
               <span className="flex items-start justify-between gap-2">
                 <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  Birthdays (7 days)
+                  {t("dashboard.birthdays7Days")}
                 </span>
                 <ChevronRight
                   className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-muted)] opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100"
@@ -161,7 +160,7 @@ export function DashboardTasksSnapshot({
                 {summary.birthdaysInNext7Days}
               </span>
               <span className="mt-2 block text-xs leading-snug text-[var(--text-secondary)]">
-                Same window as task reminders
+                {t("dashboard.sameWindowAsReminders")}
               </span>
             </span>
           </Link>
@@ -182,7 +181,7 @@ export function DashboardTasksSnapshot({
               <span className="min-w-0 flex-1">
                 <span className="flex items-start justify-between gap-2">
                   <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                    Occupancy
+                    {t("nav.occupancy")}
                   </span>
                   <ChevronRight
                     className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-muted)] opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100"
@@ -194,7 +193,7 @@ export function DashboardTasksSnapshot({
                   {occupancyPercent}%
                 </span>
                 <span className="mt-2 block text-xs leading-snug text-[var(--text-secondary)]">
-                  Portfolio-wide bed utilization
+                  {t("dashboard.portfolioBedUtilization")}
                 </span>
               </span>
             </Link>
@@ -212,13 +211,13 @@ export function DashboardTasksSnapshot({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  Occupancy
+                  {t("nav.occupancy")}
                 </span>
                 <span className="mt-1 block font-display text-[1.65rem] font-normal tabular-nums leading-none text-[var(--text-muted)]">
                   —
                 </span>
                 <span className="mt-2 block text-xs leading-snug text-[var(--text-secondary)]">
-                  Admin-only portfolio metric
+                  {t("dashboard.adminOnlyMetric")}
                 </span>
               </span>
             </div>
@@ -245,7 +244,7 @@ export function DashboardTasksSnapshot({
             <span className="min-w-0 flex-1">
               <span className="flex items-start justify-between gap-2">
                 <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  Due payments
+                  {t("dashboard.duePayments")}
                 </span>
                 <ChevronRight
                   className="mt-0.5 h-4 w-4 shrink-0 text-[var(--text-muted)] opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100"
@@ -264,8 +263,8 @@ export function DashboardTasksSnapshot({
               </span>
               <span className="mt-2 block text-xs leading-snug text-[var(--text-secondary)]">
                 {payAttention
-                  ? "Overdue billing items — review soon"
-                  : "No overdue payment reminders"}
+                  ? t("dashboard.overdueBillingReview")
+                  : t("dashboard.noOverduePayments")}
               </span>
             </span>
           </Link>

@@ -6,6 +6,7 @@ import {
   residentDetailTabsForRole,
   RESIDENT_CORE_TABS,
 } from "@/lib/residents/tabs";
+import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import { ResidentTabs } from "./ResidentTabs";
 
 afterEach(cleanup);
@@ -18,9 +19,13 @@ const ALL_TAB_LABELS = [
   "Allergies",
 ];
 
+function renderTabs(ui: React.ReactElement) {
+  return render(<I18nProvider initialLocale="en">{ui}</I18nProvider>);
+}
+
 describe("ResidentTabs", () => {
   it("renders all clinical tabs", () => {
-    render(
+    renderTabs(
       <ResidentTabs
         tabs={RESIDENT_CORE_TABS}
         activeTab="nok"
@@ -40,14 +45,16 @@ describe("ResidentTabs", () => {
 
   it("includes Other charges tab for admin tab list", () => {
     const tabs = residentDetailTabsForRole("admin");
-    render(<ResidentTabs tabs={tabs} activeTab="other-charge" onTabChange={vi.fn()} />);
+    renderTabs(
+      <ResidentTabs tabs={tabs} activeTab="other-charge" onTabChange={vi.fn()} />,
+    );
     expect(
       screen.getByRole("tab", { name: "Other charges" }),
     ).toBeInTheDocument();
   });
 
   it("marks the active tab with aria-selected=true", () => {
-    render(
+    renderTabs(
       <ResidentTabs
         tabs={RESIDENT_CORE_TABS}
         activeTab="allergies"
@@ -64,7 +71,7 @@ describe("ResidentTabs", () => {
 
   it("calls onTabChange with the tab id when a tab is clicked", async () => {
     const onTabChange = vi.fn();
-    render(
+    renderTabs(
       <ResidentTabs
         tabs={RESIDENT_CORE_TABS}
         activeTab="nok"

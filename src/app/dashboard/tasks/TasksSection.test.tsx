@@ -74,7 +74,7 @@ describe("TasksSection", () => {
       screen.getByRole("link", { name: "Open billing" }),
     ).toHaveAttribute(
       "href",
-      "/dashboard/homes/h1/ledger?residentId=r1",
+      "/dashboard/ledger?homeId=h1&residentId=r1",
     );
     expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
   });
@@ -103,7 +103,7 @@ describe("TasksSection", () => {
       screen.getByRole("link", { name: "Open resident" }),
     ).toHaveAttribute(
       "href",
-      "/dashboard/homes/h1/residents/r1",
+      "/dashboard/residents/r1",
     );
     expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();

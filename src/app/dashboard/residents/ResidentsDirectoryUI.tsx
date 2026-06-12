@@ -11,6 +11,12 @@ import {
   residentsDirectoryStateFromSearchParams,
 } from "@/lib/residents/directoryPath";
 import type { Resident } from "@/lib/residents/service";
+import {
+  dashboardDepartedResidentsHref,
+  dashboardMarHref,
+  dashboardNewResidentHref,
+  dashboardResidentHref,
+} from "@/lib/dashboard/dashboardRoutes";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -192,7 +198,7 @@ export function ResidentsDirectoryUI({
   /** Legacy `?newResident=1`: go to explicit create URL. */
   useEffect(() => {
     if (!fixedHomeId || !urlState.newResident) return;
-    router.replace(`/dashboard/homes/${fixedHomeId}/residents/new`);
+    router.replace(dashboardNewResidentHref(fixedHomeId));
   }, [fixedHomeId, urlState.newResident, router]);
 
   const addResidentHref =
@@ -200,7 +206,7 @@ export function ResidentsDirectoryUI({
       ? null
       : role === "admin"
         ? urlState.homeId
-          ? `/dashboard/homes/${urlState.homeId}/residents/new`
+          ? dashboardNewResidentHref(urlState.homeId)
           : `/dashboard/residents/new`
         : null;
 
@@ -218,19 +224,19 @@ export function ResidentsDirectoryUI({
             {fixedHomeId ? (
               <>
                 <Link
-                  href={`/dashboard/homes/${fixedHomeId}/mar`}
+                  href={dashboardMarHref(fixedHomeId)}
                   className="village-btn-secondary"
                 >
                   Daily MAR
                 </Link>
                 <Link
-                  href={`/dashboard/homes/${fixedHomeId}/residents/departed`}
+                  href={dashboardDepartedResidentsHref(fixedHomeId)}
                   className="village-btn-secondary"
                 >
                   Departed residents
                 </Link>
                 <Link
-                  href={`/dashboard/homes/${fixedHomeId}/residents/new`}
+                  href={dashboardNewResidentHref(fixedHomeId)}
                   className="village-btn-primary inline-flex items-center justify-center"
                 >
                   Add resident
@@ -398,7 +404,7 @@ export function ResidentsDirectoryUI({
               </td>
               <td className="village-td">
                 <Link
-                  href={`/dashboard/homes/${r.homeId}/residents/${r.id}`}
+                  href={dashboardResidentHref(r.id)}
                   className="village-link"
                 >
                   Open

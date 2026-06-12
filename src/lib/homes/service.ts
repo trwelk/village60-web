@@ -6,6 +6,7 @@ import { homes } from "@/db/schema";
 import { getCareUserAssignedHomeIds } from "@/lib/authz/homeScope";
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import type { SessionUserRole } from "@/lib/session";
+import { seedDefaultInventoryCatalogCategoriesForHome } from "@/lib/inventory/defaultCatalogCategories";
 import { ForbiddenError, NotFoundError, ValidationError } from "./errors";
 
 export type AppDb = BetterSQLite3Database<typeof schema>;
@@ -16,6 +17,11 @@ export const DEFAULT_HOMES_PAGE_SIZE = 25;
 export const MAX_HOMES_PAGE_SIZE = 100;
 
 export { DEFAULT_CURRENCY_CODE } from "./defaultCurrencyCode";
+
+export const DEFAULT_MED_LOW_STOCK_DAYS_THRESHOLD = 5;
+export const DEFAULT_MED_LOW_STOCK_SERVINGS_THRESHOLD = 5;
+export const DEFAULT_MED_REORDER_DAYS_SUPPLY = 14;
+export const DEFAULT_MED_REORDER_SERVINGS_SUPPLY = 10;
 
 function requireHomeAdmin(role: SessionUserRole | undefined): void {
   if (role !== "admin") {
@@ -50,6 +56,20 @@ function normalizeOptionalAddress(raw: string | undefined): string | null {
   return t === "" ? null : t;
 }
 
+function normalizePositiveIntThreshold(
+  raw: number,
+  label: string,
+  max = 365,
+): number {
+  if (!Number.isFinite(raw) || !Number.isInteger(raw) || raw < 1) {
+    throw new ValidationError(`${label} must be a positive integer.`);
+  }
+  if (raw > max) {
+    throw new ValidationError(`${label} must be at most ${max}.`);
+  }
+  return raw;
+}
+
 export function createHome(
   db: AppDb,
   actorRole: SessionUserRole | undefined,
@@ -63,11 +83,16 @@ export function createHome(
     name: normalizeName(input.name),
     address: normalizeOptionalAddress(input.address),
     defaultCurrencyCode: normalizeCurrencyCode(input.defaultCurrencyCode),
+    medLowStockDaysThreshold: DEFAULT_MED_LOW_STOCK_DAYS_THRESHOLD,
+    medLowStockServingsThreshold: DEFAULT_MED_LOW_STOCK_SERVINGS_THRESHOLD,
+    medReorderDaysSupply: DEFAULT_MED_REORDER_DAYS_SUPPLY,
+    medReorderServingsSupply: DEFAULT_MED_REORDER_SERVINGS_SUPPLY,
     archivedAtUtcMs: null,
     createdAtUtcMs: now,
     updatedAtUtcMs: now,
   };
   db.insert(homes).values(row).run();
+  seedDefaultInventoryCatalogCategoriesForHome(db, id, now);
   return row;
 }
 
@@ -160,6 +185,10 @@ export function updateHome(
     archived?: boolean;
     /** Omit = unchanged; `null` clears. */
     address?: string | null;
+    medLowStockDaysThreshold?: number;
+    medLowStockServingsThreshold?: number;
+    medReorderDaysSupply?: number;
+    medReorderServingsSupply?: number;
   },
 ): Home {
   requireHomeAdmin(actorRole);
@@ -172,6 +201,10 @@ export function updateHome(
   let defaultCurrencyCode = existing.defaultCurrencyCode;
   let archivedAtUtcMs = existing.archivedAtUtcMs;
   let address = existing.address ?? null;
+  let medLowStockDaysThreshold = existing.medLowStockDaysThreshold;
+  let medLowStockServingsThreshold = existing.medLowStockServingsThreshold;
+  let medReorderDaysSupply = existing.medReorderDaysSupply;
+  let medReorderServingsSupply = existing.medReorderServingsSupply;
 
   if (input.name !== undefined) {
     name = normalizeName(input.name);
@@ -188,12 +221,40 @@ export function updateHome(
     address =
       input.address === null ? null : normalizeOptionalAddress(input.address);
   }
+  if (input.medLowStockDaysThreshold !== undefined) {
+    medLowStockDaysThreshold = normalizePositiveIntThreshold(
+      input.medLowStockDaysThreshold,
+      "medLowStockDaysThreshold",
+    );
+  }
+  if (input.medLowStockServingsThreshold !== undefined) {
+    medLowStockServingsThreshold = normalizePositiveIntThreshold(
+      input.medLowStockServingsThreshold,
+      "medLowStockServingsThreshold",
+    );
+  }
+  if (input.medReorderDaysSupply !== undefined) {
+    medReorderDaysSupply = normalizePositiveIntThreshold(
+      input.medReorderDaysSupply,
+      "medReorderDaysSupply",
+    );
+  }
+  if (input.medReorderServingsSupply !== undefined) {
+    medReorderServingsSupply = normalizePositiveIntThreshold(
+      input.medReorderServingsSupply,
+      "medReorderServingsSupply",
+    );
+  }
 
   db.update(homes)
     .set({
       name,
       address,
       defaultCurrencyCode,
+      medLowStockDaysThreshold,
+      medLowStockServingsThreshold,
+      medReorderDaysSupply,
+      medReorderServingsSupply,
       archivedAtUtcMs,
       updatedAtUtcMs: now,
     })

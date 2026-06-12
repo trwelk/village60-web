@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TRGAKI — Village60 Cost Summary &amp; Quotation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Archivo:wght@300;400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:      #faf7f0;
+    --paper-deep: #f3eee2;
+    --ink:        #1d2a23;
+    --ink-soft:   #45544b;
+    --ink-faint:  #7a877e;
+    --pine:       #234436;
+    --pine-deep:  #162b22;
+    --gold:       #b58a3a;
+    --gold-soft:  #d8bc85;
+    --hairline:   #d9d2c0;
+    --serif: "Fraunces", Georgia, serif;
+    --sans:  "Archivo", "Segoe UI", sans-serif;
+    --mono:  "Spline Sans Mono", Consolas, monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  body {
+    font-family: var(--sans);
+    background: #d8d4c8;
+    color: var(--ink);
+    font-size: 10.5pt;
+    line-height: 1.55;
+  }
+
+  .sheet {
+    width: 210mm;
+    min-height: 296mm;
+    margin: 24px auto;
+    background: var(--paper);
+    box-shadow: 0 6px 32px rgba(29, 42, 35, 0.28);
+    padding: 18mm 17mm 16mm;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  @media print {
+    body { background: none; }
+    .sheet {
+      margin: 0;
+      box-shadow: none;
+      page-break-after: always;
+      width: auto;
+      min-height: 0;
+      height: 296mm;
+    }
+    .sheet:last-child { page-break-after: auto; }
+  }
+  @page { size: A4; margin: 0; }
+
+  /* ---------- shared chrome ---------- */
+  .runner {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: var(--mono);
+    font-size: 7.5pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border-bottom: 1px solid var(--hairline);
+    padding-bottom: 4mm;
+    margin-bottom: 9mm;
+  }
+  .runner .brand { color: var(--pine); font-weight: 500; }
+
+  .footer {
+    margin-top: auto;
+    padding-top: 4mm;
+    border-top: 1px solid var(--hairline);
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 7pt;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 8pt;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4mm;
+  }
+
+  h2.section-title {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 23pt;
+    letter-spacing: -0.01em;
+    color: var(--pine);
+    margin-bottom: 7mm;
+    line-height: 1.15;
+  }
+
+  /* ---------- cover ---------- */
+  .cover { background: linear-gradient(168deg, #fbf8f1 0%, #f4efe1 70%, #efe7d3 100%); }
+
+  .cover-ornament {
+    position: absolute;
+    top: -55mm; right: -55mm;
+    width: 130mm; height: 130mm;
+    border-radius: 50%;
+    border: 1px solid var(--gold-soft);
+    opacity: 0.55;
+  }
+  .cover-ornament::after {
+    content: "";
+    position: absolute;
+    inset: 14mm;
+    border-radius: 50%;
+    border: 1px solid var(--gold-soft);
+  }
+  .cover-ornament::before {
+    content: "";
+    position: absolute;
+    inset: 28mm;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(181,138,58,0.16), transparent 70%);
+  }
+
+  .cover-brand {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 17pt;
+    letter-spacing: 0.34em;
+    color: var(--pine);
+  }
+  .cover-brand-sub {
+    font-family: var(--mono);
+    font-size: 7.5pt;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-top: 1.5mm;
+  }
+
+  .cover-middle { margin-top: 34mm; position: relative; z-index: 1; }
+  .cover-kicker {
+    font-family: var(--mono);
+    font-size: 9pt;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 7mm;
+  }
+  .cover-title {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 46pt;
+    line-height: 1.04;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+  }
+  .cover-title em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--pine);
+  }
+  .cover-sub {
+    margin-top: 9mm;
+    max-width: 125mm;
+    font-size: 11.5pt;
+    font-weight: 300;
+    line-height: 1.7;
+    color: var(--ink-soft);
+  }
+
+  .cover-meta {
+    margin-top: 22mm;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8mm;
+    border-top: 1px solid var(--hairline);
+    padding-top: 7mm;
+  }
+  .cover-meta .label {
+    font-family: var(--mono);
+    font-size: 7pt;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 2mm;
+  }
+  .cover-meta .value {
+    font-family: var(--serif);
+    font-size: 13pt;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .cover-meta .value.total { color: var(--pine); }
+
+  .cover-band {
+    margin-top: 14mm;
+    background: var(--pine);
+    color: #f4efdf;
+    border-radius: 2.5mm;
+    padding: 7mm 9mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8mm;
+  }
+  .cover-band .line { font-size: 9.5pt; font-weight: 300; line-height: 1.6; max-width: 118mm; }
+  .cover-band .line strong { font-weight: 600; color: var(--gold-soft); }
+  .cover-band .seal {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 11pt;
+    color: var(--gold-soft);
+    white-space: nowrap;
+  }
+
+  /* ---------- prose ---------- */
+  .lede {
+    font-family: var(--serif);
+    font-size: 13.5pt;
+    font-weight: 300;
+    line-height: 1.65;
+    color: var(--ink);
+    max-width: 158mm;
+    margin-bottom: 7mm;
+  }
+  .lede em { color: var(--pine); font-style: italic; }
+  p.body { color: var(--ink-soft); max-width: 160mm; margin-bottom: 4.5mm; font-weight: 300; }
+  p.body strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- stat band ---------- */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    border: 1px solid var(--hairline);
+    border-radius: 2.5mm;
+    overflow: hidden;
+    margin: 8mm 0 9mm;
+    background: var(--paper-deep);
+  }
+  .stat {
+    padding: 5.5mm 4mm 5mm;
+    border-right: 1px solid var(--hairline);
+    text-align: center;
+  }
+  .stat:last-child { border-right: none; }
+  .stat .num {
+    font-family: var(--serif);
+    font-size: 21pt;
+    font-weight: 500;
+    color: var(--pine);
+    line-height: 1.1;
+  }
+  .stat .cap {
+    font-family: var(--mono);
+    font-size: 6.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-top: 1.5mm;
+  }
+
+  /* ---------- capability list ---------- */
+  .cap-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4mm 8mm;
+    margin-top: 3mm;
+  }
+  .cap-item { display: flex; gap: 3.5mm; align-items: flex-start; }
+  .cap-item .tick {
+    flex: none;
+    width: 4.5mm; height: 4.5mm;
+    margin-top: 1mm;
+    border-radius: 50%;
+    background: var(--pine);
+    color: var(--gold-soft);
+    font-size: 7pt;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cap-item .txt { font-size: 9.5pt; color: var(--ink-soft); font-weight: 300; line-height: 1.5; }
+  .cap-item .txt strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- modules ---------- */
+  .module {
+    display: grid;
+    grid-template-columns: 14mm 1fr;
+    gap: 5mm;
+    padding: 5mm 0 5.5mm;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .module:last-of-type { border-bottom: none; }
+  .module .idx {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 15pt;
+    color: var(--gold);
+    line-height: 1.2;
+  }
+  .module h3 {
+    font-family: var(--serif);
+    font-size: 13pt;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 1.5mm;
+  }
+  .module p { font-size: 9.5pt; font-weight: 300; color: var(--ink-soft); max-width: 158mm; }
+  .module .chips { margin-top: 2.5mm; display: flex; flex-wrap: wrap; gap: 1.8mm; }
+  .chip {
+    font-family: var(--mono);
+    font-size: 6.8pt;
+    letter-spacing: 0.06em;
+    color: var(--pine);
+    border: 1px solid var(--gold-soft);
+    border-radius: 10mm;
+    padding: 0.8mm 3mm;
+    background: rgba(216, 188, 133, 0.12);
+    white-space: nowrap;
+  }
+
+  /* ---------- cost table ---------- */
+  table.cost {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 2mm;
+  }
+  table.cost th {
+    font-family: var(--mono);
+    font-size: 7pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    text-align: left;
+    font-weight: 500;
+    padding: 0 0 3mm;
+    border-bottom: 1.5px solid var(--ink);
+  }
+  table.cost th.amt, table.cost td.amt { text-align: right; }
+  table.cost td {
+    padding: 5mm 0;
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: top;
+  }
+  table.cost td .item-name {
+    font-family: var(--serif);
+    font-size: 12.5pt;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  table.cost td .item-desc {
+    font-size: 9pt;
+    font-weight: 300;
+    color: var(--ink-soft);
+    max-width: 118mm;
+    margin-top: 1.5mm;
+  }
+  table.cost td.amt {
+    font-family: var(--serif);
+    font-size: 12.5pt;
+    font-weight: 500;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  table.cost td.amt .ccy {
+    font-family: var(--mono);
+    font-size: 7pt;
+    color: var(--ink-faint);
+    letter-spacing: 0.1em;
+    margin-right: 1.5mm;
+  }
+  table.cost td.amt.included {
+    font-family: var(--mono);
+    font-size: 8pt;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 500;
+  }
+
+  .total-band {
+    margin-top: 6mm;
+    background: var(--pine);
+    border-radius: 2.5mm;
+    color: #f4efdf;
+    padding: 6.5mm 9mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .total-band .lbl {
+    font-family: var(--mono);
+    font-size: 8pt;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--gold-soft);
+  }
+  .total-band .figure {
+    font-family: var(--serif);
+    font-size: 24pt;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .total-band .figure .ccy {
+    font-family: var(--mono);
+    font-size: 9pt;
+    letter-spacing: 0.12em;
+    color: var(--gold-soft);
+    margin-right: 2.5mm;
+    vertical-align: 3pt;
+  }
+  .total-words {
+    margin-top: 2.5mm;
+    text-align: right;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 9.5pt;
+    color: var(--ink-faint);
+  }
+
+  /* ---------- inclusions ---------- */
+  .inclusions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5mm;
+    margin-top: 7mm;
+  }
+  .inclusion {
+    border: 1px solid var(--gold-soft);
+    border-radius: 2.5mm;
+    padding: 5.5mm 6mm;
+    background: rgba(216, 188, 133, 0.08);
+  }
+  .inclusion .badge {
+    font-family: var(--mono);
+    font-size: 6.8pt;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 2mm;
+  }
+  .inclusion h4 {
+    font-family: var(--serif);
+    font-size: 12.5pt;
+    font-weight: 600;
+    color: var(--pine);
+    margin-bottom: 1.5mm;
+  }
+  .inclusion p { font-size: 9pt; font-weight: 300; color: var(--ink-soft); }
+
+  /* ---------- notes & signature ---------- */
+  .notes { margin-top: 8mm; }
+  .notes h4 {
+    font-family: var(--mono);
+    font-size: 7.5pt;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 3mm;
+  }
+  .notes ul { list-style: none; }
+  .notes li {
+    font-size: 8.8pt;
+    font-weight: 300;
+    color: var(--ink-soft);
+    padding-left: 5mm;
+    position: relative;
+    margin-bottom: 1.8mm;
+  }
+  .notes li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    color: var(--gold);
+  }
+
+  .sign-row {
+    margin-top: 11mm;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16mm;
+  }
+  .sign-block .rule {
+    border-bottom: 1px solid var(--ink-soft);
+    height: 11mm;
+  }
+  .sign-block .who {
+    font-family: var(--mono);
+    font-size: 7pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-top: 2mm;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ PAGE 1 · COVER ============ -->
+<section class="sheet cover">
+  <div class="cover-ornament"></div>
+
+  <header>
+    <div class="cover-brand">TRGAKI</div>
+    <div class="cover-brand-sub">Software Design &amp; Engineering</div>
+  </header>
+
+  <div class="cover-middle">
+    <div class="cover-kicker">Cost Summary &amp; Quotation</div>
+    <h1 class="cover-title">Village60<br /><em>Retirement Operations Platform</em></h1>
+    <p class="cover-sub">
+      This document summarises the cost of designing, building, and hosting Village60 —
+      a complete management system for running a retirement home, from resident care
+      and clinical records through to billing, inventory, and day-to-day administration.
+    </p>
+  </div>
+
+  <div class="cover-meta">
+    <div>
+      <div class="label">Prepared by</div>
+      <div class="value">TRGAKI</div>
+    </div>
+    <div>
+      <div class="label">Date</div>
+      <div class="value">June 2026</div>
+    </div>
+    <div>
+      <div class="label">Engagement Total</div>
+      <div class="value total">LKR 1,100,000</div>
+    </div>
+  </div>
+
+  <div class="cover-band">
+    <div class="line">
+      The quoted price includes <strong>one month of in-house training</strong> to get
+      your team up and running, plus <strong>twelve months of support and bug fixes</strong>
+      — everything needed to go live, learn the system, and fix anything that does not
+      work as agreed.
+    </div>
+    <div class="seal">All-inclusive</div>
+  </div>
+
+  <footer class="footer">
+    <span>TRGAKI · Cost Summary &amp; Quotation</span>
+    <span>Page 1 of 4</span>
+  </footer>
+</section>
+
+<!-- ============ PAGE 2 · THE APPLICATION ============ -->
+<section class="sheet">
+  <div class="runner">
+    <span class="brand">TRGAKI</span>
+    <span>Village60 · Cost Summary &amp; Quotation</span>
+  </div>
+
+  <div class="eyebrow">01 — The Application</div>
+  <h2 class="section-title">One platform for the whole operation</h2>
+
+  <p class="lede">
+    Village60 is a single, secure web platform built specifically for retirement
+    home operations — <em>replacing the spreadsheets, paper files, and separate tools
+    that most homes end up juggling.</em>
+  </p>
+
+  <p class="body">
+    Resident records, clinical care, medication rounds, inventory and purchasing,
+    monthly billing, payment tracking, occupancy reports, and enquiries from
+    prospective families all live in one place. Administrators can see across the
+    whole organisation; care staff only see the homes they work in.
+  </p>
+  <p class="body">
+    The system works on desktop, tablet, and mobile, and is available in
+    <strong>English, Sinhala, and Tamil</strong>. Each staff member can choose
+    whichever language they are most comfortable with.
+  </p>
+
+  <div class="stats">
+    <div class="stat"><div class="num">35+</div><div class="cap">Application screens</div></div>
+    <div class="stat"><div class="num">69</div><div class="cap">API endpoints</div></div>
+    <div class="stat"><div class="num">33</div><div class="cap">Database tables</div></div>
+    <div class="stat"><div class="num">88</div><div class="cap">Automated test suites</div></div>
+    <div class="stat"><div class="num">3</div><div class="cap">Languages</div></div>
+  </div>
+
+  <div class="eyebrow" style="margin-top: 2mm;">Built-in across the platform</div>
+  <p class="body">
+    Security is built in from the start: staff sign in with encrypted sessions and
+    strong passwords, and the system locks accounts after repeated failed attempts.
+    Admin and Care roles control who can see what, scoped down to individual homes.
+    Sign-in events, medication records, inventory movements, and billing entries are
+    all logged with a clear audit trail.
+  </p>
+  <p class="body">
+    Billing supports multiple currencies per home, with accurate accounting down to
+    the smallest unit. Monthly resident charges are generated automatically on the
+    first of each month. Families can access privacy-safe resident profile pages via
+    QR codes, and the database is backed up daily with a documented restore process.
+    Every list and directory in the application has search, filtering, and pagination
+    built in, so staff can find what they need quickly.
+  </p>
+
+  <footer class="footer">
+    <span>TRGAKI · Cost Summary &amp; Quotation</span>
+    <span>Page 2 of 4</span>
+  </footer>
+</section>
+
+<!-- ============ PAGE 3 · SCOPE OF DELIVERY ============ -->
+<section class="sheet">
+  <div class="runner">
+    <span class="brand">TRGAKI</span>
+    <span>Village60 · Cost Summary &amp; Quotation</span>
+  </div>
+
+  <div class="eyebrow">02 — Scope of Delivery</div>
+  <h2 class="section-title">Implemented features &amp; services</h2>
+
+  <div class="module">
+    <div class="idx">i.</div>
+    <div>
+      <h3>Platform Foundation</h3>
+      <p>The foundation covers everything needed to run the system in production: secure sign-in, a simple two-tier role model, and an interface available in English, Sinhala, and Tamil. The application works well on any screen size, and we handle deployment, daily backups, and the operational runbook from day one.</p>
+      <div class="chips"><span class="chip">Authentication</span><span class="chip">Roles &amp; permissions</span><span class="chip">3 languages</span><span class="chip">Backups</span></div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="idx">ii.</div>
+    <div>
+      <h3>Homes, Wards &amp; Residents</h3>
+      <p>You can manage multiple homes from one account, each with its own wards, bed capacity, and monthly rates. Resident records cover the full lifecycle — intake (with duplicate checking), photos, next of kin, power of attorney, nurse assignment, and departures. Each resident can also have a shareable public profile with a QR code for families.</p>
+      <div class="chips"><span class="chip">Multi-site</span><span class="chip">Bed capacity</span><span class="chip">Resident records</span><span class="chip">QR profiles</span></div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="idx">iii.</div>
+    <div>
+      <h3>Clinical Care &amp; Medication</h3>
+      <p>Care staff can manage scheduled and as-needed (PRN) medications for each resident, along with conditions and allergies. The daily Medication Administration Record (MAR) shows what was given, when, and by whom — and stock levels update automatically as doses are recorded.</p>
+      <div class="chips"><span class="chip">Daily MAR</span><span class="chip">PRN support</span><span class="chip">Allergies &amp; conditions</span><span class="chip">Auto stock deduction</span></div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="idx">iv.</div>
+    <div>
+      <h3>Inventory &amp; Procurement</h3>
+      <p>Each home keeps its own item catalog with live stock levels and a full history of every movement. There is a supplier directory and a complete purchase order workflow — from draft through approval, sending, receiving, and closure. When medication stock runs low, the system suggests reorders.</p>
+      <div class="chips"><span class="chip">Stock ledger</span><span class="chip">Purchase orders</span><span class="chip">Suppliers</span><span class="chip">Reorder alerts</span></div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="idx">v.</div>
+    <div>
+      <h3>Billing &amp; Finance</h3>
+      <p>Monthly resident charges are generated automatically, and invoices can be raised for both resident and home operating accounts. Payments are recorded against multiple methods, with oldest charges settled first. Registration fees, deposits, medication costs, and procurement all feed into a single ledger so nothing falls through the cracks.</p>
+      <div class="chips"><span class="chip">Auto monthly billing</span><span class="chip">Invoices</span><span class="chip">Payments</span><span class="chip">Unified ledger</span></div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="idx">vi.</div>
+    <div>
+      <h3>Analytics &amp; Growth</h3>
+      <p>Dashboards cover occupancy and census trends, monthly cash flow, expense breakdowns, admissions, stay duration, demographics, and staff workload. A public enquiry form feeds a waiting-list pipeline, with metrics on conversion rates and available capacity.</p>
+      <div class="chips"><span class="chip">Occupancy</span><span class="chip">Cash flow</span><span class="chip">Demographics</span><span class="chip">Waiting list CRM</span></div>
+    </div>
+  </div>
+
+  <div class="module">
+    <div class="idx">vii.</div>
+    <div>
+      <h3>Administration &amp; Daily Operations</h3>
+      <p>Administrators can manage staff with per-home assignments and floaters, configure organisation settings, and track tasks with priorities and due dates. The main dashboard highlights overdue payments, tasks that need attention, and upcoming resident birthdays — the things that matter most on a busy morning.</p>
+      <div class="chips"><span class="chip">Staff management</span><span class="chip">Tasks &amp; reminders</span><span class="chip">Dashboard</span><span class="chip">Settings</span></div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <span>TRGAKI · Cost Summary &amp; Quotation</span>
+    <span>Page 3 of 4</span>
+  </footer>
+</section>
+
+<!-- ============ PAGE 4 · COST SUMMARY ============ -->
+<section class="sheet">
+  <div class="runner">
+    <span class="brand">TRGAKI</span>
+    <span>Village60 · Cost Summary &amp; Quotation</span>
+  </div>
+
+  <div class="eyebrow">03 — Cost Summary</div>
+  <h2 class="section-title">Investment</h2>
+
+  <table class="cost">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th class="amt">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div class="item-name">Implementation &amp; Delivery</div>
+          <div class="item-desc">
+            Design, development, and delivery of the full Village60 platform — all
+            seven feature areas described in the Scope of Delivery, including the
+            data model, security, trilingual interface, automated tests, and
+            everything needed to go live.
+          </div>
+        </td>
+        <td class="amt"><span class="ccy">LKR</span>1,045,000</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="item-name">Hosting &amp; Infrastructure — 12 Months</div>
+          <div class="item-desc">
+            Production hosting with HTTPS, deployment, monitoring, and daily automated
+            backups — including a documented restore procedure — for the first
+            twelve months of operation.
+          </div>
+        </td>
+        <td class="amt"><span class="ccy">LKR</span>55,000</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="item-name">In-House Training — 1 Month</div>
+          <div class="item-desc">
+            Hands-on training at your premises during the first month after handover,
+            covering day-to-day use of the platform for administrators and care staff —
+            at no additional cost.
+          </div>
+        </td>
+        <td class="amt included">Included</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="item-name">Support &amp; Bug Fixes — 12 Months</div>
+          <div class="item-desc">
+            If something in the delivered system does not work as agreed, we will
+            investigate and fix it at no extra charge for twelve months from handover.
+          </div>
+        </td>
+        <td class="amt included">Included</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="total-band">
+    <div class="lbl">Total Engagement</div>
+    <div class="figure"><span class="ccy">LKR</span>1,100,000</div>
+  </div>
+  <div class="total-words">One million one hundred thousand Sri Lankan rupees — all-inclusive.</div>
+
+  <div class="inclusions">
+    <div class="inclusion">
+      <div class="badge">Included · 1 month</div>
+      <h4>In-House Training</h4>
+      <p>During the first month after handover, we come on site and walk your team through the system — administrators and care staff alike — so everyone knows how to use Village60 confidently from day one.</p>
+    </div>
+    <div class="inclusion">
+      <div class="badge">Included · 12 months</div>
+      <h4>Support &amp; Bug Fixes</h4>
+      <p>For the first year after handover, any defect in the delivered functionality is investigated and resolved at no additional cost. You are not left on your own while the team is still finding its feet with a new system.</p>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h4>Notes</h4>
+    <p class="body" style="margin-bottom: 2mm;">
+      All amounts in this quotation are in Sri Lankan Rupees (LKR). In-house training
+      covers practical use of the delivered system at your premises during the first
+      month after handover. Support covers defects in the functionality delivered as
+      part of this engagement — not new features or changes to agreed scope. Hosting
+      beyond the first twelve months can be renewed by separate agreement when the
+      time comes.
+    </p>
+  </div>
+
+  <div class="sign-row">
+    <div class="sign-block">
+      <div class="rule"></div>
+      <div class="who">TRGAKI — Authorised Signatory</div>
+    </div>
+    <div class="sign-block">
+      <div class="rule"></div>
+      <div class="who">Client — Authorised Signatory</div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <span>TRGAKI · Cost Summary &amp; Quotation</span>
+    <span>Page 4 of 4</span>
+  </footer>
+</section>
+
+</body>
+</html>

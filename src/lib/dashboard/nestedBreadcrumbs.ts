@@ -1,4 +1,8 @@
 import type { SessionUserRole } from "@/lib/session";
+import {
+  dashboardResidentHref,
+  dashboardResidentsHref,
+} from "./dashboardRoutes";
 import { isHomeResidentDetailPath } from "./dashboardPaths";
 
 /**
@@ -11,12 +15,39 @@ export type NavCrumb = {
   currentPage?: boolean;
 };
 
+/** Two-level trail for hub list → detail (sidebar + top bar), e.g. inventory orders → PO. */
+export function buildHubDetailBreadcrumbTrail(
+  hubLabel: string,
+  hubHref: string,
+  detailLabel: string,
+): NavCrumb[] {
+  return [
+    { label: hubLabel, href: hubHref, currentPage: false },
+    { label: detailLabel, currentPage: true },
+  ];
+}
+
 function homesHubLabel(role: SessionUserRole): string {
   return role === "admin" ? "Retirement homes" : "Your homes";
 }
 
-function homePrimaryHref(homeId: string): string {
-  return `/dashboard/homes/${homeId}/residents`;
+/**
+ * Breadcrumb for flat home-scoped pages (MAR, wards, departed, etc.).
+ */
+export function buildFlatHomeScopedBreadcrumbTrail(
+  sectionLabel: string,
+  input: { homeId: string; homeLabel: string; role: SessionUserRole },
+): NavCrumb[] {
+  const homeName = input.homeLabel.trim() || "Home";
+  return [
+    { label: homesHubLabel(input.role), href: "/dashboard/homes" },
+    {
+      label: homeName,
+      href: dashboardResidentsHref(input.homeId),
+      currentPage: false,
+    },
+    { label: sectionLabel, currentPage: true },
+  ];
 }
 
 /**
@@ -32,7 +63,7 @@ export function buildHomeAreaBreadcrumbTrail(
   }
   const homeName = input.homeLabel.trim() || "Home";
   const re = new RegExp(
-    `^/dashboard/homes/${escapeRe(input.homeId)}/(wards|ledger|mar|residents(?:/.*)?)$`,
+    `^/dashboard/homes/${escapeRe(input.homeId)}/(wards|ledger|mar|invoices|residents(?:/.*)?)$`,
   );
   const m = re.exec(pathname);
   if (!m) {
@@ -45,7 +76,7 @@ export function buildHomeAreaBreadcrumbTrail(
   };
   const home: NavCrumb = {
     label: homeName,
-    href: homePrimaryHref(input.homeId),
+    href: dashboardResidentsHref(input.homeId),
     currentPage: false,
   };
   if (rest === "wards") {
@@ -57,13 +88,16 @@ export function buildHomeAreaBreadcrumbTrail(
   if (rest === "mar") {
     return [hub, home, { label: "Daily MAR", currentPage: true }];
   }
+  if (rest === "invoices") {
+    return [hub, home, { label: "Invoices", currentPage: true }];
+  }
   if (rest === "residents/new") {
     return [
       hub,
       home,
       {
         label: "Residents",
-        href: homePrimaryHref(input.homeId),
+        href: dashboardResidentsHref(input.homeId),
         currentPage: false,
       },
       { label: "New resident", currentPage: true },
@@ -75,7 +109,7 @@ export function buildHomeAreaBreadcrumbTrail(
       home,
       {
         label: "Residents",
-        href: homePrimaryHref(input.homeId),
+        href: dashboardResidentsHref(input.homeId),
         currentPage: false,
       },
       { label: "Departed residents", currentPage: true },
@@ -92,7 +126,7 @@ function escapeRe(s: string): string {
 }
 
 /**
- * Breadcrumb for `/dashboard/homes/.../residents/residentId` (per-resident record).
+ * Breadcrumb for resident detail (flat or legacy nested path).
  */
 export function buildResidentDetailBreadcrumbTrail(input: {
   role: SessionUserRole;
@@ -107,14 +141,72 @@ export function buildResidentDetailBreadcrumbTrail(input: {
     { label: homesHubLabel(input.role), href: "/dashboard/homes" },
     {
       label: homeName,
-      href: homePrimaryHref(input.homeId),
+      href: dashboardResidentsHref(input.homeId),
       currentPage: false,
     },
     {
       label: "Residents",
-      href: `/dashboard/homes/${input.homeId}/residents`,
+      href: dashboardResidentsHref(input.homeId),
       currentPage: false,
     },
-    { label: resident, currentPage: true },
+    {
+      label: resident,
+      href: dashboardResidentHref(input.residentId),
+      currentPage: true,
+    },
+  ];
+}
+
+export function buildFlatMarBreadcrumbTrail(input: {
+  homeId: string;
+  homeLabel: string;
+  role: SessionUserRole;
+}): NavCrumb[] {
+  return buildFlatHomeScopedBreadcrumbTrail("Daily MAR", input);
+}
+
+export function buildFlatWardsBreadcrumbTrail(input: {
+  homeId: string;
+  homeLabel: string;
+  role: SessionUserRole;
+}): NavCrumb[] {
+  return buildFlatHomeScopedBreadcrumbTrail("Wards", input);
+}
+
+export function buildFlatDepartedBreadcrumbTrail(input: {
+  homeId: string;
+  homeLabel: string;
+  role: SessionUserRole;
+}): NavCrumb[] {
+  return buildFlatHomeScopedBreadcrumbTrail("Departed residents", input);
+}
+
+export function buildFlatResidentMedicationsBreadcrumbTrail(input: {
+  role: SessionUserRole;
+  homeId: string;
+  homeLabel: string;
+  residentId: string;
+  residentLabel: string;
+}): NavCrumb[] {
+  const homeName = input.homeLabel.trim() || "Home";
+  const resident = input.residentLabel.trim() || "Resident";
+  return [
+    { label: homesHubLabel(input.role), href: "/dashboard/homes" },
+    {
+      label: homeName,
+      href: dashboardResidentsHref(input.homeId),
+      currentPage: false,
+    },
+    {
+      label: "Residents",
+      href: dashboardResidentsHref(input.homeId),
+      currentPage: false,
+    },
+    {
+      label: resident,
+      href: dashboardResidentHref(input.residentId),
+      currentPage: false,
+    },
+    { label: "Medications", currentPage: true },
   ];
 }

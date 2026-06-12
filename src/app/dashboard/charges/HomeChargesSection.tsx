@@ -616,7 +616,7 @@ export function HomeChargesSection({
                   >
                     <td className="px-5 py-4">
                       <Link
-                        href={`/dashboard/homes/${selectedHomeId}/invoices?residentId=${encodeURIComponent(row.residentId)}`}
+                        href={`/dashboard/invoices?homeId=${encodeURIComponent(selectedHomeId)}&residentId=${encodeURIComponent(row.residentId)}`}
                         className="font-semibold text-[var(--accent-strong)] underline decoration-[color:color-mix(in_srgb,var(--accent)_36%,transparent)] underline-offset-4 transition hover:text-[var(--accent)]"
                       >
                         {row.residentFullName}

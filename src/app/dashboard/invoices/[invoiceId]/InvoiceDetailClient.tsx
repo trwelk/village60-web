@@ -1,12 +1,14 @@
 "use client";
 
+import { useDashboardWayfinding } from "@/app/dashboard/DashboardWayfinding";
 import { buildDashboardLedgerPath } from "@/lib/billing/dashboardLedgerPath";
 import { utcYearToDatePostedDateRange } from "@/lib/billing/postedDateRange";
+import { buildHubDetailBreadcrumbTrail } from "@/lib/dashboard/nestedBreadcrumbs";
 import { formatCents } from "@/lib/money";
 import type { ResidentBillingAccountSummary } from "@/lib/billing/paymentsLifecycle";
 import { ArrowLeft, PencilLine } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { CreateInvoiceLineModal, EditInvoiceLineModal } from "../InvoiceModals";
 
 type InvoiceLineItem = {
@@ -79,6 +81,7 @@ export function InvoiceDetailClient({
   const [revertBusy, setRevertBusy] = useState(false);
   const [lineModalOpen, setLineModalOpen] = useState(false);
   const [editingLine, setEditingLine] = useState<InvoiceLineItem | null>(null);
+  const { setHomeBreadcrumbs } = useDashboardWayfinding();
 
   useEffect(() => {
     setInvoice(null);
@@ -101,6 +104,20 @@ export function InvoiceDetailClient({
     if (n) return n;
     return invoice.status === "draft" ? "Draft invoice" : "Invoice";
   }, [invoice]);
+
+  useLayoutEffect(() => {
+    setHomeBreadcrumbs(
+      buildHubDetailBreadcrumbTrail(
+        "Invoices",
+        "/dashboard/invoices",
+        invoiceHeading,
+      ),
+    );
+    return () => {
+      setHomeBreadcrumbs(null);
+    };
+  }, [invoiceHeading, setHomeBreadcrumbs]);
+
   const ledgerHref = useMemo(() => {
     if (!invoice) {
       return "/dashboard/ledger";

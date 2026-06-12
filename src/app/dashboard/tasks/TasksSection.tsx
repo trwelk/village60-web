@@ -18,6 +18,10 @@ import {
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  dashboardLedgerHref,
+  dashboardResidentHref,
+} from "@/lib/dashboard/dashboardRoutes";
 import { useRouter } from "next/navigation";
 import {
   FormEvent,
@@ -299,30 +303,7 @@ export function TasksSection({
     <>
       <VillageList
         toolbar={
-          <div className="flex w-full min-w-0 flex-wrap items-start justify-between gap-4 sm:items-center">
-            <div className="flex min-w-0 flex-1 flex-wrap items-start gap-3">
-              <span
-                className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--accent)_14%,var(--bg-elevated))] text-[var(--accent-strong)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--bg-elevated)_65%,transparent)]"
-                aria-hidden
-              >
-                <Inbox className="h-5 w-5" strokeWidth={2} />
-              </span>
-              <div className="min-w-0">
-                <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                  Inbox controls
-                </p>
-                <h2
-                  id="tasks-inbox-heading"
-                  className="font-display text-lg font-normal tracking-tight text-[var(--text-primary)] sm:text-xl"
-                >
-                  Prioritise what needs attention
-                </h2>
-                <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
-                  Filter open items by home and type. Manual tasks can be edited,
-                  completed, or removed; reminders open their destination.
-                </p>
-              </div>
-            </div>
+          <div className="flex w-full min-w-0 flex-wrap items-start justify-end gap-4 sm:items-center">
             <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
               <button
                 type="button"
@@ -424,10 +405,7 @@ export function TasksSection({
         wrapBody="none"
         rootElement="div"
       >
-        <div
-          className="village-reveal village-reveal-delay-2 flex flex-col gap-4"
-          aria-labelledby="tasks-inbox-heading"
-        >
+        <div className="village-reveal village-reveal-delay-2 flex flex-col gap-4">
         {tasks.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[color-mix(in_srgb,var(--accent)_24%,var(--line-subtle))] bg-[color-mix(in_srgb,var(--accent)_3%,var(--bg-muted))] px-6 py-8 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--accent)_14%,var(--bg-elevated))] text-[var(--accent-strong)]">
@@ -485,7 +463,10 @@ export function TasksSection({
                     <div className="flex shrink-0 sm:pt-0.5">
                       <Link
                         className="village-btn-primary inline-flex min-h-10 w-full items-center justify-center no-underline sm:w-auto sm:min-w-[10.5rem]"
-                        href={`/dashboard/homes/${task.homeId}/ledger?residentId=${encodeURIComponent(task.residentId)}`}
+                        href={dashboardLedgerHref(
+                          task.homeId,
+                          task.residentId,
+                        )}
                       >
                         Open billing
                       </Link>
@@ -525,7 +506,7 @@ export function TasksSection({
                     <div className="flex shrink-0 sm:pt-0.5">
                       <Link
                         className="village-btn-primary inline-flex min-h-10 w-full items-center justify-center no-underline sm:w-auto sm:min-w-[10.5rem]"
-                        href={`/dashboard/homes/${task.homeId}/residents/${task.residentId}`}
+                        href={dashboardResidentHref(task.residentId)}
                       >
                         Open resident
                       </Link>
@@ -692,7 +673,7 @@ export function TasksSection({
                         </button>
                       </div>
                       <button
-                        className="text-[0.8125rem] font-semibold text-[var(--danger)] underline-offset-2 hover:underline disabled:opacity-50 sm:text-right"
+                        className="cursor-pointer rounded-md px-1 py-0.5 text-[0.8125rem] font-semibold text-[var(--danger)] underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--danger)_35%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 sm:text-right"
                         type="button"
                         disabled={isBusy}
                         onClick={() => void onDelete(task.id)}

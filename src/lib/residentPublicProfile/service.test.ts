@@ -8,9 +8,18 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
-import { residents } from "@/db/schema";
+import {
+  inventoryItemCategories,
+  inventoryItems,
+  residents,
+} from "@/db/schema";
 import { createHome } from "@/lib/homes/service";
 import { NotFoundError } from "@/lib/homes/errors";
+import {
+  createResidentAllergy,
+  createResidentCondition,
+  createResidentMedication,
+} from "@/lib/residents/clinical";
 import { createResident } from "@/lib/residents/service";
 import { createWard } from "@/lib/wards/service";
 import {
@@ -74,6 +83,77 @@ describe("residentPublicProfile", () => {
     expect(profile.wardLabel).toBe("North Wing");
     expect(profile.roomText).toBe("12A");
     expect(profile.hasPortrait).toBe(false);
+    expect(profile.allergies).toEqual([]);
+    expect(profile.conditions).toEqual([]);
+    expect(profile.medications).toEqual([]);
+  });
+
+  it("includes allergies, conditions, and active medications", () => {
+    const db = getDb();
+    const home = createHome(db, "admin", {
+      name: "Sunrise",
+      defaultCurrencyCode: "NZD",
+    });
+    const resident = createResident(db, adminActor, {
+      homeId: home.id,
+      fullName: "Morgan Lee",
+      dob: "1940-05-12",
+      admissionDate: "2024-01-15",
+    });
+    const now = Date.now();
+    const categoryId = "cat-med";
+    db.insert(inventoryItemCategories)
+      .values({
+        id: categoryId,
+        homeId: home.id,
+        name: "Medication",
+        createdAtUtcMs: now,
+        updatedAtUtcMs: now,
+      })
+      .run();
+    db.insert(inventoryItems)
+      .values({
+        id: "item-1",
+        homeId: home.id,
+        categoryId,
+        name: "Metformin",
+        baseUnit: "tablet",
+        unitClass: "countable",
+        createdAtUtcMs: now,
+        updatedAtUtcMs: now,
+      })
+      .run();
+
+    createResidentAllergy(db, adminActor, home.id, resident.id, {
+      allergen: "Penicillin",
+      notes: "Rash",
+    });
+    createResidentCondition(db, adminActor, home.id, resident.id, {
+      label: "Type 2 diabetes",
+    });
+    createResidentMedication(db, adminActor, home.id, resident.id, {
+      itemId: "item-1",
+      quantityPerServing: 1,
+      directions: "Take with breakfast",
+      servingsPerDay: 1,
+      prn: false,
+    });
+
+    const profile = getResidentPublicProfile(db, resident.publicToken!);
+    expect(profile.allergies).toEqual([
+      { allergen: "Penicillin", notes: "Rash" },
+    ]);
+    expect(profile.conditions).toEqual([{ label: "Type 2 diabetes" }]);
+    expect(profile.medications).toEqual([
+      {
+        name: "Metformin",
+        quantityPerServing: 1,
+        unit: "tablet",
+        directions: "Take with breakfast",
+        prn: false,
+        scheduleLabel: "Morning",
+      },
+    ]);
   });
 
   it("throws NotFoundError for unknown tokens", () => {

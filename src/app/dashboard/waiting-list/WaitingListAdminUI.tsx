@@ -10,6 +10,8 @@ import {
   buildLeadGrowthSnapshot,
   INTEREST_LEAD_STATUS_LABELS,
 } from "@/lib/homeInterestLeads/growthMetrics";
+import { useI18n } from "@/lib/i18n/I18nProvider";
+import { translateWith } from "@/lib/i18n/messages";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -58,6 +60,7 @@ export function WaitingListAdminUI({
   homes,
   residentCountByHomeId,
 }: WaitingListAdminUIProps) {
+  const { t, locale } = useI18n();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [statusSavingId, setStatusSavingId] = useState<string | null>(null);
@@ -165,11 +168,9 @@ export function WaitingListAdminUI({
       ) : null}
 
       <section className="village-card p-6 sm:p-8">
-        <h2 className="village-section-title">Growth snapshot</h2>
+        <h2 className="village-section-title">{t("sections.growthSnapshot")}</h2>
         <p className="mt-2 max-w-3xl text-sm text-ink/70">
-          Active pipeline counts new plus contacted enquiries. Win rate compares
-          completed enquiries to all closed outcomes—use alongside occupancy when
-          talking revenue and fill.
+          {t("waitingList.growthHint")}
         </p>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-[color-mix(in_srgb,var(--line-subtle)_74%,transparent)] bg-[color-mix(in_srgb,var(--bg-elevated)_62%,transparent)] px-4 py-3">
@@ -178,8 +179,8 @@ export function WaitingListAdminUI({
               {snapshot.pipelineTotal}
             </span>
             <span className="mt-1 block text-xs text-ink/58">
-              {snapshot.countsByStatus.new} new ·{" "}
-              {snapshot.countsByStatus.contacted} contacted
+              {snapshot.countsByStatus.new} {t("waitingList.statusNew")} ·{" "}
+              {snapshot.countsByStatus.contacted} {t("waitingList.statusContacted")}
             </span>
           </div>
           <div className="rounded-2xl border border-[color-mix(in_srgb,var(--line-subtle)_74%,transparent)] bg-[color-mix(in_srgb,var(--bg-elevated)_62%,transparent)] px-4 py-3">
@@ -188,7 +189,7 @@ export function WaitingListAdminUI({
               {snapshot.closedWon}
             </span>
             <span className="mt-1 block text-xs text-ink/58">
-              Finalized or won enquiries
+              {t("waitingList.finalizedWon")}
             </span>
           </div>
           <div className="rounded-2xl border border-[color-mix(in_srgb,var(--line-subtle)_74%,transparent)] bg-[color-mix(in_srgb,var(--bg-elevated)_62%,transparent)] px-4 py-3">
@@ -197,7 +198,7 @@ export function WaitingListAdminUI({
               {snapshot.cancelledLost}
             </span>
             <span className="mt-1 block text-xs text-ink/58">
-              Won&apos;t proceed
+              {t("waitingList.wontProceed")}
             </span>
           </div>
           <div className="rounded-2xl border border-[color-mix(in_srgb,var(--line-subtle)_74%,transparent)] bg-[color-mix(in_srgb,var(--bg-elevated)_62%,transparent)] px-4 py-3">
@@ -208,13 +209,13 @@ export function WaitingListAdminUI({
                 : `${snapshot.winRatePercent}%`}
             </span>
             <span className="mt-1 block text-xs text-ink/58">
-              Completed ÷ (completed + disqualified)
+              {t("waitingList.winRateFormula")}
             </span>
           </div>
         </div>
 
         <h3 className="mt-10 text-sm font-semibold uppercase tracking-wide text-ink/55">
-          By site
+          {t("waitingList.bySite")}
         </h3>
         <div className="village-table-wrap mt-3">
           <table className="village-table">
@@ -233,7 +234,7 @@ export function WaitingListAdminUI({
                     colSpan={4}
                     className="village-td-muted py-10 text-center"
                   >
-                    No active homes in the public catalogue.
+                    {t("waitingList.noActiveHomes")}
                   </td>
                 </tr>
               ) : (
@@ -246,19 +247,23 @@ export function WaitingListAdminUI({
                           {row.residentCount} / {row.configuredBeds}
                         </>
                       ) : (
-                        <span title="No ward beds configured">
+                        <span title={t("waitingList.noWardBeds")}>
                           {row.residentCount}{" "}
-                          <span className="text-ink/45">· no bed cap</span>
+                          <span className="text-ink/45">
+                            · {t("waitingList.noBedCap")}
+                          </span>
                         </span>
                       )}
                     </td>
                     <td className="village-td-muted tabular-nums text-sm">
                       {row.configuredBeds > 0 ? (
                         row.spareBeds > 0 ? (
-                          `${row.spareBeds} beds`
+                          translateWith(locale, "waitingList.bedsCount", {
+                            count: row.spareBeds,
+                          })
                         ) : (
                           <span className="font-medium text-terracotta">
-                            At capacity
+                            {t("waitingList.atCapacity")}
                           </span>
                         )
                       ) : (
@@ -284,12 +289,14 @@ export function WaitingListAdminUI({
 
       <section className="village-card p-6 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="village-section-title mb-0">Waiting list</h2>
+          <h2 className="village-section-title mb-0">
+            {t("sections.waitingList")}
+          </h2>
           <div className="flex flex-wrap items-center gap-2">
             <div
               className="inline-flex rounded-full border border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] bg-[color-mix(in_srgb,var(--bg-muted)_40%,transparent)] p-0.5"
               role="group"
-              aria-label="Waiting list view"
+              aria-label={t("filters.waitingListView")}
             >
               <button
                 type="button"
@@ -301,7 +308,7 @@ export function WaitingListAdminUI({
                 ].join(" ")}
                 onClick={() => setView("pipeline")}
               >
-                Pipeline
+                {t("waitingList.pipeline")}
               </button>
               <button
                 type="button"
@@ -313,7 +320,7 @@ export function WaitingListAdminUI({
                 ].join(" ")}
                 onClick={() => setView("table")}
               >
-                Table
+                {t("waitingList.table")}
               </button>
             </div>
             <button
@@ -321,14 +328,14 @@ export function WaitingListAdminUI({
               className="village-btn-primary shrink-0 px-3 py-1.5 text-sm"
               onClick={openCreateLeadModal}
             >
-              Add to waiting list
+              {t("buttons.addToWaitingList")}
             </button>
           </div>
         </div>
         <p className="mt-2 text-sm text-ink/70">
           {view === "pipeline"
-            ? "Drag cards between columns or use the status control on each card. Table view keeps a full scan of every field."
-            : "Newest enquiries first."}
+            ? t("waitingList.pipelineHint")
+            : t("waitingList.tableHint")}
         </p>
         {view === "pipeline" ? (
           <div className="mt-5">

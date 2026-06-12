@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Cake, ChevronRight } from "lucide-react";
 import type { DashboardBirthdayEntry } from "@/lib/dashboard/birthdays";
+import { dashboardResidentHref } from "@/lib/dashboard/dashboardRoutes";
 
 type DashboardTodayBirthdaysBannerProps = {
   entries: DashboardBirthdayEntry[];
@@ -45,7 +46,7 @@ export function DashboardTodayBirthdaysBanner({
             {entries.map((row) => (
               <li key={row.residentId}>
                 <Link
-                  href={`/dashboard/homes/${row.homeId}/residents/${row.residentId}`}
+                  href={dashboardResidentHref(row.residentId)}
                   className="group village-lift flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-xl border border-[color-mix(in_srgb,var(--accent)_14%,var(--line-subtle))] bg-[color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-2.5 text-sm no-underline transition sm:flex-nowrap sm:justify-between"
                 >
                   <span className="inline-flex min-w-0 items-center gap-1 font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent-strong)]">

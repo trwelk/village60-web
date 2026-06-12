@@ -102,6 +102,7 @@ describe("GET /api/me/profile", () => {
       displayName: "Pat Example",
       phone: null,
       avatarUrl: null,
+      preferredLocale: "en",
     });
     closeDbConnection();
   });
@@ -195,7 +196,94 @@ describe("PATCH /api/me/profile", () => {
       displayName: "Pat Updated",
       phone: "+1 234 567 8900",
       avatarUrl: null,
+      preferredLocale: "en",
     });
+    closeDbConnection();
+  });
+
+  it("returns 200 when preferred locale is updated", async () => {
+    process.env.DATABASE_PATH = dbPath;
+    const db = getDb();
+    const userId = randomUUID();
+    db.insert(users)
+      .values({
+        id: userId,
+        email: "locale@example.com",
+        passwordHash: "x",
+        role: "admin",
+        failureTimestampsUtcMs: "[]",
+        lockedUntilUtcMs: null,
+        createdAtUtcMs: Date.now(),
+        primaryHomeId: null,
+        displayName: null,
+        phone: null,
+        avatarUrl: null,
+      })
+      .run();
+    closeDbConnection();
+
+    cookieState.seal = await sealData(
+      {
+        userId,
+        email: "locale@example.com",
+        role: "admin",
+      },
+      { password: SESSION_PASSWORD, ttl: SESSION_TTL },
+    );
+
+    process.env.DATABASE_PATH = dbPath;
+    const res = await PATCH(
+      new Request("http://local/api/me/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferredLocale: "ta" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json: unknown = await res.json();
+    expect(json).toMatchObject({ preferredLocale: "ta" });
+    closeDbConnection();
+  });
+
+  it("returns 400 when preferred locale is invalid", async () => {
+    process.env.DATABASE_PATH = dbPath;
+    const db = getDb();
+    const userId = randomUUID();
+    db.insert(users)
+      .values({
+        id: userId,
+        email: "bad-locale@example.com",
+        passwordHash: "x",
+        role: "admin",
+        failureTimestampsUtcMs: "[]",
+        lockedUntilUtcMs: null,
+        createdAtUtcMs: Date.now(),
+        primaryHomeId: null,
+        displayName: null,
+        phone: null,
+        avatarUrl: null,
+      })
+      .run();
+    closeDbConnection();
+
+    cookieState.seal = await sealData(
+      {
+        userId,
+        email: "bad-locale@example.com",
+        role: "admin",
+      },
+      { password: SESSION_PASSWORD, ttl: SESSION_TTL },
+    );
+
+    process.env.DATABASE_PATH = dbPath;
+    const res = await PATCH(
+      new Request("http://local/api/me/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferredLocale: "fr" }),
+      }),
+    );
+    expect(res.status).toBe(400);
     closeDbConnection();
   });
 
