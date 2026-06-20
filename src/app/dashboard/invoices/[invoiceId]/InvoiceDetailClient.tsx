@@ -1,10 +1,11 @@
 "use client";
 
 import { useDashboardWayfinding } from "@/app/dashboard/DashboardWayfinding";
-import { buildDashboardLedgerPath } from "@/lib/billing/dashboardLedgerPath";
-import { utcYearToDatePostedDateRange } from "@/lib/billing/postedDateRange";
 import { buildHubDetailBreadcrumbTrail } from "@/lib/dashboard/nestedBreadcrumbs";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { translateInvoiceStatus } from "@/lib/i18n/invoiceStatus";
+import { localizedBillingMonthLabel } from "@/lib/i18n/localizedMonth";
+import { translateWith } from "@/lib/i18n/messages";
 import { formatCents } from "@/lib/money";
 import type { ResidentBillingAccountSummary } from "@/lib/billing/paymentsLifecycle";
 import { ArrowLeft, PencilLine } from "lucide-react";
@@ -44,7 +45,7 @@ type InvoiceDetail = {
   lineItems: InvoiceLineItem[];
 };
 
-async function parseError(res: Response): Promise<string> {
+async function parseError(res: Response, fallback: string): Promise<string> {
   try {
     const data: unknown = await res.json();
     if (typeof data === "object" && data && "error" in data) {
@@ -54,16 +55,15 @@ async function parseError(res: Response): Promise<string> {
   } catch {
     // ignore
   }
-  return "Request failed.";
+  return fallback;
 }
 
-function formatServiceMonthLabel(month: string | null): string {
+function formatServiceMonthLabel(
+  month: string | null,
+  locale: Parameters<typeof localizedBillingMonthLabel>[0],
+): string {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) return "—";
-  const parts = month.split("-");
-  const y = Number(parts[0]);
-  const m = Number(parts[1]);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return month;
-  return new Date(y, m - 1, 1).toLocaleString(undefined, { month: "long", year: "numeric" });
+  return localizedBillingMonthLabel(locale, month);
 }
 
 type Props = {
@@ -81,7 +81,7 @@ export function InvoiceDetailClient({
   defaultCurrencyCode,
   accounts,
 }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,21 +105,24 @@ export function InvoiceDetailClient({
       return homeName;
     }
     return (
-      accounts.find((a) => a.accountId === invoice.accountId)?.fullName ?? "Unknown resident"
+      accounts.find((a) => a.accountId === invoice.accountId)?.fullName ??
+      t("invoiceDetail.unknownResident")
     );
-  }, [accounts, homeName, invoice]);
+  }, [accounts, invoice, t]);
 
   const invoiceHeading = useMemo(() => {
-    if (!invoice) return "Invoice";
+    if (!invoice) return t("invoiceDetail.invoice");
     const n = invoice.invNo?.trim();
     if (n) return n;
-    return invoice.status === "draft" ? "Draft invoice" : "Invoice";
-  }, [invoice]);
+    return invoice.status === "draft"
+      ? t("invoiceDetail.draftInvoice")
+      : t("invoiceDetail.invoice");
+  }, [invoice, t]);
 
   useLayoutEffect(() => {
     setHomeBreadcrumbs(
       buildHubDetailBreadcrumbTrail(
-        "Invoices",
+        t("nav.invoices"),
         "/dashboard/invoices",
         invoiceHeading,
       ),
@@ -127,37 +130,7 @@ export function InvoiceDetailClient({
     return () => {
       setHomeBreadcrumbs(null);
     };
-  }, [invoiceHeading, setHomeBreadcrumbs]);
-
-  const ledgerHref = useMemo(() => {
-    if (!invoice) {
-      return "/dashboard/ledger";
-    }
-    const atMs = Date.now();
-    const ytd = utcYearToDatePostedDateRange(atMs);
-    const scopeHomeId = invoice.homeId ?? homeId;
-    const accountType = invoice.accountType ?? "resident";
-    if (accountType === "home") {
-      return buildDashboardLedgerPath(
-        scopeHomeId,
-        ytd.postedFrom,
-        ytd.postedTo,
-        ytd.postedFrom,
-        ytd.postedTo,
-        { accountType: "home" },
-      );
-    }
-    const residentId =
-      accounts.find((a) => a.accountId === invoice.accountId)?.residentId ?? null;
-    return buildDashboardLedgerPath(
-      scopeHomeId,
-      ytd.postedFrom,
-      ytd.postedTo,
-      ytd.postedFrom,
-      ytd.postedTo,
-      { accountType: "resident", residentId },
-    );
-  }, [accounts, homeId, invoice]);
+  }, [invoiceHeading, setHomeBreadcrumbs, t]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -165,13 +138,13 @@ export function InvoiceDetailClient({
     try {
       const res = await fetch(`/api/homes/${homeId}/invoices/${invoiceId}`);
       if (!res.ok) {
-        setError(await parseError(res));
+        setError(await parseError(res, t("common.requestFailed")));
         setInvoice(null);
         return;
       }
       const json = (await res.json()) as { invoice?: InvoiceDetail };
       if (!json.invoice || !Array.isArray(json.invoice.lineItems)) {
-        setError("Invoice not found.");
+        setError(t("invoiceDetail.notFound"));
         setInvoice(null);
         return;
       }
@@ -179,7 +152,7 @@ export function InvoiceDetailClient({
     } finally {
       setLoading(false);
     }
-  }, [homeId, invoiceId]);
+  }, [homeId, invoiceId, t]);
 
   useEffect(() => {
     void load();
@@ -205,7 +178,7 @@ export function InvoiceDetailClient({
         }),
       });
       if (!res.ok) {
-        setError(await parseError(res));
+        setError(await parseError(res, t("common.requestFailed")));
         return;
       }
       await load();
@@ -223,7 +196,7 @@ export function InvoiceDetailClient({
         method: "POST",
       });
       if (!res.ok) {
-        setError(await parseError(res));
+        setError(await parseError(res, t("common.requestFailed")));
         return;
       }
       await load();
@@ -242,7 +215,7 @@ export function InvoiceDetailClient({
         { method: "POST" },
       );
       if (!res.ok) {
-        setError(await parseError(res));
+        setError(await parseError(res, t("common.requestFailed")));
         return;
       }
       await load();
@@ -260,7 +233,7 @@ export function InvoiceDetailClient({
         method: "DELETE",
       });
       if (!res.ok) {
-        setError(await parseError(res));
+        setError(await parseError(res, t("common.requestFailed")));
         return;
       }
       await load();
@@ -277,7 +250,7 @@ export function InvoiceDetailClient({
           className="inline-flex items-center gap-1 font-semibold text-pine underline decoration-terracotta/35 underline-offset-[5px] transition hover:text-terracotta hover:decoration-terracotta/60"
         >
           <ArrowLeft size={14} aria-hidden />
-          Back to invoices
+          {t("invoiceDetail.backToInvoices")}
         </Link>
         <span className="text-ink/30" aria-hidden>
           /
@@ -292,7 +265,7 @@ export function InvoiceDetailClient({
       ) : null}
 
       {loading && !invoice ? (
-        <p className="text-sm text-[var(--text-secondary)]">Loading invoice…</p>
+        <p className="text-sm text-[var(--text-secondary)]">{t("loading.invoice")}</p>
       ) : null}
 
       {invoice ? (
@@ -308,33 +281,49 @@ export function InvoiceDetailClient({
             <div className="border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_14%,var(--bg-elevated)_86%)] px-6 py-6 sm:px-8">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="village-kicker text-xs">Billing</p>
+                  <p className="village-kicker text-xs">{t("fields.billing")}</p>
                   <h1 className="mt-2 font-display text-3xl font-normal tracking-tight text-pine-2">
                     {invoiceHeading}
                   </h1>
                   {accountLabel ? (
                     <div className="mt-4 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_55%,transparent)] pt-4">
-                      <p className="village-kicker text-xs">Account</p>
+                      <p className="village-kicker text-xs">{t("fields.account")}</p>
                       <p className="mt-1.5 font-display text-xl font-normal tracking-tight text-pine-2/95">
                         {accountLabel}
                       </p>
                     </div>
                   ) : null}
                 </div>
-                <Link href={ledgerHref} className="village-btn-primary px-4 py-2 text-sm">
-                  Payments
-                </Link>
+                {invoice.status === "finalized" ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="village-btn-primary px-4 py-2 text-sm"
+                      onClick={() => setPayModalOpen(true)}
+                    >
+                      {t("invoiceDetail.markPaid")}
+                    </button>
+                    <button
+                      type="button"
+                      className="village-btn-secondary px-4 py-2 text-sm"
+                      disabled={revertBusy}
+                      onClick={() => void revertToDraft()}
+                    >
+                      {revertBusy ? t("invoiceDetail.reverting") : t("invoiceDetail.backToDraft")}
+                    </button>
+                  </div>
+                ) : null}
               </div>
               <div className="mt-6 grid gap-6 sm:grid-cols-2">
                 <dl className="space-y-3 text-sm">
                   <div>
-                    <dt className="font-medium text-[var(--text-secondary)]">Status</dt>
+                    <dt className="font-medium text-[var(--text-secondary)]">{t("fields.status")}</dt>
                     <dd className="font-semibold uppercase tracking-wide text-[var(--text-primary)]">
-                      {invoice.status}
+                      {translateInvoiceStatus(t, invoice.status)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="font-medium text-[var(--text-secondary)]">Invoice date</dt>
+                    <dt className="font-medium text-[var(--text-secondary)]">{t("fields.invoiceDate")}</dt>
                     <dd className="text-[var(--text-primary)]">
                       {invoice.status === "draft" ? (
                         <input
@@ -366,7 +355,7 @@ export function InvoiceDetailClient({
                 </dl>
                 <dl className="space-y-3 text-sm">
                   <div>
-                    <dt className="font-medium text-[var(--text-secondary)]">Invoice total</dt>
+                    <dt className="font-medium text-[var(--text-secondary)]">{t("fields.invoiceTotal")}</dt>
                     <dd className="text-lg font-semibold text-[var(--text-primary)]">
                       {invoice.totalMinorSnapshot != null
                         ? formatCents(invoice.totalMinorSnapshot, defaultCurrencyCode)
@@ -374,7 +363,7 @@ export function InvoiceDetailClient({
                     </dd>
                   </div>
                   <div>
-                    <dt className="font-medium text-[var(--text-secondary)]">Updated</dt>
+                    <dt className="font-medium text-[var(--text-secondary)]">{t("fields.updated")}</dt>
                     <dd className="tabular-nums text-[var(--text-primary)]">
                       {new Date(invoice.updatedAtUtcMs).toLocaleString()}
                     </dd>
@@ -387,11 +376,11 @@ export function InvoiceDetailClient({
           <section className="village-panel-card overflow-hidden">
             <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_18%,var(--bg-elevated)_82%)] px-5 py-4 sm:px-6">
               <div>
-                <h2 className="font-display text-lg font-semibold text-[var(--text-primary)]">Invoice lines</h2>
+                <h2 className="font-display text-lg font-semibold text-[var(--text-primary)]">{t("fields.invoiceLines")}</h2>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
                   {invoice.status === "draft"
-                    ? "Add lines or edit them in place with Edit. Save saves the invoice date and lines on this draft."
-                    : "Posted invoice lines are read-only."}
+                    ? t("invoiceDetail.draftLinesHint")
+                    : t("invoiceDetail.postedLinesReadOnly")}
                 </p>
               </div>
               <button
@@ -400,24 +389,24 @@ export function InvoiceDetailClient({
                 onClick={() => setLineModalOpen(true)}
                 disabled={invoice.status !== "draft"}
               >
-                Add line
+                {t("buttons.addLine")}
               </button>
             </header>
 
             <div className="px-5 py-6 sm:px-6">
               {invoice.lineItems.length === 0 ? (
-                <p className="text-sm text-[var(--text-secondary)]">No lines yet. Use Add line to create one.</p>
+                <p className="text-sm text-[var(--text-secondary)]">{t("empty.noLines")}</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead>
                       <tr className="border-b border-[var(--line)] text-left text-[var(--text-secondary)]">
-                        <th className="px-5 py-3 font-medium sm:px-6">Category</th>
-                        <th className="px-5 py-3 font-medium">Description</th>
-                        <th className="whitespace-nowrap px-5 py-3 font-medium">Service month</th>
-                        <th className="whitespace-nowrap px-5 py-3 text-right font-medium">Amount</th>
+                        <th className="px-5 py-3 font-medium sm:px-6">{t("fields.category")}</th>
+                        <th className="px-5 py-3 font-medium">{t("fields.description")}</th>
+                        <th className="whitespace-nowrap px-5 py-3 font-medium">{t("fields.serviceMonth")}</th>
+                        <th className="whitespace-nowrap px-5 py-3 text-right font-medium">{t("fields.amount")}</th>
                         {invoice.status === "draft" ? (
-                          <th className="px-5 py-3 text-right font-medium sm:px-6">Actions</th>
+                          <th className="px-5 py-3 text-right font-medium sm:px-6">{t("fields.actions")}</th>
                         ) : null}
                       </tr>
                     </thead>
@@ -434,7 +423,7 @@ export function InvoiceDetailClient({
                             <span className="line-clamp-2">{line.description.trim() || "—"}</span>
                           </td>
                           <td className="whitespace-nowrap px-5 py-2.5 text-[var(--text-secondary)]">
-                            {formatServiceMonthLabel(line.serviceMonth)}
+                            {formatServiceMonthLabel(line.serviceMonth, locale)}
                           </td>
                           <td className="whitespace-nowrap px-5 py-2.5 text-right tabular-nums font-semibold text-[var(--text-primary)]">
                             {formatCents(line.amountMinor, defaultCurrencyCode)}
@@ -447,7 +436,7 @@ export function InvoiceDetailClient({
                                 onClick={() => setEditingLine(line)}
                               >
                                 <PencilLine size={14} aria-hidden />
-                                Edit
+                                {t("buttons.edit")}
                               </button>
                             </td>
                           ) : null}
@@ -466,7 +455,7 @@ export function InvoiceDetailClient({
                     disabled={saveBusy}
                     onClick={() => void saveDraftEdits()}
                   >
-                    {saveBusy ? "Saving…" : "Save draft"}
+                    {saveBusy ? t("buttons.saving") : t("buttons.saveDraft")}
                   </button>
                   <button
                     type="button"
@@ -474,30 +463,13 @@ export function InvoiceDetailClient({
                     disabled={finalizeBusy}
                     onClick={() => void finalizeDraft()}
                   >
-                    {finalizeBusy ? "Finalizing…" : "Finalize invoice"}
+                    {finalizeBusy ? t("buttons.finalizing") : t("buttons.finalizeInvoice")}
                   </button>
                 </div>
               ) : invoice.status === "finalized" ? (
-                <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    {t("invoiceDetail.finalizedHint")}
-                  </p>
-                  <button
-                    type="button"
-                    className="village-btn-primary px-4 py-2 text-sm"
-                    onClick={() => setPayModalOpen(true)}
-                  >
-                    {t("invoiceDetail.markPaid")}
-                  </button>
-                  <button
-                    type="button"
-                    className="village-btn-secondary px-4 py-2 text-sm"
-                    disabled={revertBusy}
-                    onClick={() => void revertToDraft()}
-                  >
-                    {revertBusy ? t("invoiceDetail.reverting") : t("invoiceDetail.backToDraft")}
-                  </button>
-                </div>
+                <p className="mt-6 text-sm text-[var(--text-secondary)]">
+                  {t("invoiceDetail.finalizedHint")}
+                </p>
               ) : invoice.status === "paid" ? (
                 <div className="mt-6 flex flex-col gap-4">
                   <p className="text-sm text-[var(--text-secondary)]">
@@ -550,7 +522,9 @@ export function InvoiceDetailClient({
                 </div>
               ) : (
                 <p className="mt-6 text-sm text-[var(--text-secondary)]">
-                  This invoice is {invoice.status}.
+                  {translateWith(locale, "invoiceDetail.statusMessage", {
+                    status: translateInvoiceStatus(t, invoice.status),
+                  })}
                 </p>
               )}
             </div>

@@ -8,6 +8,7 @@ import {
 import { VillageSelect } from "@/components/VillageSelect";
 import { dashboardStaffHref } from "@/lib/dashboard/dashboardRoutes";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { localizedMonthOptions } from "@/lib/i18n/localizedMonth";
 import { translateWith } from "@/lib/i18n/messages";
 import { DEFAULT_CURRENCY_CODE } from "@/lib/homes/service";
 import { formatCents } from "@/lib/money";
@@ -24,21 +25,6 @@ type StaffWithRemittance = StaffSalary & {
 };
 
 type Props = { homes: HomeOption[] };
-
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
 
 export function RemittanceUI({ homes }: Props) {
   const { t, locale } = useI18n();
@@ -183,10 +169,7 @@ export function RemittanceUI({ homes }: Props) {
     return { value: String(y), label: String(y) };
   });
 
-  const monthOptions = MONTHS.map((label, i) => ({
-    value: String(i + 1),
-    label,
-  }));
+  const monthOptions = localizedMonthOptions(locale);
 
   return (
     <VillageList

@@ -11,7 +11,7 @@ import {
   INVOICE_MODAL_PRIMARY_BTN_CLASS,
 } from "./invoiceModalStyles";
 
-async function parseError(res: Response): Promise<string> {
+async function parseError(res: Response, fallback: string): Promise<string> {
   try {
     const data: unknown = await res.json();
     if (typeof data === "object" && data && "error" in data) {
@@ -21,7 +21,7 @@ async function parseError(res: Response): Promise<string> {
   } catch {
     // ignore
   }
-  return "Request failed.";
+  return fallback;
 }
 
 function useBodyScrollLock(open: boolean, onEscape: () => void) {
@@ -104,7 +104,7 @@ export function MarkInvoicePaidModal({
         },
       );
       if (!res.ok) {
-        setFormError(await parseError(res));
+        setFormError(await parseError(res, t("common.requestFailed")));
         return;
       }
       await onPaid();

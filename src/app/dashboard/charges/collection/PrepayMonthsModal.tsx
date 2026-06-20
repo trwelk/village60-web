@@ -9,6 +9,7 @@ import {
 import { VillageSelect } from "@/components/VillageSelect";
 import { shiftBillingMonth, utcBillingMonthFromMs } from "@/lib/billing/billingMonth";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { localizedBillingMonthLabel } from "@/lib/i18n/localizedMonth";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -28,26 +29,11 @@ type Props = {
   onComplete: () => void | Promise<void>;
 };
 
-const MONTH_LABELS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-] as const;
-
-function formatMonthLabel(ym: string): string {
-  const [y, m] = ym.split("-");
-  const monthIndex = Number(m) - 1;
-  const label = MONTH_LABELS[monthIndex] ?? m;
-  return `${label} ${y}`;
+function formatMonthLabel(
+  ym: string,
+  locale: Parameters<typeof localizedBillingMonthLabel>[0],
+): string {
+  return localizedBillingMonthLabel(locale, ym);
 }
 
 function futureMonthOptions(count: number): string[] {
@@ -59,7 +45,7 @@ function futureMonthOptions(count: number): string[] {
   return out;
 }
 
-async function parseError(res: Response): Promise<string> {
+async function parseError(res: Response, fallback: string): Promise<string> {
   try {
     const data: unknown = await res.json();
     if (typeof data === "object" && data && "error" in data) {
@@ -69,7 +55,7 @@ async function parseError(res: Response): Promise<string> {
   } catch {
     // ignore
   }
-  return "Request failed.";
+  return fallback;
 }
 
 function useBodyScrollLock(open: boolean, onEscape: () => void) {
@@ -96,7 +82,7 @@ export function PrepayMonthsModal({
   onClose,
   onComplete,
 }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const monthOptions = useMemo(() => futureMonthOptions(12), []);
   const [residentId, setResidentId] = useState("");
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
@@ -185,7 +171,7 @@ export function PrepayMonthsModal({
         body: JSON.stringify({ residentId, months: selectedMonths }),
       });
       if (!res.ok) {
-        setFormError(await parseError(res));
+        setFormError(await parseError(res, t("common.requestFailed")));
         return;
       }
       const data = (await res.json()) as {
@@ -332,7 +318,7 @@ export function PrepayMonthsModal({
                           onChange={() => toggleMonth(ym)}
                         />
                         <span className={`font-medium ${checked ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>
-                          {formatMonthLabel(ym)}
+                          {formatMonthLabel(ym, locale)}
                         </span>
                       </label>
                     );

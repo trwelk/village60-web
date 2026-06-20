@@ -402,6 +402,83 @@ const HOME_DEFS: HomeDef[] = [
       },
     ],
   },
+  {
+    id: "seed-home-oceanview",
+    name: "Ocean View Care Centre",
+    address: "7 Galle Road, Matara",
+    wards: [
+      {
+        id: "seed-ward-ov-main",
+        label: "Main Care",
+        sortOrder: 1,
+        bedCount: 28,
+        monthlyRateMinor: 62_000_00,
+      },
+      {
+        id: "seed-ward-ov-palliative",
+        label: "Palliative Care",
+        sortOrder: 2,
+        bedCount: 12,
+        monthlyRateMinor: 88_000_00,
+      },
+      {
+        id: "seed-ward-ov-rehab",
+        label: "Rehabilitation",
+        sortOrder: 3,
+        bedCount: 16,
+        monthlyRateMinor: 70_000_00,
+      },
+      {
+        id: "seed-ward-ov-memory",
+        label: "Secure Memory",
+        sortOrder: 4,
+        bedCount: 14,
+        monthlyRateMinor: 80_000_00,
+      },
+      {
+        id: "seed-ward-ov-respite",
+        label: "Respite",
+        sortOrder: 5,
+        bedCount: 8,
+        monthlyRateMinor: 55_000_00,
+      },
+    ],
+  },
+  {
+    id: "seed-home-hilltop",
+    name: "Hilltop Retirement Village",
+    address: "3 Gregory Lake Road, Nuwara Eliya",
+    wards: [
+      {
+        id: "seed-ward-ht-assisted",
+        label: "Assisted Living",
+        sortOrder: 1,
+        bedCount: 20,
+        monthlyRateMinor: 60_000_00,
+      },
+      {
+        id: "seed-ward-ht-skilled",
+        label: "Skilled Nursing",
+        sortOrder: 2,
+        bedCount: 18,
+        monthlyRateMinor: 72_000_00,
+      },
+      {
+        id: "seed-ward-ht-dementia",
+        label: "Dementia Care",
+        sortOrder: 3,
+        bedCount: 12,
+        monthlyRateMinor: 85_000_00,
+      },
+      {
+        id: "seed-ward-ht-shortstay",
+        label: "Short Stay",
+        sortOrder: 4,
+        bedCount: 6,
+        monthlyRateMinor: 52_000_00,
+      },
+    ],
+  },
 ];
 
 const RESIDENT_DEFS = [
@@ -413,6 +490,30 @@ const RESIDENT_DEFS = [
   { homeIdx: 1, wardIdx: 0, fullName: "Anoma Rajapaksa", dob: "1943-06-12", room: "114" },
   { homeIdx: 1, wardIdx: 1, fullName: "Priya Bandara", dob: "1941-12-08", room: "401" },
   { homeIdx: 1, wardIdx: 1, fullName: "Lasantha Mendis", dob: "1937-04-25", room: "402" },
+  // Ocean View — 5 wards, 2–3 residents each
+  { homeIdx: 2, wardIdx: 0, fullName: "Dilani Gunasekara", dob: "1944-02-11", room: "101" },
+  { homeIdx: 2, wardIdx: 0, fullName: "Ajith Wijesinghe", dob: "1936-08-19", room: "103" },
+  { homeIdx: 2, wardIdx: 0, fullName: "Sandya Ekanayake", dob: "1940-05-27", room: "105" },
+  { homeIdx: 2, wardIdx: 1, fullName: "Bandula Ratnayake", dob: "1935-11-03", room: "201" },
+  { homeIdx: 2, wardIdx: 1, fullName: "Chitra Abeysekera", dob: "1938-12-14", room: "203" },
+  { homeIdx: 2, wardIdx: 2, fullName: "Upul Dissanayake", dob: "1943-07-08", room: "301" },
+  { homeIdx: 2, wardIdx: 2, fullName: "Nirosha Peiris", dob: "1946-01-22", room: "304" },
+  { homeIdx: 2, wardIdx: 2, fullName: "Gamini Herath", dob: "1939-04-16", room: "306" },
+  { homeIdx: 2, wardIdx: 3, fullName: "Lalith Senanayake", dob: "1942-09-30", room: "401" },
+  { homeIdx: 2, wardIdx: 3, fullName: "Indira Weerasinghe", dob: "1945-03-05", room: "405" },
+  { homeIdx: 2, wardIdx: 4, fullName: "Thilini Karunaratne", dob: "1947-06-18", room: "501" },
+  { homeIdx: 2, wardIdx: 4, fullName: "Mahesh Ranasinghe", dob: "1941-10-09", room: "502" },
+  // Hilltop — 4 wards, 2–3 residents each
+  { homeIdx: 3, wardIdx: 0, fullName: "Harsha de Silva", dob: "1943-08-24", room: "A12" },
+  { homeIdx: 3, wardIdx: 0, fullName: "Kumari Jayasinghe", dob: "1937-02-07", room: "A14" },
+  { homeIdx: 3, wardIdx: 0, fullName: "Ravi Alwis", dob: "1940-11-29", room: "A16" },
+  { homeIdx: 3, wardIdx: 1, fullName: "Shanthi Wijeratne", dob: "1936-05-13", room: "B08" },
+  { homeIdx: 3, wardIdx: 1, fullName: "Nishantha Perera", dob: "1938-09-21", room: "B10" },
+  { homeIdx: 3, wardIdx: 2, fullName: "Geetha Fonseka", dob: "1944-04-02", room: "C03" },
+  { homeIdx: 3, wardIdx: 2, fullName: "Wasantha Goonetilleke", dob: "1935-12-26", room: "C05" },
+  { homeIdx: 3, wardIdx: 3, fullName: "Dinesh Navaratne", dob: "1946-07-15", room: "D01" },
+  { homeIdx: 3, wardIdx: 3, fullName: "Priyanka Munasinghe", dob: "1942-01-31", room: "D02" },
+  { homeIdx: 3, wardIdx: 3, fullName: "Saman Kumara", dob: "1939-06-08", room: "D04" },
 ] as const;
 
 const CARE_USERS = [
@@ -434,7 +535,24 @@ const CARE_USERS = [
     displayName: "Chathuri Kumari",
     homeIdx: 1,
   },
+  {
+    id: "seed-user-care-04",
+    email: "care.04@example.com",
+    displayName: "Tharindu Jayawardena",
+    homeIdx: 2,
+  },
+  {
+    id: "seed-user-care-05",
+    email: "care.05@example.com",
+    displayName: "Ishara Wickramasinghe",
+    homeIdx: 3,
+  },
 ] as const;
+
+/** First care user assigned as nurse per home (by `homeIdx`). */
+const PRIMARY_CARE_USER_BY_HOME = new Map<number, string>(
+  CARE_USERS.map((u) => [u.homeIdx, u.id]),
+);
 
 function wipeAllApplicationRows() {
   closeDbConnection();
@@ -741,7 +859,8 @@ async function main() {
         poaName: null,
         poaContact: null,
         poaRelationship: null,
-        assignedNurseUserId: CARE_USERS[def.homeIdx === 0 ? 0 : 2].id,
+        assignedNurseUserId:
+          PRIMARY_CARE_USER_BY_HOME.get(def.homeIdx) ?? CARE_USERS[0].id,
         assignedNurseDisplayOverride: null,
         portraitStoredRelativePath: null,
         portraitContentType: null,
@@ -814,6 +933,34 @@ async function main() {
       fullName: "Sunil Karunaratne",
       roleTitle: "Night Porter",
       monthlySalaryMinor: 72_000_00,
+    },
+    {
+      homeIdx: 2,
+      userId: CARE_USERS[3].id,
+      fullName: CARE_USERS[3].displayName,
+      roleTitle: "Registered Nurse",
+      monthlySalaryMinor: 118_000_00,
+    },
+    {
+      homeIdx: 2,
+      userId: null,
+      fullName: "Kasun Ratnayake",
+      roleTitle: "Care Assistant",
+      monthlySalaryMinor: 82_000_00,
+    },
+    {
+      homeIdx: 3,
+      userId: CARE_USERS[4].id,
+      fullName: CARE_USERS[4].displayName,
+      roleTitle: "Registered Nurse",
+      monthlySalaryMinor: 122_000_00,
+    },
+    {
+      homeIdx: 3,
+      userId: null,
+      fullName: "Niluka Fernando",
+      roleTitle: "Activities Coordinator",
+      monthlySalaryMinor: 78_000_00,
     },
   ] as const;
 

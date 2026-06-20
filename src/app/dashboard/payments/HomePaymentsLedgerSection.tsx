@@ -11,6 +11,8 @@ import {
 import type { HomeAccountPaymentLedgerRow } from "@/lib/billing/homeAccounts";
 import type { HomeMonthlyPaymentLedgerRow } from "@/lib/billing/residentCharges";
 import type { DashboardHomeOption } from "@/lib/dashboard/charts";
+import { useI18n } from "@/lib/i18n/I18nProvider";
+import { translateWith } from "@/lib/i18n/messages";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
@@ -61,6 +63,7 @@ export function HomePaymentsLedgerSection({
   defaultCurrencyCode,
   ledger,
 }: Props) {
+  const { t, locale } = useI18n();
   const router = useRouter();
   const { rows, totalCount, page, pageSize } = ledger;
   const [accountTypeDraft, setAccountTypeDraft] =
@@ -72,10 +75,10 @@ export function HomePaymentsLedgerSection({
   const accountTypeOptions = useMemo(
     () =>
       [
-        { value: "resident" as const, label: "Resident" },
-        { value: "home" as const, label: "Home" },
+        { value: "resident" as const, label: t("fields.resident") },
+        { value: "home" as const, label: t("fields.home") },
       ] as const,
-    [],
+    [t],
   );
 
   useEffect(() => {
@@ -86,15 +89,13 @@ export function HomePaymentsLedgerSection({
 
   if (homes.length === 0) {
     return (
-      <p className="village-muted mt-4">
-        No active retirement homes yet. Payment history appears after homes exist.
-      </p>
+      <p className="village-muted mt-4">{t("paymentsLedger.noHomesYet")}</p>
     );
   }
 
   const selectedHomeName =
     homes.find((home) => home.homeId === selectedHomeId)?.homeName ??
-    "Selected home";
+    t("paymentsLedger.selectedHome");
   const visibleAmountMinor = rows.reduce((sum, row) => sum + row.amountMinor, 0);
   const uniqueResidentCount =
     ledger.kind === "resident"
@@ -130,7 +131,7 @@ export function HomePaymentsLedgerSection({
               className="village-btn-secondary shrink-0"
               onClick={() => router.refresh()}
             >
-              Refresh
+              {t("buttons.refresh")}
             </button>
           </div>
         }
@@ -147,7 +148,7 @@ export function HomePaymentsLedgerSection({
           }
         >
           <label className="flex min-w-0 flex-col gap-2 text-sm">
-            <span className="village-label">Account type</span>
+            <span className="village-label">{t("fields.accountType")}</span>
             <VillageSelect
               value={accountTypeDraft}
               onChange={(v) => {
@@ -161,7 +162,7 @@ export function HomePaymentsLedgerSection({
             />
           </label>
           <label className="flex min-w-0 flex-col gap-2 text-sm">
-            <span className="village-label">Home</span>
+            <span className="village-label">{t("fields.home")}</span>
             <VillageSelect
               id="payments-ledger-home"
               value={homeDraft}
@@ -177,19 +178,19 @@ export function HomePaymentsLedgerSection({
           </label>
           {accountTypeDraft === "resident" ? (
             <label className="flex min-w-0 flex-col gap-2 text-sm">
-              <span className="village-label">Resident (optional)</span>
+              <span className="village-label">{t("fields.residentOptional")}</span>
               <VillageSelect
                 id="payments-ledger-resident"
                 value={residentDraft}
                 onChange={setResidentDraft}
                 options={[
-                  { value: "", label: "All residents" },
+                  { value: "", label: t("paymentsLedger.allResidents") },
                   ...residentOptions.map((resident) => ({
                     value: resident.residentId,
                     label:
                       resident.residentStatus === "active"
                         ? resident.residentFullName
-                        : `${resident.residentFullName} (Departed)`,
+                        : `${resident.residentFullName} ${t("paymentsLedger.departedSuffix")}`,
                   })),
                 ]}
               />
@@ -218,24 +219,24 @@ export function HomePaymentsLedgerSection({
               });
             }}
           >
-            {isApplyingFilters ? "Applying..." : "Apply filters"}
+            {isApplyingFilters ? t("buttons.applying") : t("buttons.applyFilters")}
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-3 border-t border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] pt-4 text-sm text-[var(--text-secondary)]">
           <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)] px-3 py-1.5 font-medium text-[var(--text-primary)]">
-            {selectedAccountType === "home" ? "Home" : "Resident"} ·{" "}
+            {selectedAccountType === "home" ? t("fields.home") : t("fields.resident")} ·{" "}
             {selectedHomeName}
           </span>
           {selectedAccountType === "resident" ? (
             selectedResidentId ? (
               <span className="rounded-xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--text-secondary)]">
-                Filtered to one resident
+                {t("paymentsLedger.filteredToOneResident")}
               </span>
             ) : (
-              <span>Showing all residents in this home.</span>
+              <span>{t("dashboard.showingAllResidents")}</span>
             )
           ) : (
-            <span>Shows operating (home) payments for the selected facility.</span>
+            <span>{t("paymentsLedger.operatingPaymentsHint")}</span>
           )}
         </div>
           </div>
@@ -246,46 +247,52 @@ export function HomePaymentsLedgerSection({
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
               <p className="font-mono text-[0.58rem] font-medium uppercase tracking-[0.16em] text-[color:color-mix(in_srgb,var(--text-muted)_88%,transparent)]">
-                Visible payments
+                {t("paymentsLedger.visiblePayments")}
               </p>
               <p className="mt-2 text-3xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-[2.1rem]">
                 {formatMinorAsCurrency(visibleAmountMinor, defaultCurrencyCode)}
               </p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                {rows.length} payment{rows.length === 1 ? "" : "s"} on this page
+                {rows.length === 1
+                  ? t("paymentsLedger.paymentsOnPageOne")
+                  : translateWith(locale, "paymentsLedger.paymentsOnPageMany", {
+                      count: rows.length,
+                    })}
               </p>
             </div>
             <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--line-strong)_58%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
               <p className="font-mono text-[0.58rem] font-medium uppercase tracking-[0.16em] text-[color:color-mix(in_srgb,var(--text-muted)_88%,transparent)]">
-                {ledger.kind === "resident" ? "Residents" : "Account"}
+                {ledger.kind === "resident" ? t("nav.residents") : t("fields.account")}
               </p>
               <p className="mt-2 text-3xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-[2.1rem]">
                 {uniqueResidentCount}
               </p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
                 {ledger.kind === "resident"
-                  ? "represented on this page"
+                  ? t("paymentsLedger.representedOnPage")
                   : rows.length > 0
-                    ? "home operating ledger"
-                    : "no rows on this page"}
+                    ? t("paymentsLedger.homeOperatingLedger")
+                    : t("paymentsLedger.noRowsOnPage")}
               </p>
             </div>
             <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--danger)_38%,var(--line-strong)_62%)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_90%,transparent)] p-4 shadow-sm">
               <p className="font-mono text-[0.58rem] font-medium uppercase tracking-[0.16em] text-[color:color-mix(in_srgb,var(--text-muted)_88%,transparent)]">
-                Ledger depth
+                {t("paymentsLedger.ledgerDepth")}
               </p>
               <p className="mt-2 text-3xl font-semibold tracking-tight text-[var(--danger)] sm:text-[2.1rem]">
                 {totalCount}
               </p>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                total recorded payment{totalCount === 1 ? "" : "s"}
+                {totalCount === 1
+                  ? t("paymentsLedger.totalRecordedOne")
+                  : t("paymentsLedger.totalRecordedMany")}
               </p>
             </div>
           </div>
 
           <div>
             <p className="mb-3 text-sm font-semibold text-[var(--text-primary)]">
-              Payment ledger
+              {t("paymentsLedger.paymentLedger")}
             </p>
             <VillageListPagination
               className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
@@ -326,41 +333,41 @@ export function HomePaymentsLedgerSection({
             <div className="flex flex-col gap-1 border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--bg-elevated)_94%,transparent),color-mix(in_srgb,var(--bg-muted)_88%,transparent))] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                  Ledger table
+                  {t("paymentsLedger.ledgerTable")}
                 </p>
                 <h2 className="text-base font-semibold text-[var(--text-primary)]">
-                  Recorded payment details
+                  {t("paymentsLedger.recordedPaymentDetails")}
                 </h2>
               </div>
             </div>
             <div className="overflow-x-auto">
             <table
               data-testid="payments-ledger-table"
-              aria-label="Monthly payment ledger"
+              aria-label={t("aria.monthlyPaymentLedger")}
               className="min-w-full border-collapse text-left text-sm"
             >
               <thead>
                 <tr className="border-b border-[color:color-mix(in_srgb,var(--line-subtle)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_82%,transparent)]">
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    Paid on
+                    {t("invoiceDetail.paidOn")}
                   </th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    Amount
+                    {t("fields.amount")}
                   </th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    {ledger.kind === "home" ? "Account" : "Resident"}
+                    {ledger.kind === "home" ? t("fields.account") : t("fields.resident")}
                   </th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    Status
+                    {t("fields.status")}
                   </th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    Billing month
+                    {t("paymentsLedger.billingMonth")}
                   </th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    Notes
+                    {t("fields.notes")}
                   </th>
                   <th scope="col" className="px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    Recorded by
+                    {t("paymentsLedger.recordedBy")}
                   </th>
                 </tr>
               </thead>
@@ -374,13 +381,13 @@ export function HomePaymentsLedgerSection({
                       <div className="mx-auto max-w-md rounded-2xl border border-dashed border-[color:color-mix(in_srgb,var(--line-strong)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-muted)_74%,transparent)] px-6 py-7">
                         <p className="font-semibold text-[var(--text-primary)]">
                           {ledger.kind === "home"
-                            ? "No recorded home operating payments yet."
-                            : "No recorded monthly payments for this home yet."}
+                            ? t("paymentsLedger.noHomePayments")
+                            : t("paymentsLedger.noResidentPayments")}
                         </p>
                         <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
                           {ledger.kind === "home"
-                            ? "Payments to the facility operating account appear here after invoices are marked paid."
-                            : "Invoice payments appear here after invoices are marked paid from invoice detail or monthly collection."}
+                            ? t("paymentsLedger.homePaymentsHint")
+                            : t("paymentsLedger.residentPaymentsHint")}
                         </p>
                       </div>
                     </td>
@@ -401,11 +408,11 @@ export function HomePaymentsLedgerSection({
                         )}
                       </td>
                       <td className="px-5 py-4 font-semibold text-[var(--text-primary)]">
-                        Home operating
+                        {t("paymentsLedger.homeOperating")}
                       </td>
                       <td className="px-5 py-4 capitalize text-[var(--text-primary)]">
                         <span className="rounded-full border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)]">
-                          Operating
+                          {t("paymentsLedger.operating")}
                         </span>
                       </td>
                       <td className="px-5 py-4 font-mono text-xs tabular-nums text-[var(--text-secondary)]">
@@ -444,7 +451,9 @@ export function HomePaymentsLedgerSection({
                       </td>
                       <td className="px-5 py-4 capitalize text-[var(--text-primary)]">
                         <span className="rounded-full border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)]">
-                          {row.residentStatus === "active" ? "Active" : "Departed"}
+                          {row.residentStatus === "active"
+                            ? t("common.active")
+                            : t("common.departed")}
                         </span>
                       </td>
                       <td className="px-5 py-4 font-mono text-xs tabular-nums text-[var(--text-secondary)]">

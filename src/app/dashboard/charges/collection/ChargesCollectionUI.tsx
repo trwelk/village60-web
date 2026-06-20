@@ -10,6 +10,7 @@ import { MarkInvoicePaidModal } from "@/app/dashboard/invoices/MarkInvoicePaidMo
 import { PrepayMonthsModal } from "./PrepayMonthsModal";
 import { resolveSelectedHomeId } from "@/lib/dashboard/resolveSelectedHomeId";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { localizedMonthOptions } from "@/lib/i18n/localizedMonth";
 import { DEFAULT_CURRENCY_CODE } from "@/lib/homes/service";
 import { formatCents } from "@/lib/money";
 import Link from "next/link";
@@ -44,23 +45,8 @@ type Summary = {
 
 type Props = { homes: HomeOption[] };
 
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
 export function ChargesCollectionUI({ homes }: Props) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const searchParams = useSearchParams();
 
   const now = new Date();
@@ -202,10 +188,7 @@ export function ChargesCollectionUI({ homes }: Props) {
     return { value: String(y), label: String(y) };
   });
 
-  const monthOptions = MONTHS.map((label, i) => ({
-    value: String(i + 1),
-    label,
-  }));
+  const monthOptions = localizedMonthOptions(locale);
 
   const unpaidCharges = charges.filter(
     (c) => !c.paid && c.invoiceStatus === "finalized",
@@ -435,17 +418,17 @@ export function ChargesCollectionUI({ homes }: Props) {
                     )}
                   </td>
                   <td className="village-td">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-nowrap items-center gap-2">
                       <Link
                         href={`/dashboard/invoices/${encodeURIComponent(c.invoiceId)}?homeId=${encodeURIComponent(homeId)}`}
-                        className="text-xs font-semibold text-pine underline decoration-terracotta/35 underline-offset-2 hover:text-terracotta"
+                        className="village-btn-secondary shrink-0 whitespace-nowrap px-3 py-1 text-xs"
                       >
                         {t("chargesCollection.openInvoice")}
                       </Link>
                       {canMarkPaid ? (
                         <button
                           type="button"
-                          className="village-btn-primary text-xs"
+                          className="village-btn-primary shrink-0 whitespace-nowrap px-3 py-1 text-xs"
                           disabled={
                             submitting === c.invoiceId ||
                             submitting === "__all__"

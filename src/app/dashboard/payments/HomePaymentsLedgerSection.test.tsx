@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import { HomePaymentsLedgerSection } from "./HomePaymentsLedgerSection";
 
 const mockPush = vi.fn();
@@ -9,6 +10,14 @@ const mockRefresh = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, refresh: mockRefresh }),
 }));
+
+function renderWithI18n(ui: React.ReactElement) {
+  return render(<I18nProvider initialLocale="en">{ui}</I18nProvider>);
+}
+
+function openFilters() {
+  fireEvent.click(screen.getByRole("button", { name: /Filters/i }));
+}
 
 afterEach(() => {
   cleanup();
@@ -37,7 +46,7 @@ const sampleRow = {
 
 describe("HomePaymentsLedgerSection (20a)", () => {
   it("stacks the home filter card above the ledger body so the Home menu is not covered", () => {
-    render(
+    renderWithI18n(
       <HomePaymentsLedgerSection
         homes={[{ homeId: "h1", homeName: "Home One" }]}
         selectedHomeId="h1"
@@ -54,12 +63,13 @@ describe("HomePaymentsLedgerSection (20a)", () => {
         }}
       />,
     );
+    openFilters();
     const panel = screen.getByTestId("payments-ledger-filters");
     expect(panel).toHaveClass("relative", "z-20");
   });
 
   it("renders the ledger table and range text", () => {
-    render(
+    renderWithI18n(
       <HomePaymentsLedgerSection
         homes={[{ homeId: "h1", homeName: "Home One" }]}
         selectedHomeId="h1"
@@ -85,7 +95,7 @@ describe("HomePaymentsLedgerSection (20a)", () => {
   });
 
   it("navigates to next page and selects another home (page resets to 1)", async () => {
-    render(
+    renderWithI18n(
       <HomePaymentsLedgerSection
         homes={[
           { homeId: "h1", homeName: "A" },
@@ -123,6 +133,7 @@ describe("HomePaymentsLedgerSection (20a)", () => {
       expect.stringMatching(/[?&]page=2/),
     );
 
+    openFilters();
     fireEvent.click(screen.getByLabelText("Home"));
     await waitFor(() => {
       expect(screen.getByRole("listbox")).toBeInTheDocument();
@@ -136,7 +147,7 @@ describe("HomePaymentsLedgerSection (20a)", () => {
   });
 
   it("applies resident filter and clears resident from URL", async () => {
-    render(
+    renderWithI18n(
       <HomePaymentsLedgerSection
         homes={[{ homeId: "h1", homeName: "Home One" }]}
         selectedHomeId="h1"
@@ -165,6 +176,7 @@ describe("HomePaymentsLedgerSection (20a)", () => {
       />,
     );
 
+    openFilters();
     fireEvent.click(screen.getByLabelText("Resident (optional)"));
     await waitFor(() => {
       expect(screen.getByRole("listbox")).toBeInTheDocument();

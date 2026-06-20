@@ -1,6 +1,9 @@
 "use client";
 
 import type { InvoiceListItem } from "@/lib/billing/invoiceLifecycle";
+import { useI18n } from "@/lib/i18n/I18nProvider";
+import { translateInvoiceStatus } from "@/lib/i18n/invoiceStatus";
+import { translateWith } from "@/lib/i18n/messages";
 import { formatCents } from "@/lib/money";
 import type { ResidentBillingAccountSummary } from "@/lib/billing/paymentsLifecycle";
 import Link from "next/link";
@@ -8,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CreateDraftInvoiceModal } from "./InvoiceModals";
 
-async function parseError(res: Response): Promise<string> {
+async function parseError(res: Response, fallback: string): Promise<string> {
   try {
     const data: unknown = await res.json();
     if (typeof data === "object" && data && "error" in data) {
@@ -18,7 +21,7 @@ async function parseError(res: Response): Promise<string> {
   } catch {
     // ignore
   }
-  return "Request failed.";
+  return fallback;
 }
 
 function invoiceDetailHref(homeId: string, invoiceId: string): string {
@@ -69,6 +72,7 @@ export function InvoicesListClient({
   selectedResidentId,
   accounts,
 }: Props) {
+  const { t, locale } = useI18n();
   const router = useRouter();
   const [invoices, setInvoices] = useState<InvoiceListItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -109,7 +113,7 @@ export function InvoicesListClient({
     try {
       const res = await fetch(`/api/homes/${homeId}/invoices`, { cache: "no-store" });
       if (!res.ok) {
-        setError(await parseError(res));
+        setError(await parseError(res, t("common.requestFailed")));
         return;
       }
       const json = (await res.json()) as { invoices?: InvoiceListItem[] };
@@ -117,7 +121,7 @@ export function InvoicesListClient({
     } finally {
       setLoading(false);
     }
-  }, [homeId]);
+  }, [homeId, t]);
 
   useEffect(() => {
     setInvoices([]);
@@ -135,10 +139,16 @@ export function InvoicesListClient({
         <div className="flex flex-col gap-3 border-b border-[var(--line)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold leading-tight">
-              <span className="block break-words sm:truncate">Invoices · {homeName}</span>
+              <span className="block break-words sm:truncate">
+                {translateWith(locale, "invoices.titleWithHome", { homeName })}
+              </span>
             </h2>
             <p className="text-sm text-[var(--text-secondary)]">
-              {filteredInvoices.length} invoice{filteredInvoices.length === 1 ? "" : "s"}
+              {filteredInvoices.length === 1
+                ? t("invoices.countOne")
+                : translateWith(locale, "invoices.countMany", {
+                    count: filteredInvoices.length,
+                  })}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2 self-stretch sm:self-auto">
@@ -150,7 +160,7 @@ export function InvoicesListClient({
                 setCreateOpen(true);
               }}
             >
-              New invoice
+              {t("buttons.newInvoice")}
             </button>
             <button
               type="button"
@@ -160,7 +170,7 @@ export function InvoicesListClient({
                 router.refresh();
               }}
             >
-              Refresh
+              {t("buttons.refresh")}
             </button>
           </div>
         </div>
@@ -170,28 +180,32 @@ export function InvoicesListClient({
             {accountTypeFilter === "resident" && selectedResidentId ? (
               <>
                 <p className="text-base font-medium text-[var(--text-primary)]">
-                  No invoices for this resident.
+                  {t("invoices.noInvoicesForResident")}
                 </p>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  Switch resident filter to view invoices for others in this home.
+                  {t("invoices.switchResidentHint")}
                 </p>
               </>
             ) : accountTypeFilter === "home" ? (
               <>
                 <p className="text-base font-medium text-[var(--text-primary)]">
-                  No home operating invoices yet.
+                  {t("invoices.noHomeInvoices")}
                 </p>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  Finalize a draft tied to this facility&apos;s home account to see it here.
+                  {t("invoices.finalizeDraftHint")}
                 </p>
               </>
             ) : (
               <>
-                <p className="text-base font-medium text-[var(--text-primary)]">No invoices yet.</p>
+                <p className="text-base font-medium text-[var(--text-primary)]">
+                  {t("empty.noInvoices")}
+                </p>
                 <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                  Use{" "}
-                  <span className="font-semibold text-[var(--text-primary)]">New invoice</span> to
-                  start a resident draft.
+                  {t("invoices.startResidentDraftHintPrefix")}{" "}
+                  <span className="font-semibold text-[var(--text-primary)]">
+                    {t("buttons.newInvoice")}
+                  </span>{" "}
+                  {t("invoices.startResidentDraftHintSuffix")}
                 </p>
               </>
             )}
@@ -212,12 +226,12 @@ export function InvoicesListClient({
             <table className="village-table">
               <thead className="village-thead">
                 <tr>
-                  <th className="village-th">Invoice no.</th>
-                  <th className="village-th">Account</th>
-                  <th className="village-th">Invoice date</th>
-                  <th className="village-th">Status</th>
-                  <th className="village-th text-right">Total</th>
-                  <th className="village-th text-right">Action</th>
+                  <th className="village-th">{t("fields.invoiceNo")}</th>
+                  <th className="village-th">{t("fields.account")}</th>
+                  <th className="village-th">{t("fields.invoiceDate")}</th>
+                  <th className="village-th">{t("fields.status")}</th>
+                  <th className="village-th text-right">{t("fields.total")}</th>
+                  <th className="village-th text-right">{t("fields.action")}</th>
                 </tr>
               </thead>
               <tbody className="village-tbody">
@@ -225,7 +239,8 @@ export function InvoicesListClient({
                   const accountName =
                     invoice.accountType === "home"
                       ? homeName
-                      : (accountToResidentName.get(invoice.accountId) ?? "Unknown resident");
+                      : (accountToResidentName.get(invoice.accountId) ??
+                        t("invoiceDetail.unknownResident"));
                   const totalCell =
                     invoice.totalMinorSnapshot != null ? (
                       formatCents(invoice.totalMinorSnapshot, defaultCurrencyCode)
@@ -243,7 +258,9 @@ export function InvoicesListClient({
                         {invoiceDateLabel(invoice.issuedOn)}
                       </td>
                       <td className="village-td">
-                        <span className={invoiceStatusBadgeClass(invoice.status)}>{invoice.status}</span>
+                        <span className={invoiceStatusBadgeClass(invoice.status)}>
+                          {translateInvoiceStatus(t, invoice.status)}
+                        </span>
                       </td>
                       <td className="village-td-muted text-right tabular-nums">{totalCell}</td>
                       <td className="village-td text-right">
@@ -251,7 +268,7 @@ export function InvoicesListClient({
                           href={invoiceDetailHref(homeId, invoice.id)}
                           className="village-button village-button--compact"
                         >
-                          Open invoice
+                          {t("buttons.openInvoice")}
                         </Link>
                       </td>
                     </tr>

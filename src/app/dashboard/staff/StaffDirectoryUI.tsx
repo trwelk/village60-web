@@ -11,6 +11,7 @@ import {
   salariesDirectoryStateFromSearchParams,
 } from "@/lib/salaries/directoryPath";
 import { dashboardStaffRemittanceHref } from "@/lib/dashboard/dashboardRoutes";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { DEFAULT_CURRENCY_CODE } from "@/lib/homes/service";
 import { formatCents } from "@/lib/money";
 import {
@@ -38,7 +39,7 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function parseError(res: Response): Promise<string> {
+async function parseError(res: Response, fallback: string): Promise<string> {
   try {
     const data: unknown = await res.json();
     if (
@@ -52,7 +53,7 @@ async function parseError(res: Response): Promise<string> {
   } catch {
     /* ignore */
   }
-  return "Request failed.";
+  return fallback;
 }
 
 function formatPeriod(year: number, month: number): string {
@@ -72,6 +73,7 @@ function roleTitleOptionsForEdit(current: string) {
 }
 
 export function StaffDirectoryUI({ homes, isAdmin }: Props) {
+  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -207,7 +209,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
       `/api/homes/${urlState.homeId}/staff-salaries?${params.toString()}`,
     );
     if (!res.ok) {
-      setError(await parseError(res));
+      setError(await parseError(res, t("common.requestFailed")));
       setSalaries(null);
       setTotalCount(0);
       setLoading(false);
@@ -282,11 +284,11 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
 
     const salaryMajor = Number.parseFloat(createMonthlySalary);
     if (!Number.isFinite(salaryMajor) || salaryMajor <= 0) {
-      setCreateError("Enter a valid monthly salary.");
+      setCreateError(t("staffDirectory.invalidMonthlySalary"));
       return;
     }
     if (!isStaffRoleTitle(createRoleTitle)) {
-      setCreateError("Select a role title.");
+      setCreateError(t("staffDirectory.selectRoleTitle"));
       return;
     }
 
@@ -308,7 +310,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      setCreateError(await parseError(res));
+      setCreateError(await parseError(res, t("common.requestFailed")));
       return;
     }
     closeCreateModal();
@@ -323,11 +325,11 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
 
     const salaryMajor = Number.parseFloat(editMonthlySalary);
     if (!Number.isFinite(salaryMajor) || salaryMajor <= 0) {
-      setEditError("Enter a valid monthly salary.");
+      setEditError(t("staffDirectory.invalidMonthlySalary"));
       return;
     }
     if (!isStaffRoleTitle(editRoleTitle)) {
-      setEditError("Select a role title.");
+      setEditError(t("staffDirectory.selectRoleTitle"));
       return;
     }
 
@@ -353,7 +355,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
       },
     );
     if (!res.ok) {
-      setEditError(await parseError(res));
+      setEditError(await parseError(res, t("common.requestFailed")));
       return;
     }
     closeEditModal();
@@ -383,7 +385,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                   href={dashboardStaffRemittanceHref(urlState.homeId)}
                   className="village-btn-secondary"
                 >
-                  Monthly Remittance
+                  {t("staffDirectory.monthlyRemittance")}
                 </Link>
               )}
               {isAdmin && urlState.homeId && (
@@ -395,7 +397,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                     setShowCreate(true);
                   }}
                 >
-                  Add Staff
+                  {t("staffDirectory.addStaff")}
                 </button>
               )}
             </div>
@@ -407,37 +409,37 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                 router.refresh();
               }}
             >
-              Refresh
+              {t("buttons.refresh")}
             </button>
           </div>
         }
         filters={
           <>
-            <VillageListFilter label="Home" htmlFor="staff-home" minWidth="12rem">
+            <VillageListFilter label={t("fields.home")} htmlFor="staff-home" minWidth="12rem">
               <VillageSelect
                 id="staff-home"
                 value={urlState.homeId}
                 onChange={(v) => navigate({ homeId: v, page: 1 })}
                 options={[
-                  { value: "", label: "Select home" },
+                  { value: "", label: t("salaries.selectHome") },
                   ...homes.map((h) => ({ value: h.id, label: h.name })),
                 ]}
               />
             </VillageListFilter>
             {isAdmin && (
-              <VillageListFilter label="Name search" htmlFor="staff-query">
+              <VillageListFilter label={t("staffDirectory.nameSearch")} htmlFor="staff-query">
                 <input
                   id="staff-query"
                   className="village-input"
                   value={urlState.query}
                   onChange={(e) => navigate({ query: e.target.value, page: 1 })}
-                  placeholder="Partial name"
+                  placeholder={t("placeholders.partialName")}
                   autoComplete="off"
                 />
               </VillageListFilter>
             )}
             {isAdmin && (
-              <VillageListFilter label="Status" htmlFor="staff-status" width="10rem">
+              <VillageListFilter label={t("fields.status")} htmlFor="staff-status" width="10rem">
                 <VillageSelect
                   id="staff-status"
                   value={urlState.status}
@@ -445,9 +447,9 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                     navigate({ status: v as "active" | "inactive" | "", page: 1 })
                   }
                   options={[
-                    { value: "", label: "All" },
-                    { value: "active", label: "Active" },
-                    { value: "inactive", label: "Inactive" },
+                    { value: "", label: t("common.all") },
+                    { value: "active", label: t("common.active") },
+                    { value: "inactive", label: t("common.inactive") },
                   ]}
                 />
               </VillageListFilter>
@@ -474,19 +476,19 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
         {!urlState.homeId ? (
           <p className="village-empty-hint py-10 text-center">
             {isAdmin
-              ? "Select a home to view staff."
-              : "Select a home to view your salary information."}
+              ? t("staffDirectory.selectHomePromptAdmin")
+              : t("staffDirectory.selectHomePromptCare")}
           </p>
         ) : (
-          <table className="village-table" aria-label="Staff directory">
+          <table className="village-table" aria-label={t("salaries.staffDirectory")}>
             <thead className="village-thead">
               <tr>
-                <th className="village-th">Name</th>
-                <th className="village-th">Role</th>
-                {isAdmin ? <th className="village-th">Linked user</th> : null}
-                <th className="village-th">Monthly Salary</th>
-                <th className="village-th">Status</th>
-                <th className="village-th">Last Paid</th>
+                <th className="village-th">{t("fields.name")}</th>
+                <th className="village-th">{t("fields.role")}</th>
+                {isAdmin ? <th className="village-th">{t("staffDirectory.linkedUser")}</th> : null}
+                <th className="village-th">{t("staffDirectory.monthlySalary")}</th>
+                <th className="village-th">{t("fields.status")}</th>
+                <th className="village-th">{t("staffDirectory.lastPaid")}</th>
               </tr>
             </thead>
             <tbody className="village-tbody">
@@ -495,8 +497,8 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                   colSpan={colCount}
                   message={
                     isAdmin
-                      ? "No staff records found."
-                      : "No salary record is linked to your account for this home."
+                      ? t("staffDirectory.noStaffFound")
+                      : t("staffDirectory.noSalaryLinked")
                   }
                 />
               ) : null}
@@ -529,11 +531,11 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                   <td className="village-td-muted">
                     {s.status === "active" ? (
                       <span className="inline-flex items-center rounded-full bg-success-muted px-2 py-0.5 text-xs font-semibold text-success">
-                        Active
+                        {t("common.active")}
                       </span>
                     ) : (
                       <span className="inline-flex items-center rounded-full bg-[color-mix(in_srgb,var(--text-muted)_14%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--text-secondary)]">
-                        Inactive
+                        {t("common.inactive")}
                       </span>
                     )}
                   </td>
@@ -548,18 +550,18 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
       {!isAdmin && urlState.homeId && salaries && salaries.length > 0 ? (
         <section className="village-card mt-6 p-5 sm:p-6">
           <h2 className="font-display text-lg font-normal text-[var(--text-primary)]">
-            Payment history
+            {t("staffDirectory.paymentHistory")}
           </h2>
           {paymentHistoryLoading ? (
-            <p className="mt-3 text-sm text-[var(--text-muted)]">Loading…</p>
+            <p className="mt-3 text-sm text-[var(--text-muted)]">{t("loading.generic")}</p>
           ) : paymentHistory && paymentHistory.length > 0 ? (
-            <table className="village-table mt-4" aria-label="Salary payment history">
+            <table className="village-table mt-4" aria-label={t("staffDirectory.salaryPaymentHistory")}>
               <thead className="village-thead">
                 <tr>
-                  <th className="village-th">Period</th>
-                  <th className="village-th">Amount paid</th>
-                  <th className="village-th">Paid on</th>
-                  <th className="village-th">Reference</th>
+                  <th className="village-th">{t("staffDirectory.period")}</th>
+                  <th className="village-th">{t("staffDirectory.amountPaid")}</th>
+                  <th className="village-th">{t("invoiceDetail.paidOn")}</th>
+                  <th className="village-th">{t("invoiceDetail.externalReference")}</th>
                 </tr>
               </thead>
               <tbody className="village-tbody">
@@ -579,7 +581,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
             </table>
           ) : (
             <p className="mt-3 text-sm text-[var(--text-muted)]">
-              No payments recorded yet.
+              {t("staffDirectory.noPaymentsRecorded")}
             </p>
           )}
         </section>
@@ -591,7 +593,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
               <button
                 type="button"
                 className="absolute inset-0 bg-[color:color-mix(in_srgb,var(--text-primary)_42%,transparent)] backdrop-blur-[2px]"
-                aria-label="Dismiss add staff dialog"
+                aria-label={t("staffDirectory.dismissAddStaff")}
                 onClick={closeCreateModal}
               />
               <div
@@ -606,13 +608,13 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex flex-col gap-1">
                           <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-[var(--text-muted)]">
-                            Staff
+                            {t("nav.staff")}
                           </p>
                           <h2
                             id="staff-create-modal-heading"
                             className="font-display text-xl font-normal tracking-tight text-[var(--text-primary)]"
                           >
-                            Add staff member
+                            {t("staffDirectory.addStaffMember")}
                           </h2>
                         </div>
                         <button
@@ -620,7 +622,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                           className="rounded-lg border border-transparent px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)]"
                           onClick={closeCreateModal}
                         >
-                          Close
+                          {t("buttons.close")}
                         </button>
                       </div>
                     </div>
@@ -630,13 +632,13 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                     >
                       <label className="flex flex-col gap-1.5 text-sm">
                         <span className="village-field-label">
-                          Linked user (optional)
+                          {t("staffDirectory.linkedUserOptional")}
                         </span>
                         <VillageSelect
                           value={createUserId}
                           onChange={setCreateUserId}
                           options={[
-                            { value: "", label: "No linked user" },
+                            { value: "", label: t("staffDirectory.noLinkedUser") },
                             ...careStaff.map((u) => ({
                               value: u.id,
                               label: u.email,
@@ -646,7 +648,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                       </label>
                       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
                         <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5 text-sm">
-                          <span className="village-field-label">Full name</span>
+                          <span className="village-field-label">{t("fields.fullName")}</span>
                           <input
                             className="village-input"
                             value={createFullName}
@@ -656,11 +658,11 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                           />
                         </label>
                         <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5 text-sm">
-                          <span className="village-field-label">Role title</span>
+                          <span className="village-field-label">{t("fields.role")}</span>
                           <VillageSelect
                             value={createRoleTitle}
                             onChange={setCreateRoleTitle}
-                            placeholder="Select role"
+                            placeholder={t("staffDirectory.selectRole")}
                             ariaRequired
                             options={staffRoleOptions}
                           />
@@ -669,7 +671,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
                         <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5 text-sm">
                           <span className="village-field-label">
-                            Monthly salary ({selectedHomeCurrency})
+                            {t("staffDirectory.monthlySalary")} ({selectedHomeCurrency})
                           </span>
                           <input
                             className="village-input"
@@ -686,7 +688,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                         </label>
                         <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5 text-sm">
                           <span className="village-field-label">
-                            Effective from
+                            {t("staffDirectory.effectiveFrom")}
                           </span>
                           <input
                             className="village-input"
@@ -702,7 +704,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
                         <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5 text-sm">
                           <span className="village-field-label">
-                            Phone (optional)
+                            {t("staffDirectory.phoneOptional")}
                           </span>
                           <input
                             className="village-input"
@@ -715,7 +717,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                       </div>
                       <label className="flex flex-col gap-1.5 text-sm">
                         <span className="village-field-label">
-                          Notes (optional)
+                          {t("staffDirectory.notesOptional")}
                         </span>
                         <textarea
                           className="village-input min-h-[5rem] resize-y"
@@ -729,7 +731,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                           type="submit"
                           className="village-btn-primary min-h-10 w-fit px-5"
                         >
-                          Add staff member
+                          {t("staffDirectory.addStaffMember")}
                         </button>
                         {createError ? (
                           <p className="text-sm font-medium text-[var(--danger)]">
@@ -752,7 +754,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
               <button
                 type="button"
                 className="absolute inset-0 bg-[color:color-mix(in_srgb,var(--text-primary)_42%,transparent)] backdrop-blur-[2px]"
-                aria-label="Dismiss edit staff dialog"
+                aria-label={t("staffDirectory.dismissEditStaff")}
                 onClick={closeEditModal}
               />
               <div
@@ -767,13 +769,13 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex flex-col gap-1">
                           <p className="font-mono text-[0.68rem] uppercase tracking-[0.24em] text-[var(--text-muted)]">
-                            Staff
+                            {t("nav.staff")}
                           </p>
                           <h2
                             id="staff-edit-modal-heading"
                             className="font-display text-xl font-normal tracking-tight text-[var(--text-primary)]"
                           >
-                            Edit staff member
+                            {t("staffDirectory.editStaffMember")}
                           </h2>
                         </div>
                         <button
@@ -781,7 +783,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                           className="rounded-lg border border-transparent px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)]"
                           onClick={closeEditModal}
                         >
-                          Close
+                          {t("buttons.close")}
                         </button>
                       </div>
                     </div>
@@ -790,12 +792,12 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                       className="flex flex-col gap-5 p-5 sm:p-6"
                     >
                       <label className="flex flex-col gap-1.5 text-sm">
-                        <span className="village-field-label">Linked user</span>
+                        <span className="village-field-label">{t("staffDirectory.linkedUser")}</span>
                         <VillageSelect
                           value={editUserId}
                           onChange={setEditUserId}
                           options={[
-                            { value: "", label: "No linked user" },
+                            { value: "", label: t("staffDirectory.noLinkedUser") },
                             ...careStaff.map((u) => ({
                               value: u.id,
                               label: u.email,
@@ -805,7 +807,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                       </label>
                       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
                         <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5 text-sm">
-                          <span className="village-field-label">Full name</span>
+                          <span className="village-field-label">{t("fields.fullName")}</span>
                           <input
                             className="village-input"
                             value={editFullName}
@@ -815,11 +817,11 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                           />
                         </label>
                         <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5 text-sm">
-                          <span className="village-field-label">Role title</span>
+                          <span className="village-field-label">{t("fields.role")}</span>
                           <VillageSelect
                             value={editRoleTitle}
                             onChange={setEditRoleTitle}
-                            placeholder="Select role"
+                            placeholder={t("staffDirectory.selectRole")}
                             ariaRequired
                             options={roleTitleOptionsForEdit(editRoleTitle)}
                           />
@@ -828,7 +830,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
                         <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5 text-sm">
                           <span className="village-field-label">
-                            Monthly salary ({selectedHomeCurrency})
+                            {t("staffDirectory.monthlySalary")} ({selectedHomeCurrency})
                           </span>
                           <input
                             className="village-input"
@@ -845,7 +847,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                         </label>
                         <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5 text-sm">
                           <span className="village-field-label">
-                            Effective from
+                            {t("staffDirectory.effectiveFrom")}
                           </span>
                           <input
                             className="village-input"
@@ -858,22 +860,22 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                           />
                         </label>
                         <label className="flex min-w-[10rem] flex-col gap-1.5 text-sm">
-                          <span className="village-field-label">Status</span>
+                          <span className="village-field-label">{t("fields.status")}</span>
                           <VillageSelect
                             value={editStatus}
                             onChange={(v) =>
                               setEditStatus(v as "active" | "inactive")
                             }
                             options={[
-                              { value: "active", label: "Active" },
-                              { value: "inactive", label: "Inactive" },
+                              { value: "active", label: t("common.active") },
+                              { value: "inactive", label: t("common.inactive") },
                             ]}
                           />
                         </label>
                       </div>
                       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap">
                         <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5 text-sm">
-                          <span className="village-field-label">Phone</span>
+                          <span className="village-field-label">{t("fields.phone")}</span>
                           <input
                             className="village-input"
                             type="tel"
@@ -884,7 +886,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                         </label>
                       </div>
                       <label className="flex flex-col gap-1.5 text-sm">
-                        <span className="village-field-label">Notes</span>
+                        <span className="village-field-label">{t("fields.notes")}</span>
                         <textarea
                           className="village-input min-h-[5rem] resize-y"
                           value={editNotes}
@@ -897,7 +899,7 @@ export function StaffDirectoryUI({ homes, isAdmin }: Props) {
                           type="submit"
                           className="village-btn-primary min-h-10 w-fit px-5"
                         >
-                          Save changes
+                          {t("staffDirectory.saveChanges")}
                         </button>
                         {editError ? (
                           <p className="text-sm font-medium text-[var(--danger)]">
