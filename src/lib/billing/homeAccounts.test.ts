@@ -1,12 +1,10 @@
 import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import { billingTransactions, homes, accounts, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { AppDb } from "@/lib/homes/service";
+import { openTestMemoryDb } from "@/test/pushTestSchema";
 import { ForbiddenError } from "@/lib/homes/errors";
 import {
   ensureHomeAccount,
@@ -15,10 +13,7 @@ import {
 } from "./homeAccounts";
 
 function openMemoryDb(): { db: AppDb; sqlite: Database.Database } {
-  const sqlite = new Database(":memory:");
-  sqlite.pragma("foreign_keys = ON");
-  const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+  const { db, sqlite } = openTestMemoryDb();
 
   const t = Date.now();
   db.insert(users)

@@ -1,23 +1,16 @@
 import { randomUUID } from "node:crypto";
+import { pushTestSchema } from "@/test/pushTestSchema";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { asc, eq } from "drizzle-orm";
 import { closeDbConnection, getDb } from "@/db/client";
 import { inventoryItemCategories } from "@/db/schema";
 import { DEFAULT_INVENTORY_CATALOG_CATEGORY_NAMES } from "@/lib/inventory/defaultCatalogCategories";
 import { createHome, updateHome } from "./service";
-
-function runMigrations(file: string) {
-  const sqlite = new Database(file);
-  const db = drizzle(sqlite);
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  sqlite.close();
-}
 
 describe("homes service — address", () => {
   let dbPath: string;
@@ -26,7 +19,7 @@ describe("homes service — address", () => {
     dbPath = path.join(os.tmpdir(), `village60-homes-${randomUUID()}.sqlite`);
     process.env.DATABASE_PATH = dbPath;
     closeDbConnection();
-    runMigrations(dbPath);
+    pushTestSchema(dbPath);
   });
 
   afterEach(() => {

@@ -2,7 +2,7 @@
 
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ResidentsPerHomeTooltip } from "./ResidentsPerHomeChart";
+import { ResidentsPerHomeTooltip } from "./analytics/occupancy/ResidentsPerHomeChart";
 
 describe("ResidentsPerHomeTooltip", () => {
   it("shows the exact integer resident count", () => {

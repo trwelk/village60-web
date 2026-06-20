@@ -3,13 +3,12 @@ import Database from "better-sqlite3";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import { homes, residents, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { AppDb } from "@/lib/homes/service";
+import { openTestMemoryDb } from "@/test/pushTestSchema";
 import {
   ForbiddenError,
   NotFoundError,
@@ -31,10 +30,7 @@ const minimalPdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e]);
 const adminActor = { userId: "u-admin", role: "admin" as const };
 
 function openDb(): { db: AppDb; sqlite: Database.Database } {
-  const sqlite = new Database(":memory:");
-  sqlite.pragma("foreign_keys = ON");
-  const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+  const { db, sqlite } = openTestMemoryDb();
   const t = Date.now();
   db.insert(users)
     .values({

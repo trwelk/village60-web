@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { pushTestSchema } from "@/test/pushTestSchema";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
 import { createHome } from "@/lib/homes/service";
@@ -16,13 +16,6 @@ import { createWard, countActiveResidentsByWardId, isWardAtCapacity, listWardsFo
 const STRONG = "ChangeMeNow!1";
 const adminActor = { userId: "admin-actor", role: "admin" as const };
 
-function runMigrations(file: string) {
-  const sqlite = new Database(file);
-  const db = drizzle(sqlite);
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  sqlite.close();
-}
-
 describe("wards catalog per home (admin vs care)", () => {
   let dbPath: string;
 
@@ -30,7 +23,7 @@ describe("wards catalog per home (admin vs care)", () => {
     dbPath = path.join(os.tmpdir(), `village60-wards-${randomUUID()}.sqlite`);
     process.env.DATABASE_PATH = dbPath;
     closeDbConnection();
-    runMigrations(dbPath);
+    pushTestSchema(dbPath);
   });
 
   afterEach(() => {

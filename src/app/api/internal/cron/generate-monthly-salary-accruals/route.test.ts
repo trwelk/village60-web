@@ -4,22 +4,15 @@ import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { count } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
 import { homes, salaryAccruals, users } from "@/db/schema";
 import { createStaffSalary } from "@/lib/salaries/service";
 import { POST } from "./route";
+import { pushTestSchema } from "@/test/pushTestSchema";
 
 const adminActor = { userId: "admin-actor", role: "admin" as const };
-
-function runMigrations(file: string) {
-  const sqlite = new Database(file);
-  const db = drizzle(sqlite);
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  sqlite.close();
-}
 
 function countAccruals(): number {
   const row = getDb().select({ c: count() }).from(salaryAccruals).get();
@@ -39,7 +32,7 @@ describe("POST /api/internal/cron/generate-monthly-salary-accruals", () => {
     process.env.DATABASE_PATH = dbPath;
     process.env.CRON_SECRET = cronSecret;
     closeDbConnection();
-    runMigrations(dbPath);
+    pushTestSchema(dbPath);
 
     const db = getDb();
     const now = Date.now();

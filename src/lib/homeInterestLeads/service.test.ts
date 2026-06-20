@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { pushTestSchema } from "@/test/pushTestSchema";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
@@ -20,13 +20,6 @@ import {
   updateInterestLeadStatus,
 } from "./service";
 
-function runMigrations(file: string) {
-  const sqlite = new Database(file);
-  const db = drizzle(sqlite);
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  sqlite.close();
-}
-
 describe("home interest leads — public submit", () => {
   let dbPath: string;
 
@@ -37,7 +30,7 @@ describe("home interest leads — public submit", () => {
     );
     process.env.DATABASE_PATH = dbPath;
     closeDbConnection();
-    runMigrations(dbPath);
+    pushTestSchema(dbPath);
   });
 
   afterEach(() => {
@@ -201,7 +194,7 @@ describe("home interest leads — admin dashboard", () => {
     );
     process.env.DATABASE_PATH = dbPath;
     closeDbConnection();
-    runMigrations(dbPath);
+    pushTestSchema(dbPath);
   });
 
   afterEach(() => {

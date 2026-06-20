@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
+import { openTestMemoryDb } from "@/test/pushTestSchema";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
@@ -28,14 +28,6 @@ import {
   receivePurchaseOrderLine,
   sendPurchaseOrder,
 } from "./purchaseOrders";
-
-function openMemoryDb(): { db: AppDb; sqlite: Database.Database } {
-  const sqlite = new Database(":memory:");
-  sqlite.pragma("foreign_keys = ON");
-  const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  return { db, sqlite };
-}
 
 const adminActor = { userId: "u-admin", role: "admin" as const };
 
@@ -73,7 +65,7 @@ describe("home purchase orders", () => {
   });
 
   it("generates monotonic per-home po_number", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -119,7 +111,7 @@ describe("home purchase orders", () => {
   });
 
   it("next po_number uses numeric order when digit width changes (lexicographic would collide)", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -170,7 +162,7 @@ describe("home purchase orders", () => {
   });
 
   it("bootstraps po_number sequence from existing rows when home_po_number_seq has no entry", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -215,7 +207,7 @@ describe("home purchase orders", () => {
   });
 
   it("requires explicit owner and enforces owner-home consistency", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -328,7 +320,7 @@ describe("home purchase orders", () => {
   });
 
   it("enforces approve before send transition", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -370,7 +362,7 @@ describe("home purchase orders", () => {
   });
 
   it("allows disapprove transition from approved to draft", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -406,7 +398,7 @@ describe("home purchase orders", () => {
   });
 
   it("enforces role checks for approval and send", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(homes)
@@ -450,7 +442,7 @@ describe("home purchase orders", () => {
   });
 
   it("receives partial then over-receive with immutable events and stock posting", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -563,7 +555,7 @@ describe("home purchase orders", () => {
   });
 
   it("blocks receive on terminal line and enforces single currency per PO", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -705,7 +697,7 @@ describe("home purchase orders", () => {
   });
 
   it("auto-closes purchase order when all lines are terminal", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -797,7 +789,7 @@ describe("home purchase orders", () => {
   });
 
   it("creates finalized invoices per billing owner when PO auto-closes", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -931,7 +923,7 @@ describe("home purchase orders", () => {
 
     const lines = db.select().from(schema.invoiceLineItems).all();
     expect(lines.length).toBe(2);
-    expect(lines.every((l) => l.category === "inventory_po")).toBe(true);
+    expect(lines.every((l) => l.category === "General")).toBe(true);
     const amounts = lines.map((l) => l.amountMinor).sort((a, b) => a - b);
     expect(amounts).toEqual([100, 250]);
 
@@ -946,7 +938,7 @@ describe("home purchase orders", () => {
   });
 
   it("allows cancel only remaining unreceived quantity", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -1042,7 +1034,7 @@ describe("home purchase orders", () => {
   });
 
   it("blocks purchase order delete after approval", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -1084,7 +1076,7 @@ describe("home purchase orders", () => {
   });
 
   it("rolls back event and line update when ledger insert fails", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)

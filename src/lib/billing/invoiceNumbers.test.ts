@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
+import { openTestMemoryDb } from "@/test/pushTestSchema";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
@@ -9,14 +9,6 @@ import * as schema from "@/db/schema";
 import { accounts, homeInvNumberSeq, homes, invoices, residents, users } from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
 import { bumpInvNumberSequence } from "./invoiceNumbers";
-
-function openMemoryDb(): { db: AppDb; sqlite: Database.Database } {
-  const sqlite = new Database(":memory:");
-  sqlite.pragma("foreign_keys = ON");
-  const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  return { db, sqlite };
-}
 
 describe("invoiceNumbers", () => {
   const connections: Database.Database[] = [];
@@ -27,7 +19,7 @@ describe("invoiceNumbers", () => {
   });
 
   it("bumpInvNumberSequence allocates monotonic INV- per home and bootstraps from existing rows", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     const homeId = "h1";
@@ -102,7 +94,7 @@ describe("invoiceNumbers", () => {
   });
 
   it("uses numeric order when digit width changes (lexicographic would collide)", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     const homeId = "h1";

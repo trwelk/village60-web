@@ -28,6 +28,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function openFilters() {
+  fireEvent.click(screen.getByRole("button", { name: /Filters/i }));
+}
+
 const emptySummary = {
   totalBilledMinor: 0,
   chargeCount: 0,
@@ -68,17 +72,19 @@ const base = {
 };
 
 describe("HomeChargesSection (18c month range)", () => {
-  it("stacks the home filter card above the ledger body so the Home menu is not covered", () => {
+  it("exposes billing filters inside the collapsible filter panel", () => {
     render(<HomeChargesSection {...base} />);
-    const panel = screen.getByTestId("charges-ledger-filters");
-    expect(panel).toHaveClass("relative", "z-20");
+    openFilters();
+    expect(screen.getByTestId("charges-ledger-filters")).toBeInTheDocument();
+    expect(screen.getByLabelText("Home")).toBeInTheDocument();
   });
 
   it("describes the active range; default YTD shows that copy", () => {
     render(<HomeChargesSection {...base} />);
-    const paras = screen.getAllByText(/Showing billing months/i);
-    expect(paras[0].textContent).toMatch(/2026-01/);
-    expect(paras[0].textContent).toMatch(/2026-04/);
+    openFilters();
+    const rangeCopy = screen.getByText(/Showing billing months/i);
+    expect(rangeCopy.textContent).toMatch(/2026-01/);
+    expect(rangeCopy.textContent).toMatch(/2026-04/);
     expect(screen.getByText(/calendar year-to-date, UTC/)).toBeInTheDocument();
   });
 
@@ -91,11 +97,13 @@ describe("HomeChargesSection (18c month range)", () => {
         rangeIsDefaultYtd={false}
       />,
     );
+    openFilters();
     expect(screen.getByText(/selected range, UTC/)).toBeInTheDocument();
   });
 
   it("Apply range navigates to a custom billing window", () => {
     render(<HomeChargesSection {...base} />);
+    openFilters();
     const from = screen.getByLabelText("From", { exact: true });
     const to = screen.getByLabelText("To", { exact: true });
     fireEvent.change(from, { target: { value: "2024-01" } });
@@ -275,6 +283,7 @@ describe("HomeChargesSection (18d payment status filter, client fetch)", () => {
 
   it("resident filter navigates with residentId and resets to all", () => {
     render(<HomeChargesSection {...base} />);
+    openFilters();
     fireEvent.click(screen.getByRole("combobox", { name: /resident/i }));
     fireEvent.click(screen.getByRole("option", { name: /Paid P\./i }));
     expect(mockPush).toHaveBeenCalledWith(

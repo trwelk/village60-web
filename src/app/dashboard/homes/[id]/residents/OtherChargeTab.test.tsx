@@ -7,7 +7,6 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RECORDED_OTHER_CHARGE_MESSAGE } from "@/lib/billing/otherCharges";
 import { OtherChargeTab } from "./OtherChargeTab";
 
 afterEach(() => {
@@ -20,25 +19,18 @@ describe("OtherChargeTab", () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        charges: [],
-        otherCharges: [
+        rows: [
           {
             id: "oc-reg",
+            residentId: "r1",
             type: "registration",
             amountMinor: 250_00,
-            received: true,
-            paidOn: "2026-01-10",
-            createdAtUtcMs: 0,
-            updatedAtUtcMs: 0,
           },
           {
             id: "oc-dep",
+            residentId: "r1",
             type: "deposit",
             amountMinor: 500_00,
-            received: false,
-            paidOn: null,
-            createdAtUtcMs: 0,
-            updatedAtUtcMs: 0,
           },
         ],
       }),
@@ -63,22 +55,18 @@ describe("OtherChargeTab", () => {
 
     expect(screen.getByText("Registration fee")).toBeInTheDocument();
     expect(screen.getByText("Deposit")).toBeInTheDocument();
-    expect(screen.getAllByText(/Received:/i).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("Yes")).toBeInTheDocument();
-    expect(screen.getByText("No")).toBeInTheDocument();
-    expect(screen.getByText("2026-01-10")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /^Edit$/i }).length).toBe(1);
-    expect(screen.getByText(RECORDED_OTHER_CHARGE_MESSAGE)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Edit$/i }).length).toBe(2);
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/homes/h1/residents/r1/monthly-charges",
-    );
+    const url = String(mockFetch.mock.calls[0][0]);
+    expect(url).toContain("/api/homes/h1/other-charges");
+    expect(url).toContain("residentId=r1");
+    expect(url).toContain("status=all");
   });
 
   it("shows an empty state and set-up when there are no other charges", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ charges: [], otherCharges: [] }),
+      json: async () => ({ rows: [] }),
     });
     vi.stubGlobal("fetch", mockFetch);
 
@@ -103,28 +91,22 @@ describe("OtherChargeTab", () => {
     const twoRows = [
       {
         id: "oc-reg",
+        residentId: "r1",
         type: "registration" as const,
         amountMinor: 0,
-        received: false,
-        paidOn: null,
-        createdAtUtcMs: 0,
-        updatedAtUtcMs: 0,
       },
       {
         id: "oc-dep",
+        residentId: "r1",
         type: "deposit" as const,
         amountMinor: 0,
-        received: false,
-        paidOn: null,
-        createdAtUtcMs: 0,
-        updatedAtUtcMs: 0,
       },
     ];
     const mockFetch = vi
       .fn()
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ charges: [], otherCharges: [] }),
+        json: async () => ({ rows: [] }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -135,7 +117,7 @@ describe("OtherChargeTab", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ charges: [], otherCharges: twoRows }),
+        json: async () => ({ rows: twoRows }),
       });
     vi.stubGlobal("fetch", mockFetch);
 

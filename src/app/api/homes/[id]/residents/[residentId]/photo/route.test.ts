@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { pushTestSchema } from "@/test/pushTestSchema";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { sealData } from "iron-session";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
@@ -28,13 +28,6 @@ vi.mock("next/headers", () => ({
 
 const tinyJpegBody = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
 
-function runMigrations(file: string) {
-  const sqlite = new Database(file);
-  const db = drizzle(sqlite);
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  sqlite.close();
-}
-
 describe("resident portrait API", () => {
   let dbPath: string;
   let portraitDir: string;
@@ -48,7 +41,7 @@ describe("resident portrait API", () => {
     vi.stubEnv("RESIDENT_PORTRAITS_DIR", portraitDir);
     process.env.DATABASE_PATH = dbPath;
     closeDbConnection();
-    runMigrations(dbPath);
+    pushTestSchema(dbPath);
   });
 
   afterEach(() => {

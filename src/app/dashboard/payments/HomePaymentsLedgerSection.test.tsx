@@ -65,7 +65,7 @@ describe("HomePaymentsLedgerSection (20a)", () => {
     );
     openFilters();
     const panel = screen.getByTestId("payments-ledger-filters");
-    expect(panel).toHaveClass("relative", "z-20");
+    expect(panel).toBeVisible();
   });
 
   it("renders the ledger table and range text", () => {

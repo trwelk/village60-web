@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { pushTestSchema } from "@/test/pushTestSchema";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { billingTransactions, accounts, residents, users } from "@/db/schema";
 import { closeDbConnection, getDb } from "@/db/client";
@@ -22,13 +22,6 @@ import {
 
 const STRONG = "ChangeMeNow!1";
 const adminActor = { userId: "admin-payments", role: "admin" as const };
-
-function runMigrations(file: string) {
-  const sqlite = new Database(file);
-  const db = drizzle(sqlite);
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  sqlite.close();
-}
 
 function seedAdminUser(db: ReturnType<typeof getDb>, userId: string) {
   const now = Date.now();
@@ -79,7 +72,7 @@ describe("payments lifecycle + statement", () => {
     dbPath = path.join(os.tmpdir(), `village60-payments-${randomUUID()}.sqlite`);
     process.env.DATABASE_PATH = dbPath;
     closeDbConnection();
-    runMigrations(dbPath);
+    pushTestSchema(dbPath);
   });
 
   afterEach(() => {

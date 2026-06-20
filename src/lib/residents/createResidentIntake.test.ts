@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { pushTestSchema } from "@/test/pushTestSchema";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
 import { accounts, invoiceLineItems, invoices, residents } from "@/db/schema";
@@ -15,13 +15,6 @@ import { createResident } from "./service";
 import { createWard } from "@/lib/wards/service";
 
 const adminActor = { userId: "admin-intake", role: "admin" as const };
-
-function runMigrations(file: string) {
-  const sqlite = new Database(file);
-  const db = drizzle(sqlite);
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  sqlite.close();
-}
 
 describe("createResident + resident_accounts transaction", () => {
   let dbPath: string;
@@ -33,7 +26,7 @@ describe("createResident + resident_accounts transaction", () => {
     );
     process.env.DATABASE_PATH = dbPath;
     closeDbConnection();
-    runMigrations(dbPath);
+    pushTestSchema(dbPath);
   });
 
   afterEach(() => {
@@ -95,17 +88,13 @@ describe("createResident + resident_accounts transaction", () => {
 
     const charges = listResidentOtherCharges(db, adminActor, home.id, r.id);
     expect(charges).toHaveLength(2);
-    expect(charges[0]).toMatchObject({
+    expect(charges.find((c) => c.type === "registration")).toMatchObject({
       type: "registration",
       amountMinor: 100_00,
-      received: true,
-      paidOn: "2025-01-20",
     });
-    expect(charges[1]).toMatchObject({
+    expect(charges.find((c) => c.type === "deposit")).toMatchObject({
       type: "deposit",
       amountMinor: 0,
-      received: false,
-      paidOn: null,
     });
   });
 

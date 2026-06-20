@@ -161,13 +161,13 @@ describe("ResidentEditor create wizard", () => {
       expect(body.assignedNurseUserId).toBe("u1");
       expect(body.assignedNurseDisplayOverride).toBe("Agency Nurse");
 
-      expect(pushMock).toHaveBeenCalledWith("/dashboard/homes/h1/residents/r1");
+      expect(pushMock).toHaveBeenCalledWith("/dashboard/residents/r1");
     },
     20_000,
   );
 
   it(
-    "after create, POSTs wizard bulk medications using 30a fields (no dose/frequency)",
+    "after create, POSTs wizard clinical allergies and conditions",
     async () => {
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
@@ -210,48 +210,47 @@ describe("ResidentEditor create wizard", () => {
       );
       await userEvent.click(screen.getByRole("button", { name: "Next" }));
 
-      const medLine =
-        "Metformin | 500 mg | tablet | 1 | With breakfast | - | no | -";
       await userEvent.type(
-        screen.getByLabelText(/Medications \(optional/i),
-        medLine,
+        screen.getByLabelText(/Allergies \(optional, one per line\)/i),
+        "Peanuts",
+      );
+      await userEvent.type(
+        screen.getByLabelText(/Conditions \(optional, one per line\)/i),
+        "Hypertension",
       );
       await userEvent.click(screen.getByRole("button", { name: "Next" }));
       await userEvent.click(screen.getByRole("button", { name: "Create resident" }));
 
       await waitFor(
         () => {
-          const medCalls = fetchMock.mock.calls.filter(
+          const allergyCall = fetchMock.mock.calls.find(
             (c) =>
               typeof c[0] === "string" &&
-              c[0].endsWith("/residents/r1/clinical/medications") &&
+              c[0].endsWith("/residents/r1/clinical/allergies") &&
               (c[1] as { method?: string })?.method === "POST",
           );
-          expect(medCalls.length).toBeGreaterThanOrEqual(1);
+          expect(allergyCall).toBeDefined();
         },
         { timeout: 12_000 },
       );
-      const medCall = fetchMock.mock.calls.find(
+      const allergyCall = fetchMock.mock.calls.find(
         (c) =>
           typeof c[0] === "string" &&
-          c[0].endsWith("/residents/r1/clinical/medications") &&
+          c[0].endsWith("/residents/r1/clinical/allergies") &&
           (c[1] as { method?: string })?.method === "POST",
       );
-      const body = JSON.parse(
-        (medCall?.[1] as { body?: string } | undefined)?.body ?? "{}",
+      const conditionCall = fetchMock.mock.calls.find(
+        (c) =>
+          typeof c[0] === "string" &&
+          c[0].endsWith("/residents/r1/clinical/conditions") &&
+          (c[1] as { method?: string })?.method === "POST",
       );
-      expect(body).toMatchObject({
-        medication: {
-          name: "Metformin",
-          strength: "500 mg",
-          unit: "tablet",
-        },
-        quantityPerServing: 1,
-        directions: "With breakfast",
-        prn: false,
-      });
-      expect(body).not.toHaveProperty("dose");
-      expect(body).not.toHaveProperty("frequency");
+      expect(JSON.parse(
+        (allergyCall?.[1] as { body?: string } | undefined)?.body ?? "{}",
+      )).toEqual({ allergen: "Peanuts" });
+      expect(JSON.parse(
+        (conditionCall?.[1] as { body?: string } | undefined)?.body ?? "{}",
+      )).toEqual({ label: "Hypertension" });
     },
     25_000,
   );

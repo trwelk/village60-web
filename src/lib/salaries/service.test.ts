@@ -3,13 +3,13 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { eq } from "drizzle-orm";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
 import { billingTransactions, salaryAccruals } from "@/db/schema";
 import { calendarDateIsoToUtcMs } from "@/lib/billing/receivedOnUtcMs";
 import { generateMonthlySalaryAccruals } from "./accruals";
 import { formatSalaryPaymentChargeMemo } from "./ledger";
+import { openTestMemoryDb } from "@/test/pushTestSchema";
 import {
   createRemittance,
   createStaffSalary,
@@ -18,16 +18,7 @@ import {
   type CreateStaffSalaryInput,
 } from "./service";
 
-function setupTestDb() {
-  const sqlite = new Database(":memory:");
-  sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("foreign_keys = ON");
-  const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  return { db, sqlite };
-}
-
-function seedHome(db: ReturnType<typeof setupTestDb>["db"]) {
+function seedHome(db: ReturnType<typeof openTestMemoryDb>["db"]) {
   const homeId = randomUUID();
   const now = Date.now();
   db.insert(schema.homes)
@@ -42,7 +33,7 @@ function seedHome(db: ReturnType<typeof setupTestDb>["db"]) {
   return homeId;
 }
 
-function seedAdminUser(db: ReturnType<typeof setupTestDb>["db"], userId = "admin-1") {
+function seedAdminUser(db: ReturnType<typeof openTestMemoryDb>["db"], userId = "admin-1") {
   const now = Date.now();
   db.insert(schema.users)
     .values({
@@ -59,12 +50,12 @@ function seedAdminUser(db: ReturnType<typeof setupTestDb>["db"], userId = "admin
 }
 
 describe("createStaffSalary", () => {
-  let db: ReturnType<typeof setupTestDb>["db"];
+  let db: ReturnType<typeof openTestMemoryDb>["db"];
   let sqlite: Database.Database;
   let homeId: string;
 
   beforeEach(() => {
-    const opened = setupTestDb();
+    const opened = openTestMemoryDb();
     db = opened.db;
     sqlite = opened.sqlite;
     homeId = seedHome(db);
@@ -131,14 +122,14 @@ describe("createStaffSalary", () => {
 });
 
 describe("listStaffSalariesPaged for care users", () => {
-  let db: ReturnType<typeof setupTestDb>["db"];
+  let db: ReturnType<typeof openTestMemoryDb>["db"];
   let sqlite: Database.Database;
   let homeId: string;
   const careUserId = randomUUID();
   const otherCareId = randomUUID();
 
   beforeEach(() => {
-    const opened = setupTestDb();
+    const opened = openTestMemoryDb();
     db = opened.db;
     sqlite = opened.sqlite;
     homeId = seedHome(db);
@@ -219,7 +210,7 @@ describe("listStaffSalariesPaged for care users", () => {
 });
 
 describe("createRemittance ledger integration", () => {
-  let db: ReturnType<typeof setupTestDb>["db"];
+  let db: ReturnType<typeof openTestMemoryDb>["db"];
   let sqlite: Database.Database;
   let homeId: string;
   let salaryId: string;
@@ -227,7 +218,7 @@ describe("createRemittance ledger integration", () => {
   const adminActor = { userId: adminUserId, role: "admin" as const };
 
   beforeEach(() => {
-    const opened = setupTestDb();
+    const opened = openTestMemoryDb();
     db = opened.db;
     sqlite = opened.sqlite;
     homeId = seedHome(db);

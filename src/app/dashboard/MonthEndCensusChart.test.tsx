@@ -2,7 +2,7 @@
 
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { MonthEndCensusTooltip } from "./MonthEndCensusChart";
+import { MonthEndCensusTooltip } from "./analytics/occupancy/MonthEndCensusChart";
 
 describe("MonthEndCensusTooltip", () => {
   it("shows the month label and exact per-home counts", () => {

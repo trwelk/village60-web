@@ -5,8 +5,8 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { pushTestSchema } from "@/test/pushTestSchema";
 import {
   billingPayments,
   billingTransactions,
@@ -25,13 +25,6 @@ import { payInvoice, unpayInvoice } from "./invoicePayments";
 import { calendarDateIsoToUtcMs } from "./receivedOnUtcMs";
 
 const adminActor = { userId: "admin-invoice-pay", role: "admin" as const };
-
-function runMigrations(file: string) {
-  const sqlite = new Database(file);
-  const db = drizzle(sqlite);
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  sqlite.close();
-}
 
 function seedAdminUser(db: ReturnType<typeof getDb>, userId: string) {
   const now = Date.now();
@@ -97,7 +90,7 @@ describe("invoicePayments", () => {
     dbPath = path.join(os.tmpdir(), `village60-invoice-pay-${randomUUID()}.sqlite`);
     process.env.DATABASE_PATH = dbPath;
     closeDbConnection();
-    runMigrations(dbPath);
+    pushTestSchema(dbPath);
   });
 
   afterEach(() => {

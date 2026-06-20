@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
+import { openTestMemoryDb } from "@/test/pushTestSchema";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
@@ -19,14 +19,6 @@ import {
 import type { AppDb } from "@/lib/homes/service";
 import { updateHome } from "@/lib/homes/service";
 import { getLowStockMedications } from "./lowStock";
-
-function openMemoryDb(): { db: AppDb; sqlite: Database.Database } {
-  const sqlite = new Database(":memory:");
-  sqlite.pragma("foreign_keys = ON");
-  const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  return { db, sqlite };
-}
 
 const adminActor = { userId: "u-admin", role: "admin" as const };
 
@@ -226,7 +218,7 @@ describe("getLowStockMedications", () => {
   });
 
   it("returns empty when all medications are above thresholds", () => {
-    const { db, sqlite: s } = openMemoryDb();
+    const { db, sqlite: s } = openTestMemoryDb();
     sqlite = s;
     const t = Date.now();
     seedFixture(db, t);
@@ -238,7 +230,7 @@ describe("getLowStockMedications", () => {
   });
 
   it("flags scheduled meds below days threshold using resolved slots", () => {
-    const { db, sqlite: s } = openMemoryDb();
+    const { db, sqlite: s } = openTestMemoryDb();
     sqlite = s;
     const t = Date.now();
     seedFixture(db, t);
@@ -260,7 +252,7 @@ describe("getLowStockMedications", () => {
   });
 
   it("flags PRN meds below servings threshold", () => {
-    const { db, sqlite: s } = openMemoryDb();
+    const { db, sqlite: s } = openTestMemoryDb();
     sqlite = s;
     const t = Date.now();
     seedFixture(db, t);
@@ -279,7 +271,7 @@ describe("getLowStockMedications", () => {
   });
 
   it("marks critical urgency below 2 days or servings", () => {
-    const { db, sqlite: s } = openMemoryDb();
+    const { db, sqlite: s } = openTestMemoryDb();
     sqlite = s;
     const t = Date.now();
     seedFixture(db, t);
@@ -292,7 +284,7 @@ describe("getLowStockMedications", () => {
   });
 
   it("flags zero on-hand medications as critical", () => {
-    const { db, sqlite: s } = openMemoryDb();
+    const { db, sqlite: s } = openTestMemoryDb();
     sqlite = s;
     const t = Date.now();
     seedFixture(db, t);
@@ -310,7 +302,7 @@ describe("getLowStockMedications", () => {
   });
 
   it("skips inactive residents", () => {
-    const { db, sqlite: s } = openMemoryDb();
+    const { db, sqlite: s } = openTestMemoryDb();
     sqlite = s;
     const t = Date.now();
     seedFixture(db, t);
@@ -338,7 +330,7 @@ describe("getLowStockMedications", () => {
   });
 
   it("respects per-home configurable thresholds", () => {
-    const { db, sqlite: s } = openMemoryDb();
+    const { db, sqlite: s } = openTestMemoryDb();
     sqlite = s;
     const t = Date.now();
     seedFixture(db, t);
@@ -354,7 +346,7 @@ describe("getLowStockMedications", () => {
   });
 
   it("suggests order quantity to reach threshold stock level", () => {
-    const { db, sqlite: s } = openMemoryDb();
+    const { db, sqlite: s } = openTestMemoryDb();
     sqlite = s;
     const t = Date.now();
     seedFixture(db, t);
@@ -367,7 +359,7 @@ describe("getLowStockMedications", () => {
   });
 
   it("excludes medications covered by pending purchase order lines", () => {
-    const { db, sqlite: s } = openMemoryDb();
+    const { db, sqlite: s } = openTestMemoryDb();
     sqlite = s;
     const t = Date.now();
     seedFixture(db, t);
@@ -382,7 +374,7 @@ describe("getLowStockMedications", () => {
   });
 
   it("still flags medications when pending order quantity is insufficient", () => {
-    const { db, sqlite: s } = openMemoryDb();
+    const { db, sqlite: s } = openTestMemoryDb();
     sqlite = s;
     const t = Date.now();
     seedFixture(db, t);

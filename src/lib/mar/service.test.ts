@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
+import { openTestMemoryDb } from "@/test/pushTestSchema";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
@@ -23,14 +23,6 @@ import {
   recordPRN,
   undoAdministration,
 } from "./service";
-
-function openMemoryDb(): { db: AppDb; sqlite: Database.Database } {
-  const sqlite = new Database(":memory:");
-  sqlite.pragma("foreign_keys = ON");
-  const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  return { db, sqlite };
-}
 
 const adminActor = { userId: "u-admin", role: "admin" as const };
 const careActor = { userId: "u-care", role: "care" as const, primaryHomeId: "h1" };
@@ -193,7 +185,7 @@ describe("MAR inventory integration", () => {
   });
 
   it("deducts resident inventory when a scheduled dose is recorded", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     seedMarFixture(db, t);
@@ -221,7 +213,7 @@ describe("MAR inventory integration", () => {
   });
 
   it("restores inventory when a dose is undone", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     seedMarFixture(db, t);
@@ -229,7 +221,7 @@ describe("MAR inventory integration", () => {
     const admin = recordAdministration(db, careActor, "h1", {
       residentMedicationId: "rm-scheduled",
       slot: "morning",
-      date: "2026-06-12",
+      date: new Date().toISOString().slice(0, 10),
     });
 
     undoAdministration(db, careActor, "h1", admin.id);
@@ -253,7 +245,7 @@ describe("MAR inventory integration", () => {
   });
 
   it("stacks dose deductions per resident for the same item", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     seedMarFixture(db, t);
@@ -284,7 +276,7 @@ describe("MAR inventory integration", () => {
   });
 
   it("deducts inventory for PRN administrations", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     seedMarFixture(db, t);
@@ -309,7 +301,7 @@ describe("MAR inventory integration", () => {
   });
 
   it("allows balance to go negative when stock is insufficient", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     seedMarFixture(db, t);

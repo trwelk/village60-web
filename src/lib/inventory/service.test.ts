@@ -1,7 +1,11 @@
 import Database from "better-sqlite3";
+import { openTestMemoryDb } from "@/test/pushTestSchema";
+import {
+  inventoryCategoryIdForHome,
+  seedInventoryCategory,
+} from "@/test/inventoryFixtures";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import * as schema from "@/db/schema";
@@ -16,14 +20,6 @@ import {
   transferInventoryToResident,
 } from "./service";
 
-function openMemoryDb(): { db: AppDb; sqlite: Database.Database } {
-  const sqlite = new Database(":memory:");
-  sqlite.pragma("foreign_keys = ON");
-  const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-  return { db, sqlite };
-}
-
 const adminActor = { userId: "u-admin", role: "admin" as const };
 
 describe("inventory transaction service", () => {
@@ -35,7 +31,7 @@ describe("inventory transaction service", () => {
   });
 
   it("writes ledger and materialized balance for home owner", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -56,10 +52,12 @@ describe("inventory transaction service", () => {
         updatedAtUtcMs: t,
       })
       .run();
+    seedInventoryCategory(db, "h1", t);
     db.insert(inventoryItems)
       .values({
         id: "item-c",
         homeId: "h1",
+        categoryId: inventoryCategoryIdForHome("h1"),
         name: "Syringe",
         baseUnit: "each",
         unitClass: "countable",
@@ -107,7 +105,7 @@ describe("inventory transaction service", () => {
   });
 
   it("rejects invalid precision per unit class", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -128,11 +126,13 @@ describe("inventory transaction service", () => {
         updatedAtUtcMs: t,
       })
       .run();
+    seedInventoryCategory(db, "h1", t);
     db.insert(inventoryItems)
       .values([
         {
           id: "item-c",
           homeId: "h1",
+          categoryId: inventoryCategoryIdForHome("h1"),
           name: "Pads",
           baseUnit: "each",
           unitClass: "countable",
@@ -142,6 +142,7 @@ describe("inventory transaction service", () => {
         {
           id: "item-m",
           homeId: "h1",
+          categoryId: inventoryCategoryIdForHome("h1"),
           name: "Syrup",
           baseUnit: "ml",
           unitClass: "measurable",
@@ -187,7 +188,7 @@ describe("inventory transaction service", () => {
   });
 
   it("rejects resident owner from a different home than item", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -217,6 +218,8 @@ describe("inventory transaction service", () => {
         },
       ])
       .run();
+    seedInventoryCategory(db, "h1", t);
+    seedInventoryCategory(db, "h2", t);
     db.insert(residents)
       .values({
         id: "r1",
@@ -230,10 +233,12 @@ describe("inventory transaction service", () => {
         updatedAtUtcMs: t,
       })
       .run();
+    seedInventoryCategory(db, "h1", t);
     db.insert(inventoryItems)
       .values({
         id: "item-h2",
         homeId: "h2",
+        categoryId: inventoryCategoryIdForHome("h2"),
         name: "Tape",
         baseUnit: "each",
         unitClass: "countable",
@@ -261,7 +266,7 @@ describe("inventory transaction service", () => {
   });
 
   it("dispenses via centralized transaction path and allows negative stock", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -282,10 +287,12 @@ describe("inventory transaction service", () => {
         updatedAtUtcMs: t,
       })
       .run();
+    seedInventoryCategory(db, "h1", t);
     db.insert(inventoryItems)
       .values({
         id: "item-c",
         homeId: "h1",
+        categoryId: inventoryCategoryIdForHome("h1"),
         name: "Gloves",
         baseUnit: "each",
         unitClass: "countable",
@@ -318,7 +325,7 @@ describe("inventory transaction service", () => {
   });
 
   it("requires adjustment reason code and enforces note for OTHER", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -339,10 +346,12 @@ describe("inventory transaction service", () => {
         updatedAtUtcMs: t,
       })
       .run();
+    seedInventoryCategory(db, "h1", t);
     db.insert(inventoryItems)
       .values({
         id: "item-c",
         homeId: "h1",
+        categoryId: inventoryCategoryIdForHome("h1"),
         name: "Pads",
         baseUnit: "each",
         unitClass: "countable",
@@ -390,7 +399,7 @@ describe("inventory transaction service", () => {
   });
 
   it("blocks care users from adjustment permission gate", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(homes)
@@ -412,10 +421,12 @@ describe("inventory transaction service", () => {
         createdAtUtcMs: t,
       })
       .run();
+    seedInventoryCategory(db, "h1", t);
     db.insert(inventoryItems)
       .values({
         id: "item-c",
         homeId: "h1",
+        categoryId: inventoryCategoryIdForHome("h1"),
         name: "Pads",
         baseUnit: "each",
         unitClass: "countable",
@@ -444,7 +455,7 @@ describe("inventory transaction service", () => {
   });
 
   it("creates atomic paired transfer rows with shared transferId", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -478,10 +489,12 @@ describe("inventory transaction service", () => {
         updatedAtUtcMs: t,
       })
       .run();
+    seedInventoryCategory(db, "h1", t);
     db.insert(inventoryItems)
       .values({
         id: "item-c",
         homeId: "h1",
+        categoryId: inventoryCategoryIdForHome("h1"),
         name: "Gloves",
         baseUnit: "each",
         unitClass: "countable",
@@ -535,7 +548,7 @@ describe("inventory transaction service", () => {
   });
 
   it("enforces same-home and same-item constraints for transfer", () => {
-    const { db, sqlite } = openMemoryDb();
+    const { db, sqlite } = openTestMemoryDb();
     connections.push(sqlite);
     const t = Date.now();
     db.insert(users)
@@ -565,6 +578,8 @@ describe("inventory transaction service", () => {
         },
       ])
       .run();
+    seedInventoryCategory(db, "h1", t);
+    seedInventoryCategory(db, "h2", t);
     db.insert(residents)
       .values({
         id: "r2",
@@ -578,10 +593,12 @@ describe("inventory transaction service", () => {
         updatedAtUtcMs: t,
       })
       .run();
+    seedInventoryCategory(db, "h1", t);
     db.insert(inventoryItems)
       .values({
         id: "item-h1",
         homeId: "h1",
+        categoryId: inventoryCategoryIdForHome("h1"),
         name: "Bandage",
         baseUnit: "each",
         unitClass: "countable",
