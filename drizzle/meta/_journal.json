@@ -442,6 +442,13 @@
       "when": 1779906664000,
       "tag": "0062_home_med_reorder_supply",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "6",
+      "when": 1779906664400,
+      "tag": "0063_add_salary_tables",
+      "breakpoints": true
     }
   ]
 }

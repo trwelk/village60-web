@@ -706,3 +706,74 @@ export const homePurchaseOrderReceiveEvents = sqliteTable(
     index("home_po_receive_events_po_currency_idx").on(t.purchaseOrderId, t.currencyCode),
   ],
 );
+
+/** Staff salary records; one row per salary period. Close `effectiveTo` and create a new row on revision. */
+export const staffSalaries = sqliteTable(
+  "staff_salaries",
+  {
+    id: text("id").primaryKey(),
+    homeId: text("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    /** Nullable link to a login user (care worker). Null for non-login staff. */
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    fullName: text("full_name").notNull(),
+    roleTitle: text("role_title").notNull(),
+    /** Monthly salary in home currency minor units (e.g. paisa). */
+    monthlySalaryMinor: integer("monthly_salary_minor").notNull(),
+    /** ISO `YYYY-MM-DD` — when this salary rate took effect. */
+    effectiveFrom: text("effective_from").notNull(),
+    /** ISO `YYYY-MM-DD` — null means currently active rate. */
+    effectiveTo: text("effective_to"),
+    /** `active` | `inactive` */
+    status: text("status").notNull(),
+    phone: text("phone"),
+    notes: text("notes"),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    index("staff_salaries_home_status_idx").on(t.homeId, t.status),
+    index("staff_salaries_user_idx").on(t.userId),
+  ],
+);
+
+/** Monthly salary payment records. One row = one month's pay for one staff member. */
+export const salaryRemittances = sqliteTable(
+  "salary_remittances",
+  {
+    id: text("id").primaryKey(),
+    staffSalaryId: text("staff_salary_id")
+      .notNull()
+      .references(() => staffSalaries.id, { onDelete: "cascade" }),
+    homeId: text("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    periodYear: integer("period_year").notNull(),
+    periodMonth: integer("period_month").notNull(),
+    /** Actual amount paid in minor units (may differ from salary if partial/bonus). */
+    amountPaidMinor: integer("amount_paid_minor").notNull(),
+    /** ISO `YYYY-MM-DD` — date payment was made. */
+    paidOn: text("paid_on").notNull(),
+    /** e.g. "cash", "bank_transfer", "upi" */
+    paymentMethod: text("payment_method"),
+    reference: text("reference"),
+    markedByUserId: text("marked_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    notes: text("notes"),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+  },
+  (t) => [
+    uniqueIndex("salary_remittances_staff_period_uq").on(
+      t.staffSalaryId,
+      t.periodYear,
+      t.periodMonth,
+    ),
+    index("salary_remittances_home_period_idx").on(
+      t.homeId,
+      t.periodYear,
+      t.periodMonth,
+    ),
+  ],
+);
