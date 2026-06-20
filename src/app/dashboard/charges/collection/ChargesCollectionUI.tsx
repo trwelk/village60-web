@@ -64,7 +64,9 @@ export function ChargesCollectionUI({ homes }: Props) {
   const searchParams = useSearchParams();
 
   const now = new Date();
-  const [homeId, setHomeId] = useState(searchParams.get("homeId") ?? "");
+  const [homeId, setHomeId] = useState(() =>
+    resolveSelectedHomeId(searchParams.get("homeId") ?? undefined, homes),
+  );
   const [year, setYear] = useState(
     Number(searchParams.get("year") ?? now.getFullYear()),
   );
