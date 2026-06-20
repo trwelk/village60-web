@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, notInArray, sql } from "drizzle-orm";
 import {
   accounts,
   billingPayments,
@@ -7,6 +7,7 @@ import {
   invoiceLineItems,
   invoices,
   residents,
+  salaryRemittances,
   wards,
 } from "@/db/schema";
 import {
@@ -14,6 +15,9 @@ import {
   utcBillingMonthFromMs,
 } from "@/lib/billing/billingMonth";
 import type { AppDb } from "@/lib/homes/service";
+import {
+  STAFF_SALARIES_EXPENSE_CATEGORY,
+} from "@/lib/salaries/ledger";
 
 export type FinancialPreset = "6" | "12" | "ytd";
 
@@ -139,6 +143,97 @@ export function sumProjectedMonthlyCapacityMinor(
   return Number(row?.total ?? 0);
 }
 
+function sumStaffSalaryPaymentsMinor(
+  db: AppDb,
+  input: {
+    homeId: string | null;
+    monthKey?: string;
+    startMonth?: string;
+    endMonth?: string;
+  },
+): number {
+  const monthPredicates =
+    input.monthKey != null
+      ? [eq(sql`substr(${salaryRemittances.paidOn}, 1, 7)`, input.monthKey)]
+      : [
+          gte(sql`substr(${salaryRemittances.paidOn}, 1, 7)`, input.startMonth!),
+          lte(sql`substr(${salaryRemittances.paidOn}, 1, 7)`, input.endMonth!),
+        ];
+
+  const row = db
+    .select({
+      total: sql<number>`ifnull(sum(${salaryRemittances.amountPaidMinor}), 0)`,
+    })
+    .from(salaryRemittances)
+    .innerJoin(homes, eq(homes.id, salaryRemittances.homeId))
+    .where(
+      and(
+        ...monthPredicates,
+        isNull(homes.archivedAtUtcMs),
+        input.homeId ? eq(salaryRemittances.homeId, input.homeId) : sql`1 = 1`,
+      ),
+    )
+    .get();
+  return Number(row?.total ?? 0);
+}
+
+/** Home operating payments (invoice settlement), excluding salary remittances. */
+function sumHomeOperatingPaymentsMinor(
+  db: AppDb,
+  input: {
+    homeId: string | null;
+    monthKey?: string;
+    startMonth?: string;
+    endMonth?: string;
+  },
+): number {
+  const monthPredicates =
+    input.monthKey != null
+      ? [
+          eq(
+            sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`,
+            input.monthKey,
+          ),
+        ]
+      : [
+          gte(
+            sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`,
+            input.startMonth!,
+          ),
+          lte(
+            sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`,
+            input.endMonth!,
+          ),
+        ];
+
+  const salaryPaymentLedgerIds = db
+    .select({ id: salaryRemittances.paymentLedgerTransactionId })
+    .from(salaryRemittances)
+    .all()
+    .map((r) => r.id);
+
+  const row = db
+    .select({
+      total: sql<number>`ifnull(sum(${billingPayments.amountMinor}), 0)`,
+    })
+    .from(billingPayments)
+    .innerJoin(accounts, eq(accounts.id, billingPayments.accountId))
+    .innerJoin(homes, eq(homes.id, accounts.homeId))
+    .where(
+      and(
+        eq(accounts.accountType, "home"),
+        ...monthPredicates,
+        salaryPaymentLedgerIds.length > 0
+          ? notInArray(billingPayments.ledgerTransactionId, salaryPaymentLedgerIds)
+          : sql`1 = 1`,
+        isNull(homes.archivedAtUtcMs),
+        input.homeId ? eq(accounts.homeId, input.homeId) : sql`1 = 1`,
+      ),
+    )
+    .get();
+  return Number(row?.total ?? 0);
+}
+
 export function getFinancialAnalyticsSnapshot(
   db: AppDb,
   input: {
@@ -189,28 +284,21 @@ export function getFinancialAnalyticsSnapshot(
     )
     .get();
 
-  const collectedHomeAcct = db
-    .select({
-      total: sql<number>`ifnull(sum(${billingPayments.amountMinor}), 0)`,
-    })
-    .from(billingPayments)
-    .innerJoin(accounts, eq(accounts.id, billingPayments.accountId))
-    .innerJoin(homes, eq(homes.id, accounts.homeId))
-    .where(
-      and(
-        eq(accounts.accountType, "home"),
-        receivedMonthClause,
-        nonArchivedHomesClause(),
-        input.homeId ? eq(accounts.homeId, input.homeId) : sql`1 = 1`,
-      ),
-    )
-    .get();
-
   /** Resident payments only — cash received from resident billing. */
   const totalCollectedMinor = Number(collectedResident?.total ?? 0);
 
-  const totalHomeInvoicePaymentsMinor = Number(collectedHomeAcct?.total ?? 0);
-  const totalExpensesMinor = totalHomeInvoicePaymentsMinor;
+  const totalHomeInvoicePaymentsMinor = sumHomeOperatingPaymentsMinor(db, {
+    homeId: input.homeId,
+    startMonth,
+    endMonth,
+  });
+  const staffSalaryPaymentsMinor = sumStaffSalaryPaymentsMinor(db, {
+    homeId: input.homeId,
+    startMonth,
+    endMonth,
+  });
+  const totalExpensesMinor =
+    totalHomeInvoicePaymentsMinor + staffSalaryPaymentsMinor;
 
   const balancePredicates = [
     eq(accounts.accountType, "resident"),
@@ -283,26 +371,16 @@ export function getFinancialAnalyticsSnapshot(
       )
       .get();
 
-    const ch = db
-      .select({
-        total: sql<number>`ifnull(sum(${billingPayments.amountMinor}), 0)`,
-      })
-      .from(billingPayments)
-      .innerJoin(accounts, eq(accounts.id, billingPayments.accountId))
-      .innerJoin(homes, eq(homes.id, accounts.homeId))
-      .where(
-        and(
-          eq(accounts.accountType, "home"),
-          eq(sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`, monthKey),
-          nonArchivedHomesClause(),
-          input.homeId ? eq(accounts.homeId, input.homeId) : sql`1 = 1`,
-        ),
-      )
-      .get();
-
     const collectedMinor = Number(cr?.total ?? 0);
-    const homeInvoicePaymentMinor = Number(ch?.total ?? 0);
-    const expensesMinor = homeInvoicePaymentMinor;
+    const homeInvoicePaymentMinor = sumHomeOperatingPaymentsMinor(db, {
+      homeId: input.homeId,
+      monthKey,
+    });
+    const staffSalaryPaymentMinor = sumStaffSalaryPaymentsMinor(db, {
+      homeId: input.homeId,
+      monthKey,
+    });
+    const expensesMinor = homeInvoicePaymentMinor + staffSalaryPaymentMinor;
     const finalizedInvoicedMinor =
       finalizedInvoicedMap.get(monthKey) ?? 0;
 
@@ -597,35 +675,22 @@ export function getExpenseAnalyticsSnapshot(
     input.preset,
   );
 
-  const receivedMonthClause = and(
-    gte(sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`, startMonth),
-    lte(sql`strftime('%Y-%m', ${billingPayments.receivedOn} / 1000, 'unixepoch')`, endMonth),
-  );
-
   const issuedMonthClause = and(
     isNotNull(invoices.issuedOn),
     gte(sql`substr(${invoices.issuedOn}, 1, 7)`, startMonth),
     lte(sql`substr(${invoices.issuedOn}, 1, 7)`, endMonth),
   );
 
-  const homeInvoicePaymentsRow = db
-    .select({
-      total: sql<number>`ifnull(sum(${billingPayments.amountMinor}), 0)`,
-    })
-    .from(billingPayments)
-    .innerJoin(accounts, eq(accounts.id, billingPayments.accountId))
-    .innerJoin(homes, eq(homes.id, accounts.homeId))
-    .where(
-      and(
-        eq(accounts.accountType, "home"),
-        receivedMonthClause,
-        isNull(homes.archivedAtUtcMs),
-        input.homeId ? eq(accounts.homeId, input.homeId) : sql`1 = 1`,
-      ),
-    )
-    .get();
-
-  const homeInvoicePaymentsMinor = Number(homeInvoicePaymentsRow?.total ?? 0);
+  const homeInvoicePaymentsMinor = sumHomeOperatingPaymentsMinor(db, {
+    homeId: input.homeId,
+    startMonth,
+    endMonth,
+  });
+  const staffSalariesMinor = sumStaffSalaryPaymentsMinor(db, {
+    homeId: input.homeId,
+    startMonth,
+    endMonth,
+  });
 
   const homeOutstandingRows = db
     .select({
@@ -675,11 +740,16 @@ export function getExpenseAnalyticsSnapshot(
     .orderBy(asc(invoiceLineItems.category))
     .all();
 
-  const totalExpensesMinor = homeInvoicePaymentsMinor;
-  const expensesByCategory = homeExpenseCategoryRows.map((r) => ({
-    label: r.category.trim() ? r.category : "Uncategorized",
-    amountMinor: Number(r.total),
-  }));
+  const totalExpensesMinor = homeInvoicePaymentsMinor + staffSalariesMinor;
+  const expensesByCategory = [
+    ...homeExpenseCategoryRows.map((r) => ({
+      label: r.category.trim() ? r.category : "Uncategorized",
+      amountMinor: Number(r.total),
+    })),
+    ...(staffSalariesMinor > 0
+      ? [{ label: STAFF_SALARIES_EXPENSE_CATEGORY, amountMinor: staffSalariesMinor }]
+      : []),
+  ].sort((a, b) => a.label.localeCompare(b.label));
 
   return {
     currencyCode: input.displayCurrencyCode,

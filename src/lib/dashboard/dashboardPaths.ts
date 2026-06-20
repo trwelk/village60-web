@@ -16,12 +16,23 @@ export function isDashboardUsersPath(pathname: string): boolean {
   return pathname.startsWith("/dashboard/users");
 }
 
+export function isDashboardStaffPath(pathname: string): boolean {
+  return pathname.startsWith("/dashboard/staff");
+}
+
+/** @deprecated Use isDashboardStaffPath */
+export const isDashboardSalariesPath = isDashboardStaffPath;
+
 export function isDashboardWaitingListPath(pathname: string): boolean {
   return pathname.startsWith("/dashboard/waiting-list");
 }
 
 export function isDashboardChargesPath(pathname: string): boolean {
   return pathname === "/dashboard/charges";
+}
+
+export function isDashboardChargesCollectionPath(pathname: string): boolean {
+  return pathname === "/dashboard/charges/collection";
 }
 
 export function isDashboardHomeExpensesPath(pathname: string): boolean {

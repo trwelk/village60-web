@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { assertActorMayAccessHome } from "@/lib/authz/homeScope";
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import {
@@ -19,6 +19,7 @@ import { utcCalendarDateIsoFromUtcMs } from "@/lib/billing/receivedOnUtcMs";
 export type HomeMonthlyChargeLedgerRow = {
   id: string;
   chargeId: string;
+  invoiceId: string;
   billingMonth: string;
   invoiceLineDescription: string;
   invoiceLineCategory: string;
@@ -52,6 +53,49 @@ export type HomeMonthlyChargesLedgerSummary = {
 
 export const DEFAULT_CHARGES_LEDGER_PAGE_SIZE = 25;
 export const MAX_CHARGES_LEDGER_PAGE_SIZE = 100;
+
+export type MonthlyChargesCollectionMeta = {
+  hasChargeBatch: boolean;
+  activeResidentCount: number;
+};
+
+/** Whether any monthly_fee lines exist for a home/month (cron or manual run). */
+export function getMonthlyChargesCollectionMeta(
+  db: AppDb,
+  actor: SessionActor | undefined,
+  homeId: string,
+  billingMonth: string,
+): MonthlyChargesCollectionMeta {
+  requireBillingAdmin(actor);
+  assertActorMayAccessHome(db, actor, homeId);
+
+  const activeResidentCount =
+    db
+      .select({ id: residents.id })
+      .from(residents)
+      .where(and(eq(residents.homeId, homeId), eq(residents.status, "active")))
+      .all().length;
+
+  const hasChargeBatch = Boolean(
+    db
+      .select({ id: invoiceLineItems.id })
+      .from(invoiceLineItems)
+      .innerJoin(invoices, eq(invoiceLineItems.invoiceId, invoices.id))
+      .innerJoin(accounts, eq(accounts.id, invoices.accountId))
+      .innerJoin(residents, eq(residents.id, accounts.residentId))
+      .where(
+        and(
+          eq(residents.homeId, homeId),
+          eq(invoiceLineItems.category, "monthly_fee"),
+          eq(invoiceLineItems.serviceMonth, billingMonth),
+          inArray(invoices.status, ["finalized", "paid"]),
+        ),
+      )
+      .get(),
+  );
+
+  return { hasChargeBatch, activeResidentCount };
+}
 
 export type HomeOtherChargeLedgerRow = {
   id: string;
@@ -109,6 +153,7 @@ export type HomeMonthlyPaymentLedgerRow = {
 type ChargeCore = {
   invoiceLineId: string;
   chargeId: string;
+  invoiceId: string;
   residentId: string;
   residentFullName: string;
   residentStatus: string;
@@ -166,7 +211,8 @@ function chargeRowsForHome(
       return {
         invoiceLineId: r.line.id,
         chargeId: r.line.id,
-      residentId: r.resident.id,
+        invoiceId: r.invoice.id,
+        residentId: r.resident.id,
       residentFullName: r.resident.fullName,
       residentStatus: r.resident.status,
         billingMonth,
@@ -217,28 +263,64 @@ export function listHomeMonthlyChargesLedger(
     }
   }
 
-  let rows = chargeRowsForHome(db, homeId, {
+  const coreRows = chargeRowsForHome(db, homeId, {
     from: input.billingMonthFrom,
     to: input.billingMonthTo,
     residentId: input.residentId ?? undefined,
-  }).map((c) => ({
-    id: c.invoiceLineId,
-    chargeId: c.chargeId,
-    residentId: c.residentId,
-    residentFullName: c.residentFullName,
-    residentStatus: c.residentStatus,
-    billingMonth: c.billingMonth,
-    invoiceLineDescription: c.invoiceLineDescription,
-    invoiceLineCategory: c.invoiceLineCategory,
-    invoiceStatus: c.invoiceStatus,
-    wardIdSnapshot: c.wardIdSnapshot ?? undefined,
-    wardLabel: c.wardLabelSnapshot,
-    wardLabelSnapshot: c.wardLabelSnapshot,
-    amountMinorSnapshot: c.amountMinorSnapshot,
-    paid: c.invoiceStatus === "paid",
-    paidOn: null,
-    payment: null,
-  }));
+  });
+
+  const invoiceIds = [...new Set(coreRows.map((c) => c.invoiceId))];
+  const paymentRows =
+    invoiceIds.length === 0
+      ? []
+      : db
+          .select({
+            invoiceId: billingPayments.invoiceId,
+            id: billingPayments.id,
+            amountMinor: billingPayments.amountMinor,
+            receivedOn: billingPayments.receivedOn,
+            notes: billingPayments.notes,
+            recordedByUserId: billingPayments.recordedByUserId,
+          })
+          .from(billingPayments)
+          .where(inArray(billingPayments.invoiceId, invoiceIds))
+          .all();
+  const paymentByInvoiceId = new Map(
+    paymentRows
+      .filter((p): p is typeof p & { invoiceId: string } => p.invoiceId != null)
+      .map((p) => [p.invoiceId, p]),
+  );
+
+  let rows = coreRows.map((c) => {
+    const linked = paymentByInvoiceId.get(c.invoiceId);
+    return {
+      id: c.invoiceLineId,
+      chargeId: c.chargeId,
+      invoiceId: c.invoiceId,
+      residentId: c.residentId,
+      residentFullName: c.residentFullName,
+      residentStatus: c.residentStatus,
+      billingMonth: c.billingMonth,
+      invoiceLineDescription: c.invoiceLineDescription,
+      invoiceLineCategory: c.invoiceLineCategory,
+      invoiceStatus: c.invoiceStatus,
+      wardIdSnapshot: c.wardIdSnapshot ?? undefined,
+      wardLabel: c.wardLabelSnapshot,
+      wardLabelSnapshot: c.wardLabelSnapshot,
+      amountMinorSnapshot: c.amountMinorSnapshot,
+      paid: c.invoiceStatus === "paid",
+      paidOn: linked ? utcCalendarDateIsoFromUtcMs(linked.receivedOn) : null,
+      payment: linked
+        ? {
+            id: linked.id,
+            amountMinor: linked.amountMinor,
+            paidOn: utcCalendarDateIsoFromUtcMs(linked.receivedOn),
+            notes: linked.notes,
+            recordedByUserId: linked.recordedByUserId ?? "",
+          }
+        : null,
+    };
+  });
   if (input.paymentStatus === "paid") rows = rows.filter((r) => r.paid);
   if (input.paymentStatus === "unpaid") rows = rows.filter((r) => !r.paid);
   rows.sort((a, b) => b.billingMonth.localeCompare(a.billingMonth) || a.residentFullName.localeCompare(b.residentFullName));

@@ -31,3 +31,14 @@ New dashboard pages that show a filtered, paginated list (residents, homes, char
 - Copy pagination button classes inline — use the shared component.
 
 See `features/village_list_shell_design.md` for the full design rationale and migration history.
+
+## Internal cron endpoints
+
+Schedule both routes at **00:05 UTC on the 1st** of each month with `POST` and `Authorization: Bearer $CRON_SECRET`:
+
+| Route | Default billing month |
+|-------|----------------------|
+| `/api/internal/cron/generate-monthly-charges` | Current UTC month (opens + finalizes resident monthly invoices) |
+| `/api/internal/cron/generate-monthly-salary-accruals` | Previous UTC month (payroll for the month just ended) |
+
+Optional JSON body `{ "billingMonth": "YYYY-MM" }` overrides the default for manual catch-up runs.

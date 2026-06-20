@@ -89,6 +89,37 @@ export type PostHomeTransactionResult = {
 };
 
 /**
+ * Post a signed ledger entry against the home billing account within an
+ * existing transaction. Use positive `amountMinor` for expenses (debit);
+ * negative for credits/refunds.
+ */
+export function postHomeTransactionInTx(
+  tx: AppDb,
+  actor: SessionActor,
+  input: PostHomeTransactionInput,
+): PostHomeTransactionResult {
+  const account = ensureHomeAccount(tx, input.homeId);
+  const ledgerTransactionId = randomUUID();
+
+  tx.insert(billingTransactions)
+    .values({
+      id: ledgerTransactionId,
+      accountId: account.id,
+      accountType: "home",
+      txnType: input.txnType,
+      amountMinor: input.amountMinor,
+      sourceKind: input.sourceKind,
+      sourceId: input.sourceId ?? null,
+      memo: input.memo?.trim() || null,
+      recordedByUserId: actor.userId,
+      postedAtUtcMs: input.postedAtUtcMs ?? Date.now(),
+    })
+    .run();
+
+  return { ledgerTransactionId, accountId: account.id };
+}
+
+/**
  * Post a signed ledger entry against the home billing account.
  * Use positive `amountMinor` for expenses (debit); negative for credits/refunds.
  */
@@ -107,27 +138,7 @@ export function postHomeTransaction(
     throw new ValidationError("sourceKind is required.");
   }
 
-  return db.transaction((tx) => {
-    const account = ensureHomeAccount(tx, input.homeId);
-    const ledgerTransactionId = randomUUID();
-
-    tx.insert(billingTransactions)
-      .values({
-        id: ledgerTransactionId,
-        accountId: account.id,
-        accountType: "home",
-        txnType: input.txnType,
-        amountMinor: input.amountMinor,
-        sourceKind: input.sourceKind,
-        sourceId: input.sourceId ?? null,
-        memo: input.memo?.trim() || null,
-        recordedByUserId: actor.userId,
-        postedAtUtcMs: input.postedAtUtcMs ?? Date.now(),
-      })
-      .run();
-
-    return { ledgerTransactionId, accountId: account.id };
-  });
+  return db.transaction((tx) => postHomeTransactionInTx(tx, actor, input));
 }
 
 export type HomeAccountLedgerLine = {

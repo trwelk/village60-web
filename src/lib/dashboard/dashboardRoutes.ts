@@ -62,3 +62,40 @@ export function dashboardMedicationReordersHref(homeId?: string): string {
   }
   return `/dashboard/medication-reorders?homeId=${encodeURIComponent(homeId)}`;
 }
+
+export function dashboardStaffHref(homeId?: string): string {
+  if (!homeId) return "/dashboard/staff";
+  return `/dashboard/staff?homeId=${encodeURIComponent(homeId)}`;
+}
+
+/** @deprecated Use dashboardStaffHref */
+export const dashboardSalariesHref = dashboardStaffHref;
+
+export function dashboardStaffRemittanceHref(
+  homeId: string,
+  year?: number,
+  month?: number,
+): string {
+  const params = new URLSearchParams({ homeId });
+  if (year) params.set("year", String(year));
+  if (month) params.set("month", String(month));
+  return `/dashboard/staff/remittance?${params.toString()}`;
+}
+
+/** @deprecated Use dashboardStaffHref */
+export const dashboardSalaryRemittanceHref = dashboardStaffRemittanceHref;
+
+export function dashboardChargesCollectionHref(
+  homeId?: string,
+  year?: number,
+  month?: number,
+): string {
+  const params = new URLSearchParams();
+  if (homeId) params.set("homeId", homeId);
+  if (year) params.set("year", String(year));
+  if (month) params.set("month", String(month));
+  const qs = params.toString();
+  return qs
+    ? `/dashboard/charges/collection?${qs}`
+    : "/dashboard/charges/collection";
+}

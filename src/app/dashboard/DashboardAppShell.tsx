@@ -20,6 +20,7 @@ import {
   isDashboardAnalyticsOccupancyPath,
   isDashboardAnalyticsFinancialPath,
   isDashboardChargesPath,
+  isDashboardChargesCollectionPath,
   isDashboardHomeExpensesPath,
   isDashboardHomesPath,
   isDashboardInvoicesPath,
@@ -34,6 +35,7 @@ import {
   isDashboardResidentsPath,
   isDashboardTasksPath,
   isDashboardUsersPath,
+  isDashboardStaffPath,
   isDashboardAdminSettingsPath,
   isDashboardMarPath,
   isDashboardMedicationsPath,
@@ -68,6 +70,7 @@ import {
   UserCircle,
   UserCog,
   Users,
+  HandCoins,
   Wallet,
   Pill,
   Tablets,
@@ -357,6 +360,12 @@ function primaryNavItemsForRole(
             isActive: isDashboardChargesPath,
           },
           {
+            href: "/dashboard/charges/collection",
+            label: t("nav.chargesCollection"),
+            Icon: HandCoins,
+            isActive: isDashboardChargesCollectionPath,
+          },
+          {
             href: "/dashboard/home-expenses",
             label: t("nav.homeCharges"),
             Icon: Landmark,
@@ -398,9 +407,15 @@ function primaryNavItemsForRole(
         items: [
           {
             href: "/dashboard/users",
-            label: t("nav.staff"),
+            label: t("nav.users"),
             Icon: UserCog,
             isActive: isDashboardUsersPath,
+          },
+          {
+            href: "/dashboard/staff",
+            label: t("nav.staff"),
+            Icon: HandCoins,
+            isActive: isDashboardStaffPath,
           },
           {
             href: "/dashboard/waiting-list",
@@ -417,6 +432,16 @@ function primaryNavItemsForRole(
         ],
       },
     );
+  }
+
+  if (role === "care") {
+    items.push({
+      kind: "link",
+      href: "/dashboard/staff",
+      label: t("nav.staff"),
+      Icon: HandCoins,
+      isActive: isDashboardStaffPath,
+    });
   }
 
   items.push({

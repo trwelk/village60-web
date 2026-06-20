@@ -12,12 +12,10 @@ This Next.js app provides administrator email and password sign-in, encrypted co
 1. `cd web`
 2. `cp .env.example .env.local` (on Windows, copy the file manually) and set `SESSION_PASSWORD` to a random string **at least 32 characters** long.
 3. `npm install`
-4. `npm run db:migrate` — creates the SQLite file and applies migrations.
-5. Create an initial login (pick one):
-   - **Admin only:** `npm run db:seed:admin` — inserts `admin@example.com` (password `admin` unless you set `SEED_ADMIN_PASSWORD` in `.env.local`).
-   - **Full demo data:** `npm run db:seed` — rich sample dataset (same default admin credentials as `.env.example` comments; seed uses password `admin`).
+4. `npm run db:push` — creates the SQLite file and tables from `src/db/schema.ts`.
+5. `npm run db:seed` — inserts demo homes, residents, staff, medicine catalog, and `admin@example.com` (password `admin`).
 
-To wipe the SQLite file and re-run migrations only: `npm run db:reset` (stop `npm run dev` first if the DB is busy). Then run `db:seed:admin` or `db:seed` again.
+To wipe the SQLite file and recreate schema: `npm run db:reset` (stop `npm run dev` first if the DB is busy). Then run `npm run db:seed` again.
 
 ## Run locally
 
@@ -34,12 +32,11 @@ Open [http://localhost:3000](http://localhost:3000). You should be redirected to
 | `npm run dev`     | Development server               |
 | `npm run build`   | Production build                 |
 | `npm run test`    | Vitest (password + lockout IAM)  |
-| `npm run db:migrate` | Apply SQL migrations          |
-| `npm run db:seed:admin` | Insert only `admin@example.com` |
-| `npm run db:seed` | Insert full demo data         |
-| `npm run db:reset` | Delete local DB + migrate     |
+| `npm run db:push` | Create or sync tables from `src/db/schema.ts` |
+| `npm run db:seed` | Insert demo data (admin, homes, residents, staff, medicine) |
+| `npm run db:reset` | Delete local DB + push schema     |
 | `npm run db:backup`  | Copy SQLite DB to `BACKUP_DIR`, prune backups older than 7 days |
-| `npm run db:generate` | Regenerate migrations from `src/db/schema.ts` |
+| `npm run db:generate` | Generate SQL migrations from schema (optional) |
 
 ## Security notes
 

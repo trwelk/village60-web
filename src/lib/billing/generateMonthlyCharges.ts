@@ -12,6 +12,10 @@ import {
 import type { AppDb } from "@/lib/homes/service";
 import { bumpInvNumberSequence } from "./invoiceNumbers";
 import { parseBillingMonth } from "./billingMonth";
+import {
+  finalizeDraftInvoicesForBillingMonth,
+  type FinalizeDraftInvoicesForBillingMonthResult,
+} from "./invoiceLifecycle";
 
 export type MonthlyChargeSkipReason = "duplicate";
 
@@ -34,7 +38,7 @@ export type GenerateMonthlyChargesResult = {
  */
 export function generateMonthlyCharges(
   db: AppDb,
-  input: { billingMonth: string },
+  input: { billingMonth: string; homeId?: string },
 ): GenerateMonthlyChargesResult {
   const billingMonth = parseBillingMonth(input.billingMonth);
   const now = Date.now();
@@ -42,7 +46,11 @@ export function generateMonthlyCharges(
   const active = db
     .select()
     .from(residents)
-    .where(eq(residents.status, "active"))
+    .where(
+      input.homeId
+        ? and(eq(residents.status, "active"), eq(residents.homeId, input.homeId))
+        : eq(residents.status, "active"),
+    )
     .all();
   const homeRows = db.select().from(homes).all();
   const homeById = new Map(homeRows.map((h) => [h.id, h]));
@@ -163,5 +171,28 @@ export function generateMonthlyCharges(
   }
 
   return { billingMonth, created, skipped };
+}
+
+export type GenerateAndFinalizeMonthlyChargesResult = {
+  generate: GenerateMonthlyChargesResult;
+  finalize: FinalizeDraftInvoicesForBillingMonthResult;
+};
+
+/**
+ * Idempotent monthly billing run: open draft invoices, then finalize so
+ * ledger charges post. Used by cron and manual collection catch-up.
+ */
+export function generateAndFinalizeMonthlyCharges(
+  db: AppDb,
+  input: { billingMonth: string; homeId?: string; finalizedAtUtcMs?: number },
+): GenerateAndFinalizeMonthlyChargesResult {
+  const billingMonth = parseBillingMonth(input.billingMonth);
+  const generate = generateMonthlyCharges(db, { billingMonth, homeId: input.homeId });
+  const finalize = finalizeDraftInvoicesForBillingMonth(db, {
+    billingMonth,
+    homeId: input.homeId,
+    finalizedAtUtcMs: input.finalizedAtUtcMs ?? Date.now(),
+  });
+  return { generate, finalize };
 }
 

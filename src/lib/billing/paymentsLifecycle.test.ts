@@ -3,35 +3,22 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { and, eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  billingPayments,
-  billingTransactions,
-  invoiceLineItems,
-  invoices,
-  accounts,
-  residents,
-  users,
-} from "@/db/schema";
+import { billingTransactions, accounts, residents, users } from "@/db/schema";
 import { closeDbConnection, getDb } from "@/db/client";
 import { createHome } from "@/lib/homes/service";
 import { createResident } from "@/lib/residents/service";
 import { createWard } from "@/lib/wards/service";
 import { ForbiddenError } from "@/lib/homes/errors";
 import { createUser } from "@/lib/users/service";
-import { finalizeInvoice } from "./invoiceLifecycle";
-import { calendarDateIsoToUtcMs } from "./receivedOnUtcMs";
 import {
   getResidentBillingStatement,
   getResidentStatement,
-  recordPayment,
-  recordPaymentForHome,
-  recordPaymentForResident,
+  listAllResidentLedgerLines,
 } from "./paymentsLifecycle";
-import { listHomeMonthlyPaymentsLedger } from "./residentCharges";
 
 const STRONG = "ChangeMeNow!1";
 const adminActor = { userId: "admin-payments", role: "admin" as const };
@@ -85,47 +72,6 @@ function seedBillingAccount(db: ReturnType<typeof getDb>) {
   return { homeId: home.id, accountId: account.id, wardId: ward.id };
 }
 
-function seedFinalizedInvoiceCharge(
-  db: ReturnType<typeof getDb>,
-  homeId: string,
-  accountId: string,
-  amountMinor: number,
-  billingPeriod: string,
-  finalizedAtUtcMs: number,
-) {
-  const now = Date.now();
-  const invoiceId = randomUUID();
-  db.insert(invoices)
-    .values({
-      id: invoiceId,
-      accountId,
-      homeId,
-      invNo: `INV-${invoiceId.replace(/-/g, "").slice(0, 8)}`,
-      purchaseOrderId: null,
-      status: "draft",
-      issuedOn: `${billingPeriod}-01`,
-      totalMinorSnapshot: null,
-      createdAtUtcMs: now,
-      updatedAtUtcMs: now,
-    })
-    .run();
-  const lineId = randomUUID();
-  db.insert(invoiceLineItems)
-    .values({
-      id: lineId,
-      invoiceId,
-      category: "monthly_fee",
-      description: `${billingPeriod} fee`,
-      amountMinor,
-      serviceMonth: billingPeriod,
-      quantity: 1,
-      createdAtUtcMs: now,
-      updatedAtUtcMs: now,
-    })
-    .run();
-  finalizeInvoice(db, adminActor, { homeId, invoiceId, finalizedAtUtcMs });
-}
-
 describe("payments lifecycle + statement", () => {
   let dbPath: string;
 
@@ -143,82 +89,6 @@ describe("payments lifecycle + statement", () => {
     } catch {
       // ignore
     }
-  });
-
-  it("records payment receipt metadata and linked negative ledger transaction atomically", () => {
-    const db = getDb();
-    const { accountId } = seedBillingAccount(db);
-    const postedAtUtcMs = Date.now();
-
-    const result = recordPayment(db, adminActor, {
-      accountId,
-      amountMinor: 150000,
-      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-05-07"),
-      method: "bank_transfer",
-      externalReference: "BNK-REF-991",
-      notes: "Family payment",
-      postedAtUtcMs,
-    });
-
-    const payment = db.select().from(billingPayments).where(eq(billingPayments.id, result.paymentId)).get();
-    expect(payment).toBeTruthy();
-    expect(payment?.amountMinor).toBe(150000);
-    expect(payment?.method).toBe("bank_transfer");
-    expect(payment?.externalReference).toBe("BNK-REF-991");
-    expect(payment?.ledgerTransactionId).toBe(result.ledgerTransactionId);
-    expect(payment?.receivedOn).toBe(calendarDateIsoToUtcMs("2026-05-07"));
-
-    const txn = db
-      .select()
-      .from(billingTransactions)
-      .where(eq(billingTransactions.id, result.ledgerTransactionId))
-      .get();
-    expect(txn).toBeTruthy();
-    expect(txn?.txnType).toBe("payment");
-    expect(txn?.amountMinor).toBe(-150000);
-    expect(txn?.sourceKind).toBe("payment");
-    expect(txn?.sourceId).toBe(result.paymentId);
-    expect(txn?.postedAtUtcMs).toBe(postedAtUtcMs);
-  });
-
-  it("records home operating account payment with ledger accountType home", () => {
-    const db = getDb();
-    seedAdminUser(db, adminActor.userId);
-    const home = createHome(db, "admin", {
-      name: "Home ops payments",
-      defaultCurrencyCode: "NZD",
-    });
-    const postedAtUtcMs = Date.now();
-    const result = recordPaymentForHome(db, adminActor, {
-      homeId: home.id,
-      amountMinor: 42000,
-      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-06-15"),
-      method: "transfer",
-      notes: "Operating credit",
-      postedAtUtcMs,
-    });
-
-    const homeAccount = db
-      .select()
-      .from(accounts)
-      .where(and(eq(accounts.homeId, home.id), eq(accounts.accountType, "home")))
-      .get();
-    expect(homeAccount).toBeTruthy();
-
-    const payment = db
-      .select()
-      .from(billingPayments)
-      .where(eq(billingPayments.id, result.paymentId))
-      .get();
-    expect(payment?.accountId).toBe(homeAccount?.id);
-
-    const txn = db
-      .select()
-      .from(billingTransactions)
-      .where(eq(billingTransactions.id, result.ledgerTransactionId))
-      .get();
-    expect(txn?.accountType).toBe("home");
-    expect(txn?.amountMinor).toBe(-42000);
   });
 
   it("returns deterministic statement lines with running balance and current ledger sum", () => {
@@ -269,161 +139,7 @@ describe("payments lifecycle + statement", () => {
     expect(statement.currentBalanceMinor).toBe(800);
   });
 
-  it("handles prepayment credit then later invoice charges as drawdown", () => {
-    const db = getDb();
-    const { homeId, accountId } = seedBillingAccount(db);
-    const startTs = Date.now();
-
-    recordPayment(db, adminActor, {
-      accountId,
-      amountMinor: 300000,
-      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-01-10"),
-      method: "transfer",
-      externalReference: "UPFRONT-3000",
-      notes: "Advance payment",
-      postedAtUtcMs: startTs,
-    });
-
-    seedFinalizedInvoiceCharge(db, homeId, accountId, 100000, "2026-02", startTs + 1000);
-    seedFinalizedInvoiceCharge(db, homeId, accountId, 100000, "2026-03", startTs + 2000);
-    seedFinalizedInvoiceCharge(db, homeId, accountId, 100000, "2026-04", startTs + 3000);
-
-    const statement = getResidentStatement(db, adminActor, { accountId });
-    expect(statement.lines.map((l) => l.runningBalanceMinor)).toEqual([-300000, -200000, -100000, 0]);
-    expect(statement.currentBalanceMinor).toBe(0);
-  });
-
-  it("marks finalized invoices paid in FIFO order when payment only partially covers balance", () => {
-    const db = getDb();
-    const { homeId, accountId } = seedBillingAccount(db);
-    const startTs = Date.now();
-
-    seedFinalizedInvoiceCharge(db, homeId, accountId, 100000, "2026-02", startTs + 1000);
-    seedFinalizedInvoiceCharge(db, homeId, accountId, 80000, "2026-03", startTs + 2000);
-
-    recordPayment(db, adminActor, {
-      accountId,
-      amountMinor: 150000,
-      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-03-15"),
-      method: "transfer",
-      postedAtUtcMs: startTs + 3000,
-    });
-
-    const febInvoice = db
-      .select()
-      .from(invoices)
-      .where(
-        and(
-          eq(invoices.accountId, accountId),
-          sql`substr(${invoices.issuedOn}, 1, 7) = '2026-02'`,
-          eq(invoices.totalMinorSnapshot, 100000),
-        ),
-      )
-      .get();
-    const marInvoice = db
-      .select()
-      .from(invoices)
-      .where(
-        and(
-          eq(invoices.accountId, accountId),
-          sql`substr(${invoices.issuedOn}, 1, 7) = '2026-03'`,
-          eq(invoices.totalMinorSnapshot, 80000),
-        ),
-      )
-      .get();
-
-    expect(febInvoice?.status).toBe("paid");
-    expect(marInvoice?.status).toBe("finalized");
-  });
-
-  it("marks new finalized invoice paid immediately when prepayment credit already exists", () => {
-    const db = getDb();
-    const { homeId, accountId } = seedBillingAccount(db);
-    const startTs = Date.now();
-
-    recordPayment(db, adminActor, {
-      accountId,
-      amountMinor: 300000,
-      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-01-10"),
-      method: "transfer",
-      postedAtUtcMs: startTs,
-    });
-
-    seedFinalizedInvoiceCharge(db, homeId, accountId, 100000, "2026-02", startTs + 1000);
-
-    const invoice = db
-      .select()
-      .from(invoices)
-      .where(
-        and(
-          eq(invoices.accountId, accountId),
-          sql`substr(${invoices.issuedOn}, 1, 7) = '2026-02'`,
-          eq(invoices.totalMinorSnapshot, 100000),
-        ),
-      )
-      .get();
-    expect(invoice?.status).toBe("paid");
-  });
-
-  it("does not keep invoices paid after payment adjustment removes credit", () => {
-    const db = getDb();
-    const { homeId, accountId } = seedBillingAccount(db);
-    const startTs = Date.now();
-
-    seedFinalizedInvoiceCharge(db, homeId, accountId, 600000, "2026-02", startTs + 1000);
-
-    recordPayment(db, adminActor, {
-      accountId,
-      amountMinor: 600000,
-      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-02-10"),
-      method: "transfer",
-      postedAtUtcMs: startTs + 2000,
-    });
-
-    db.insert(billingTransactions)
-      .values({
-        id: randomUUID(),
-        accountId,
-        txnType: "adjustment",
-        amountMinor: 600000,
-        sourceKind: "adjustment",
-        sourceId: randomUUID(),
-        memo: "Payment correction",
-        recordedByUserId: adminActor.userId,
-        postedAtUtcMs: startTs + 3000,
-      })
-      .run();
-
-    seedFinalizedInvoiceCharge(db, homeId, accountId, 120000, "2026-03", startTs + 4000);
-
-    const febInvoice = db
-      .select()
-      .from(invoices)
-      .where(
-        and(
-          eq(invoices.accountId, accountId),
-          sql`substr(${invoices.issuedOn}, 1, 7) = '2026-02'`,
-          eq(invoices.totalMinorSnapshot, 600000),
-        ),
-      )
-      .get();
-    const marInvoice = db
-      .select()
-      .from(invoices)
-      .where(
-        and(
-          eq(invoices.accountId, accountId),
-          sql`substr(${invoices.issuedOn}, 1, 7) = '2026-03'`,
-          eq(invoices.totalMinorSnapshot, 120000),
-        ),
-      )
-      .get();
-
-    expect(febInvoice?.status).toBe("finalized");
-    expect(marInvoice?.status).toBe("finalized");
-  });
-
-  it("billing statement and resident payment recording require admin", async () => {
+  it("billing statement requires admin", async () => {
     const db = getDb();
     const { homeId, accountId } = seedBillingAccount(db);
     const care = await createUser(db, "admin", {
@@ -450,16 +166,6 @@ describe("payments lifecycle + statement", () => {
         residentId: residentRow.id,
       }),
     ).toThrow(ForbiddenError);
-
-    expect(() =>
-      recordPaymentForResident(db, careActor, {
-        homeId,
-        residentId: residentRow.id,
-        amountMinor: 100,
-        receivedOnUtcMs: calendarDateIsoToUtcMs("2026-05-07"),
-        method: "cash",
-      }),
-    ).toThrow(ForbiddenError);
   });
 
   it("admin can load resident billing statement by home + resident id", () => {
@@ -483,118 +189,27 @@ describe("payments lifecycle + statement", () => {
     expect(Array.isArray(statement.lines)).toBe(true);
   });
 
-  it("returns forbidden when session actor user no longer exists", () => {
-    const db = getDb();
-    const { accountId } = seedBillingAccount(db);
-    db.delete(users).where(eq(users.id, adminActor.userId)).run();
-
-    expect(() =>
-      recordPayment(db, adminActor, {
-        accountId,
-        amountMinor: 100,
-        receivedOnUtcMs: calendarDateIsoToUtcMs("2026-05-08"),
-        method: "transfer",
-        postedAtUtcMs: Date.now(),
-      }),
-    ).toThrow(ForbiddenError);
-  });
-
-  it("includes direct resident payments in the home monthly payments ledger", () => {
+  it("lists all resident ledger lines with per-account running balance", () => {
     const db = getDb();
     const { homeId, accountId } = seedBillingAccount(db);
-    const postedAtUtcMs = Date.now();
 
-    recordPayment(db, adminActor, {
-      accountId,
-      amountMinor: 77500,
-      receivedOnUtcMs: calendarDateIsoToUtcMs("2026-05-08"),
-      method: "transfer",
-      postedAtUtcMs,
-    });
-
-    const ledger = listHomeMonthlyPaymentsLedger(db, adminActor, homeId, {
-      page: 1,
-      pageSize: 25,
-    });
-    expect(ledger.totalCount).toBe(1);
-    expect(ledger.rows[0]?.amountMinor).toBe(77500);
-    expect(ledger.rows[0]?.billingMonth).toBe("2026-05");
-  });
-
-  it("includes registration/deposit other-charge payments in the home monthly payments ledger", () => {
-    const db = getDb();
-    const { homeId, accountId } = seedBillingAccount(db);
-    const now = Date.now();
-    const invoiceId = randomUUID();
-    const lineItemId = randomUUID();
-    const paymentId = randomUUID();
-    const txnId = randomUUID();
-    const receivedOnUtcMs = calendarDateIsoToUtcMs("2026-05-27");
-
-    db.insert(invoices)
-      .values({
-        id: invoiceId,
-        accountId,
-        homeId,
-        invNo: "INV-DEPOSIT",
-        purchaseOrderId: null,
-        status: "draft",
-        issuedOn: "2026-05-01",
-        totalMinorSnapshot: null,
-        createdAtUtcMs: now,
-        updatedAtUtcMs: now,
-      })
-      .run();
-    db.insert(invoiceLineItems)
-      .values({
-        id: lineItemId,
-        invoiceId,
-        category: "deposit",
-        description: "deposit charge",
-        amountMinor: 4500000,
-        serviceMonth: null,
-        quantity: 1,
-        createdAtUtcMs: now,
-        updatedAtUtcMs: now,
-      })
-      .run();
     db.insert(billingTransactions)
       .values({
-        id: txnId,
+        id: "txn-1",
         accountId,
-        accountType: "resident",
-        txnType: "payment",
-        amountMinor: -4500000,
-        sourceKind: "payment",
-        sourceId: paymentId,
-        memo: `other-charge:${lineItemId}`,
+        txnType: "charge",
+        amountMinor: 5000,
+        sourceKind: "seed",
+        sourceId: "seed-1",
+        memo: "Charge",
         recordedByUserId: adminActor.userId,
-        postedAtUtcMs: receivedOnUtcMs,
-      })
-      .run();
-    db.insert(billingPayments)
-      .values({
-        id: paymentId,
-        accountId,
-        amountMinor: 4500000,
-        receivedOn: receivedOnUtcMs,
-        method: "manual",
-        externalReference: null,
-        notes: null,
-        recordedByUserId: adminActor.userId,
-        ledgerTransactionId: txnId,
-        updatedAtUtcMs: now,
+        postedAtUtcMs: 1000,
       })
       .run();
 
-    const ledger = listHomeMonthlyPaymentsLedger(db, adminActor, homeId, {
-      page: 1,
-      pageSize: 25,
-    });
-    expect(ledger.totalCount).toBe(1);
-    expect(ledger.rows[0]?.amountMinor).toBe(4500000);
-    expect(ledger.rows[0]?.chargeId).toBe(lineItemId);
-    expect(ledger.rows[0]?.billingMonth).toBe("2026-05");
-    expect(ledger.rows[0]?.amountMinorSnapshot).toBe(4500000);
+    const lines = listAllResidentLedgerLines(db, adminActor, homeId);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.runningBalanceMinor).toBe(5000);
+    expect(lines[0]?.accountId).toBe(accountId);
   });
 });

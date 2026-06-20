@@ -1,5 +1,6 @@
 /**
- * Remove the local SQLite file (and WAL/SHM sidecars), then apply migrations.
+ * Remove the local SQLite file (and WAL/SHM sidecars), then push schema from
+ * `src/db/schema.ts`.
  *
  * Usage (from `web/`):
  *   npm run db:reset
@@ -54,7 +55,7 @@ for (const p of [file, `${file}-wal`, `${file}-shm`]) {
 
 fs.mkdirSync(path.dirname(file), { recursive: true });
 
-console.log("Applying migrations…");
-execShellInherit("npm run db:migrate");
+console.log("Pushing schema from src/db/schema.ts…");
+execShellInherit("npm run db:push");
 
 console.log("Database reset complete.");

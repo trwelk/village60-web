@@ -277,11 +277,13 @@ export const billingPayments = sqliteTable(
     ledgerTransactionId: text("ledger_transaction_id")
       .notNull()
       .references(() => billingTransactions.id, { onDelete: "restrict" }),
+    invoiceId: text("invoice_id").references(() => invoices.id, { onDelete: "restrict" }),
     updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
   },
   (t) => [
     uniqueIndex("billing_payments_ledger_transaction_uq").on(t.ledgerTransactionId),
     index("billing_payments_account_received_idx").on(t.accountId, t.receivedOn),
+    index("billing_payments_invoice_idx").on(t.invoiceId),
   ],
 );
 
@@ -738,6 +740,43 @@ export const staffSalaries = sqliteTable(
   ],
 );
 
+/** One month's salary obligation for one staff member (charge posted to home ledger). */
+export const salaryAccruals = sqliteTable(
+  "salary_accruals",
+  {
+    id: text("id").primaryKey(),
+    staffSalaryId: text("staff_salary_id")
+      .notNull()
+      .references(() => staffSalaries.id, { onDelete: "cascade" }),
+    homeId: text("home_id")
+      .notNull()
+      .references(() => homes.id, { onDelete: "cascade" }),
+    periodYear: integer("period_year").notNull(),
+    periodMonth: integer("period_month").notNull(),
+    /** Accrued amount in minor units (from staff rate at accrual time). */
+    amountAccruedMinor: integer("amount_accrued_minor").notNull(),
+    /** Ledger charge row. */
+    chargeLedgerTransactionId: text("charge_ledger_transaction_id")
+      .notNull()
+      .references(() => billingTransactions.id, { onDelete: "restrict" }),
+    /** ISO YYYY-MM-DD — accounting date for the charge (last day of period month). */
+    accruedOn: text("accrued_on").notNull(),
+    /** `accrued` | `paid` | `void` */
+    status: text("status").notNull(),
+    createdAtUtcMs: integer("created_at_utc_ms").notNull(),
+    updatedAtUtcMs: integer("updated_at_utc_ms").notNull(),
+  },
+  (t) => [
+    uniqueIndex("salary_accruals_staff_period_uq").on(
+      t.staffSalaryId,
+      t.periodYear,
+      t.periodMonth,
+    ),
+    uniqueIndex("salary_accruals_charge_ledger_uq").on(t.chargeLedgerTransactionId),
+    index("salary_accruals_home_period_idx").on(t.homeId, t.periodYear, t.periodMonth),
+  ],
+);
+
 /** Monthly salary payment records. One row = one month's pay for one staff member. */
 export const salaryRemittances = sqliteTable(
   "salary_remittances",
@@ -751,7 +790,7 @@ export const salaryRemittances = sqliteTable(
       .references(() => homes.id, { onDelete: "cascade" }),
     periodYear: integer("period_year").notNull(),
     periodMonth: integer("period_month").notNull(),
-    /** Actual amount paid in minor units (may differ from salary if partial/bonus). */
+    /** Actual amount paid in minor units (must equal accrued amount). */
     amountPaidMinor: integer("amount_paid_minor").notNull(),
     /** ISO `YYYY-MM-DD` — date payment was made. */
     paidOn: text("paid_on").notNull(),
@@ -762,6 +801,12 @@ export const salaryRemittances = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     notes: text("notes"),
+    paymentLedgerTransactionId: text("payment_ledger_transaction_id")
+      .notNull()
+      .references(() => billingTransactions.id, { onDelete: "restrict" }),
+    salaryAccrualId: text("salary_accrual_id").references(() => salaryAccruals.id, {
+      onDelete: "restrict",
+    }),
     createdAtUtcMs: integer("created_at_utc_ms").notNull(),
   },
   (t) => [
@@ -770,6 +815,7 @@ export const salaryRemittances = sqliteTable(
       t.periodYear,
       t.periodMonth,
     ),
+    uniqueIndex("salary_remittances_payment_ledger_uq").on(t.paymentLedgerTransactionId),
     index("salary_remittances_home_period_idx").on(
       t.homeId,
       t.periodYear,

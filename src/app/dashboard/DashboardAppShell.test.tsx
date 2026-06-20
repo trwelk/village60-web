@@ -129,7 +129,7 @@ describe("DashboardAppShell", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides admin-only primary links for care users", () => {
+  it("shows staff link for care users but hides admin organization links", () => {
     pathRef.current = "/dashboard";
     renderShell(
       <DashboardAppShell email="a@b.c" role="care">
@@ -141,12 +141,16 @@ describe("DashboardAppShell", () => {
       (n) => n.parentElement?.getAttribute("aria-label") === "Primary",
     );
     const rail = within(desktopNav as HTMLElement);
+    expect(rail.getByRole("link", { name: "Staff" })).toHaveAttribute(
+      "href",
+      "/dashboard/staff",
+    );
     fireEvent.click(rail.getByRole("button", { name: "Admin" }));
     expect(rail.getByRole("link", { name: "Tasks" })).toHaveAttribute(
       "href",
       "/dashboard/tasks",
     );
-    expect(rail.queryByRole("link", { name: "Staff" })).not.toBeInTheDocument();
+    expect(rail.queryByRole("link", { name: "Users" })).not.toBeInTheDocument();
     expect(
       rail.queryByRole("link", { name: "Waiting list" }),
     ).not.toBeInTheDocument();

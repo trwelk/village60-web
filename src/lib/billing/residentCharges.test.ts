@@ -15,6 +15,8 @@ import { createResident } from "@/lib/residents/service";
 import { createUser } from "@/lib/users/service";
 import { createWard } from "@/lib/wards/service";
 import { finalizeInvoice } from "./invoiceLifecycle";
+import { payInvoice } from "./invoicePayments";
+import { calendarDateIsoToUtcMs } from "./receivedOnUtcMs";
 import {
   listHomeMonthlyChargesLedger,
   listHomeOtherChargesLedger,
@@ -55,7 +57,7 @@ function seedFinalizedMonthlyInvoice(
   billingPeriod: string,
   amountMinor: number,
   finalizedAtUtcMs: number,
-) {
+): string {
   const now = Date.now();
   const invoiceId = randomUUID();
   db.insert(invoices)
@@ -87,6 +89,7 @@ function seedFinalizedMonthlyInvoice(
     })
     .run();
   finalizeInvoice(db, adminActor, { homeId, invoiceId, finalizedAtUtcMs });
+  return invoiceId;
 }
 
 describe("home billing ledgers (invoice-backed)", () => {
@@ -155,7 +158,9 @@ describe("home billing ledgers (invoice-backed)", () => {
     expect(ledger.rows).toHaveLength(1);
     expect(ledger.rows[0]!.billingMonth).toBe("2026-04");
     expect(ledger.rows[0]!.paid).toBe(false);
+    expect(ledger.rows[0]!.invoiceId).toBeTruthy();
     expect(ledger.rows[0]!.invoiceLineCategory).toBe("monthly_fee");
+    expect(ledger.rows[0]!.paidOn).toBeNull();
 
     const paidLedger = listHomeMonthlyChargesLedger(db, adminActor, home.id, {
       billingMonthFrom: "2026-01",
@@ -165,6 +170,63 @@ describe("home billing ledgers (invoice-backed)", () => {
       pageSize: 25,
     });
     expect(paidLedger.rows).toHaveLength(0);
+  });
+
+  it("exposes invoiceId and paidOn after invoice is marked paid", () => {
+    const db = getDb();
+    seedAdminUser(db, adminActor.userId);
+    const home = createHome(db, "admin", {
+      name: "Paid Ledger Home",
+      defaultCurrencyCode: "NZD",
+    });
+    const ward = createWard(db, adminActor, home.id, {
+      label: "B",
+      monthlyRatePerPersonMinor: 75_000,
+    });
+    const resident = createResident(db, adminActor, {
+      homeId: home.id,
+      fullName: "Blair",
+      dob: "1940-01-01",
+      admissionDate: "2024-01-01",
+      wardId: ward.id,
+    });
+    const accRow = db
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(eq(accounts.residentId, resident.id))
+      .get();
+    if (!accRow) {
+      throw new Error("expected resident account");
+    }
+
+    const invoiceId = seedFinalizedMonthlyInvoice(
+      db,
+      home.id,
+      accRow.id,
+      ward.id,
+      "2026-05",
+      75_000,
+      Date.now(),
+    );
+
+    payInvoice(db, adminActor, {
+      homeId: home.id,
+      invoiceId,
+      paidOnUtcMs: calendarDateIsoToUtcMs("2026-05-20"),
+      method: "transfer",
+    });
+
+    const ledger = listHomeMonthlyChargesLedger(db, adminActor, home.id, {
+      billingMonthFrom: "2026-05",
+      billingMonthTo: "2026-05",
+      paymentStatus: "all",
+      page: 1,
+      pageSize: 25,
+    });
+    expect(ledger.rows).toHaveLength(1);
+    expect(ledger.rows[0]!.invoiceId).toBe(invoiceId);
+    expect(ledger.rows[0]!.paid).toBe(true);
+    expect(ledger.rows[0]!.paidOn).toBe("2026-05-20");
   });
 
   it("rejects care users for monthly charge ledger", async () => {

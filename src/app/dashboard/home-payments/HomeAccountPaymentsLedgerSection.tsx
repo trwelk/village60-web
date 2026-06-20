@@ -10,9 +10,7 @@ import type { DashboardHomeOption } from "@/lib/dashboard/charts";
 import { dashboardLedgerHref } from "@/lib/dashboard/dashboardRoutes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type FormEvent } from "react";
-import { createPortal } from "react-dom";
-import { INVOICE_MODAL_PRIMARY_BTN_CLASS } from "@/app/dashboard/invoices/invoiceModalStyles";
+import { useEffect, useState, useTransition } from "react";
 
 type Props = {
   homes: DashboardHomeOption[];
@@ -53,23 +51,6 @@ function methodBadgeClass(raw: string): string {
   return "rounded-full border border-[color:color-mix(in_srgb,var(--line-strong)_54%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-elevated)_92%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)]";
 }
 
-async function parseError(res: Response): Promise<string> {
-  try {
-    const data: unknown = await res.json();
-    if (
-      typeof data === "object" &&
-      data !== null &&
-      "error" in data &&
-      typeof (data as { error: unknown }).error === "string"
-    ) {
-      return (data as { error: string }).error;
-    }
-  } catch {
-    // ignore
-  }
-  return "Request failed.";
-}
-
 export function HomeAccountPaymentsLedgerSection({
   homes,
   selectedHomeId,
@@ -78,28 +59,9 @@ export function HomeAccountPaymentsLedgerSection({
 }: Props) {
   const router = useRouter();
   const { rows, totalCount, page, pageSize } = ledger;
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [amountMinor, setAmountMinor] = useState("");
-  const [receivedOn, setReceivedOn] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
-  const [method, setMethod] = useState("transfer");
-  const [externalReference, setExternalReference] = useState("");
-  const [notes, setNotes] = useState("");
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [homeDraft, setHomeDraft] = useState(selectedHomeId);
   const [isApplyingFilters, startApplyingFilters] = useTransition();
 
-  useEffect(() => {
-    if (!paymentModalOpen) return;
-    setAmountMinor("");
-    setReceivedOn(new Date().toISOString().slice(0, 10));
-    setMethod("transfer");
-    setExternalReference("");
-    setNotes("");
-    setSubmitError(null);
-  }, [paymentModalOpen]);
   useEffect(() => {
     setHomeDraft(selectedHomeId);
   }, [selectedHomeId]);
@@ -118,48 +80,6 @@ export function HomeAccountPaymentsLedgerSection({
   const hasFilterChanges = homeDraft !== selectedHomeId;
   const isApplyDisabled = !homeDraft || !hasFilterChanges || isApplyingFilters;
 
-  async function handleCreatePaymentSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!selectedHomeId) {
-      setSubmitError("Select a home first.");
-      return;
-    }
-    const parsedAmount = Number.parseInt(amountMinor, 10);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setSubmitError("Amount must be a positive whole number in minor units.");
-      return;
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(receivedOn.trim())) {
-      setSubmitError("Received date must be YYYY-MM-DD.");
-      return;
-    }
-
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      const res = await fetch(`/api/homes/${selectedHomeId}/billing-payments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amountMinor: parsedAmount,
-          receivedOn: receivedOn.trim(),
-          method,
-          externalReference:
-            externalReference.trim() === "" ? null : externalReference.trim(),
-          notes: notes.trim() === "" ? null : notes.trim(),
-        }),
-      });
-      if (!res.ok) {
-        setSubmitError(await parseError(res));
-        return;
-      }
-      setPaymentModalOpen(false);
-      router.refresh();
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   return (
     <>
       <VillageList
@@ -169,15 +89,7 @@ export function HomeAccountPaymentsLedgerSection({
         loading={isApplyingFilters}
         filtersCollapsible
         toolbar={
-          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
-            <button
-              type="button"
-              className="h-10 shrink-0 rounded-xl border border-[color:color-mix(in_srgb,var(--accent-strong)_72%,transparent)] bg-[var(--accent-strong)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:border-[color:color-mix(in_srgb,var(--line-strong)_65%,transparent)] disabled:bg-[color:color-mix(in_srgb,var(--bg-muted)_84%,transparent)] disabled:text-[var(--text-muted)]"
-              onClick={() => setPaymentModalOpen(true)}
-              disabled={!selectedHomeId}
-            >
-              Create payment
-            </button>
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               className="village-btn-secondary shrink-0"
@@ -365,8 +277,7 @@ export function HomeAccountPaymentsLedgerSection({
                             No payments recorded for this home operating account yet.
                           </p>
                           <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                            Post a receipt with &ldquo;Create payment&rdquo; to build the history here,
-                            or open the home&rsquo;s operating ledger for full detail.
+                            Invoice payments appear here after home expense invoices are marked paid.
                           </p>
                         </div>
                       </td>
@@ -407,121 +318,6 @@ export function HomeAccountPaymentsLedgerSection({
         </div>
       ) : null}
       </VillageList>
-      {paymentModalOpen
-        ? createPortal(
-            <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 pb-[env(safe-area-inset-bottom,0px)] sm:items-center sm:p-6 sm:pb-6">
-              <button
-                type="button"
-                className="absolute inset-0 bg-[color:color-mix(in_srgb,var(--text-primary)_42%,transparent)] backdrop-blur-[2px]"
-                onClick={() => {
-                  if (!submitting) {
-                    setPaymentModalOpen(false);
-                  }
-                }}
-              />
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label="Create home account payment"
-                className="relative z-10 flex max-h-[min(calc(100dvh-env(safe-area-inset-bottom,0px)-0.75rem),52rem)] w-full min-h-0 max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-[color-mix(in_srgb,var(--line-strong)_50%,transparent)] bg-[color-mix(in_srgb,var(--bg-muted)_35%,var(--bg-elevated)_65%)] sm:max-h-[min(92dvh,56rem)] sm:rounded-2xl"
-              >
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-                  <section className="village-card overflow-hidden border-0 p-0 shadow-none">
-                    <div className="border-b border-pine/10 bg-[linear-gradient(135deg,rgba(26,77,58,0.09),rgba(184,71,50,0.08)_48%,rgba(250,247,241,0.15))] px-5 py-5 sm:px-6">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <h2 className="text-xl font-semibold tracking-tight text-pine-2">
-                            Create payment
-                          </h2>
-                          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                            Record a receipt against this home&rsquo;s operating billing account.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          className="rounded-lg border border-transparent px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color:color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)] sm:py-2.5"
-                          onClick={() => setPaymentModalOpen(false)}
-                          disabled={submitting}
-                        >
-                          Close
-                        </button>
-                      </div>
-                    </div>
-                    <form
-                      className="grid gap-5 p-5 sm:p-6"
-                      onSubmit={(e) => void handleCreatePaymentSubmit(e)}
-                    >
-                      {submitError ? (
-                        <p className="village-alert-error text-sm">{submitError}</p>
-                      ) : null}
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <label className="flex flex-col gap-1 text-xs">
-                          <span className="village-field-label">Amount (minor units)</span>
-                          <input
-                            className="village-input"
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={amountMinor}
-                            onChange={(e) => setAmountMinor(e.target.value)}
-                            placeholder="e.g. 150000"
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs">
-                          <span className="village-field-label">Received on</span>
-                          <input
-                            className="village-input"
-                            type="date"
-                            value={receivedOn}
-                            onChange={(e) => setReceivedOn(e.target.value)}
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs">
-                          <span className="village-field-label">Method</span>
-                          <select
-                            className="village-input"
-                            value={method}
-                            onChange={(e) => setMethod(e.target.value)}
-                          >
-                            <option value="cash">Cash</option>
-                            <option value="transfer">Bank transfer</option>
-                            <option value="card">Card</option>
-                            <option value="other">Other</option>
-                          </select>
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs">
-                          <span className="village-field-label">External reference</span>
-                          <input
-                            className="village-input"
-                            value={externalReference}
-                            onChange={(e) => setExternalReference(e.target.value)}
-                            placeholder="Bank reference / receipt #"
-                          />
-                        </label>
-                      </div>
-                      <label className="flex flex-col gap-1 text-xs">
-                        <span className="village-field-label">Notes</span>
-                        <textarea
-                          className="village-input min-h-[72px]"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                        />
-                      </label>
-                      <button
-                        type="submit"
-                        className={INVOICE_MODAL_PRIMARY_BTN_CLASS}
-                        disabled={submitting}
-                      >
-                        {submitting ? "Saving…" : "Post payment"}
-                      </button>
-                    </form>
-                  </section>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
     </>
   );
 }

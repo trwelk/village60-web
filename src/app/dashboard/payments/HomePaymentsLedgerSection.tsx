@@ -13,9 +13,7 @@ import type { HomeMonthlyPaymentLedgerRow } from "@/lib/billing/residentCharges"
 import type { DashboardHomeOption } from "@/lib/dashboard/charts";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition, type FormEvent } from "react";
-import { createPortal } from "react-dom";
-import { INVOICE_MODAL_PRIMARY_BTN_CLASS } from "@/app/dashboard/invoices/invoiceModalStyles";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 export type HomePaymentsLedgerPayload =
   | {
@@ -54,23 +52,6 @@ function formatMinorAsCurrency(minor: number, currencyCode: string): string {
   }).format(minor / 100);
 }
 
-async function parseError(res: Response): Promise<string> {
-  try {
-    const data: unknown = await res.json();
-    if (
-      typeof data === "object" &&
-      data !== null &&
-      "error" in data &&
-      typeof (data as { error: unknown }).error === "string"
-    ) {
-      return (data as { error: string }).error;
-    }
-  } catch {
-    // ignore
-  }
-  return "Request failed.";
-}
-
 export function HomePaymentsLedgerSection({
   homes,
   selectedHomeId,
@@ -82,17 +63,6 @@ export function HomePaymentsLedgerSection({
 }: Props) {
   const router = useRouter();
   const { rows, totalCount, page, pageSize } = ledger;
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [paymentResidentId, setPaymentResidentId] = useState("");
-  const [amountMinor, setAmountMinor] = useState("");
-  const [receivedOn, setReceivedOn] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
-  const [method, setMethod] = useState("transfer");
-  const [externalReference, setExternalReference] = useState("");
-  const [notes, setNotes] = useState("");
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [accountTypeDraft, setAccountTypeDraft] =
     useState<DashboardPaymentsAccountType>(selectedAccountType);
   const [homeDraft, setHomeDraft] = useState(selectedHomeId);
@@ -108,16 +78,6 @@ export function HomePaymentsLedgerSection({
     [],
   );
 
-  useEffect(() => {
-    if (!paymentModalOpen) return;
-    setPaymentResidentId(selectedResidentId ?? residentOptions[0]?.residentId ?? "");
-    setAmountMinor("");
-    setReceivedOn(new Date().toISOString().slice(0, 10));
-    setMethod("transfer");
-    setExternalReference("");
-    setNotes("");
-    setSubmitError(null);
-  }, [paymentModalOpen, residentOptions, selectedResidentId]);
   useEffect(() => {
     setAccountTypeDraft(selectedAccountType);
     setHomeDraft(selectedHomeId);
@@ -154,55 +114,6 @@ export function HomePaymentsLedgerSection({
   const paymentsLedgerActiveFilterCount =
     (selectedResidentId ? 1 : 0) + (selectedAccountType === "home" ? 1 : 0);
 
-  async function handleCreatePaymentSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!selectedHomeId) {
-      setSubmitError("Select a home first.");
-      return;
-    }
-    if (!paymentResidentId) {
-      setSubmitError("Select a resident to record the payment.");
-      return;
-    }
-    const parsedAmount = Number.parseInt(amountMinor, 10);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setSubmitError("Amount must be a positive whole number in minor units.");
-      return;
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(receivedOn.trim())) {
-      setSubmitError("Received date must be YYYY-MM-DD.");
-      return;
-    }
-
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      const res = await fetch(
-        `/api/homes/${selectedHomeId}/residents/${encodeURIComponent(paymentResidentId)}/billing-payments`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            amountMinor: parsedAmount,
-            receivedOn: receivedOn.trim(),
-            method,
-            externalReference:
-              externalReference.trim() === "" ? null : externalReference.trim(),
-            notes: notes.trim() === "" ? null : notes.trim(),
-          }),
-        },
-      );
-      if (!res.ok) {
-        setSubmitError(await parseError(res));
-        return;
-      }
-      setPaymentModalOpen(false);
-      router.refresh();
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   return (
     <>
       <VillageList
@@ -213,19 +124,7 @@ export function HomePaymentsLedgerSection({
         activeFilterCount={paymentsLedgerActiveFilterCount}
         loading={isApplyingFilters}
         toolbar={
-          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
-            <button
-              type="button"
-              className="h-10 shrink-0 rounded-xl border border-[color:color-mix(in_srgb,var(--accent-strong)_72%,transparent)] bg-[var(--accent-strong)] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:border-[color:color-mix(in_srgb,var(--line-strong)_65%,transparent)] disabled:bg-[color:color-mix(in_srgb,var(--bg-muted)_84%,transparent)] disabled:text-[var(--text-muted)]"
-              onClick={() => setPaymentModalOpen(true)}
-              disabled={
-                selectedAccountType !== "resident" ||
-                !selectedHomeId ||
-                residentOptions.length === 0
-              }
-            >
-              Create payment
-            </button>
+          <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               className="village-btn-secondary shrink-0"
@@ -480,8 +379,8 @@ export function HomePaymentsLedgerSection({
                         </p>
                         <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
                           {ledger.kind === "home"
-                            ? "Payments to the facility operating account will appear after they are posted."
-                            : "Payments will appear here after they are recorded from a resident’s Billing tab."}
+                            ? "Payments to the facility operating account appear here after invoices are marked paid."
+                            : "Invoice payments appear here after invoices are marked paid from invoice detail or monthly collection."}
                         </p>
                       </div>
                     </td>
@@ -567,141 +466,6 @@ export function HomePaymentsLedgerSection({
         </div>
       ) : null}
       </VillageList>
-      {paymentModalOpen
-        ? createPortal(
-            <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 pb-[env(safe-area-inset-bottom,0px)] sm:items-center sm:p-6 sm:pb-6">
-              <button
-                type="button"
-                className="absolute inset-0 bg-[color:color-mix(in_srgb,var(--text-primary)_42%,transparent)] backdrop-blur-[2px]"
-                onClick={() => {
-                  if (!submitting) {
-                    setPaymentModalOpen(false);
-                  }
-                }}
-              />
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label="Create payment"
-                className="relative z-10 flex max-h-[min(calc(100dvh-env(safe-area-inset-bottom,0px)-0.75rem),52rem)] w-full min-h-0 max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-[color-mix(in_srgb,var(--line-strong)_50%,transparent)] bg-[color-mix(in_srgb,var(--bg-muted)_35%,var(--bg-elevated)_65%)] sm:max-h-[min(92dvh,56rem)] sm:rounded-2xl"
-              >
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-                  <section className="village-card overflow-hidden border-0 p-0 shadow-none">
-                    <div className="border-b border-pine/10 bg-[linear-gradient(135deg,rgba(26,77,58,0.09),rgba(184,71,50,0.08)_48%,rgba(250,247,241,0.15))] px-5 py-5 sm:px-6">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <h2 className="text-xl font-semibold tracking-tight text-pine-2">
-                            Create payment
-                          </h2>
-                          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                            Record a payment without leaving the payments ledger.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          className="rounded-lg border border-transparent px-3 py-2 text-sm font-semibold text-[var(--text-secondary)] transition hover:border-[color-mix(in_srgb,var(--line-subtle)_80%,transparent)] hover:bg-[color-mix(in_srgb,var(--bg-muted)_45%,transparent)] hover:text-[var(--text-primary)] sm:py-2.5"
-                          onClick={() => setPaymentModalOpen(false)}
-                          disabled={submitting}
-                        >
-                          Close
-                        </button>
-                      </div>
-                    </div>
-                    <form
-                      className="grid gap-5 p-5 sm:p-6"
-                      onSubmit={(e) => void handleCreatePaymentSubmit(e)}
-                    >
-                      {submitError ? (
-                        <p className="village-alert-error text-sm">{submitError}</p>
-                      ) : null}
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="flex flex-col gap-1 text-xs sm:col-span-2">
-                          <label className="village-field-label" htmlFor="payments-modal-resident">
-                            Resident
-                          </label>
-                          <VillageSelect
-                            id="payments-modal-resident"
-                            value={paymentResidentId}
-                            onChange={setPaymentResidentId}
-                            options={[
-                              { value: "", label: "Select a resident" },
-                              ...residentOptions.map((resident) => ({
-                                value: resident.residentId,
-                                label:
-                                  resident.residentStatus === "active"
-                                    ? resident.residentFullName
-                                    : `${resident.residentFullName} (Departed)`,
-                              })),
-                            ]}
-                          />
-                        </div>
-                        <label className="flex flex-col gap-1 text-xs">
-                          <span className="village-field-label">Amount (minor units)</span>
-                          <input
-                            className="village-input"
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={amountMinor}
-                            onChange={(e) => setAmountMinor(e.target.value)}
-                            placeholder="e.g. 150000"
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs">
-                          <span className="village-field-label">Received on</span>
-                          <input
-                            className="village-input"
-                            type="date"
-                            value={receivedOn}
-                            onChange={(e) => setReceivedOn(e.target.value)}
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs">
-                          <span className="village-field-label">Method</span>
-                          <select
-                            className="village-input"
-                            value={method}
-                            onChange={(e) => setMethod(e.target.value)}
-                          >
-                            <option value="cash">Cash</option>
-                            <option value="transfer">Bank transfer</option>
-                            <option value="card">Card</option>
-                            <option value="other">Other</option>
-                          </select>
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs">
-                          <span className="village-field-label">External reference</span>
-                          <input
-                            className="village-input"
-                            value={externalReference}
-                            onChange={(e) => setExternalReference(e.target.value)}
-                            placeholder="Bank reference / receipt #"
-                          />
-                        </label>
-                      </div>
-                      <label className="flex flex-col gap-1 text-xs">
-                        <span className="village-field-label">Notes</span>
-                        <textarea
-                          className="village-input min-h-[72px]"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                        />
-                      </label>
-                      <button
-                        type="submit"
-                        className={INVOICE_MODAL_PRIMARY_BTN_CLASS}
-                        disabled={submitting}
-                      >
-                        {submitting ? "Saving…" : "Post payment"}
-                      </button>
-                    </form>
-                  </section>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
     </>
   );
 }

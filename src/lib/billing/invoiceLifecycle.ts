@@ -4,6 +4,7 @@ import { assertActorMayAccessHome } from "@/lib/authz/homeScope";
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import {
   billingTransactions,
+  billingPayments,
   invoiceLineItems,
   invoices,
   accounts,
@@ -13,8 +14,8 @@ import {
 import type { AppDb } from "@/lib/homes/service";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/errors";
 import { parseBillingMonth, utcDateOnlyFromMs } from "@/lib/billing/billingMonth";
+import { utcCalendarDateIsoFromUtcMs } from "@/lib/billing/receivedOnUtcMs";
 import { bumpInvNumberSequence } from "@/lib/billing/invoiceNumbers";
-import { settleFinalizedInvoicesFifo } from "@/lib/billing/invoiceSettlement";
 
 function requireBillingAdmin(
   actor: SessionActor | undefined,
@@ -105,6 +106,12 @@ export type InvoiceListItem = {
 
 export type InvoiceDetails = InvoiceListItem & {
   monthlyFeeAmountMinor: number | null;
+  payment?: {
+    paidOn: string;
+    method: string;
+    externalReference: string | null;
+    notes: string | null;
+  } | null;
   lineItems: {
     id: string;
     category: string;
@@ -328,11 +335,6 @@ function finalizeInvoiceTransaction(
     .where(eq(invoices.id, invoice.id))
     .run();
 
-  settleFinalizedInvoicesFifo(tx, {
-    accountId: invoice.accountId,
-    nowUtcMs: input.finalizedAtUtcMs,
-  });
-
   return {
     invoiceId: invoice.id,
     totalMinorSnapshot,
@@ -419,10 +421,34 @@ export function getInvoiceDetails(
     .leftJoin(wards, eq(wards.id, residents.wardId))
     .where(and(eq(invoices.id, invoiceId), eq(accounts.accountType, "resident")))
     .get();
+
+  let payment: InvoiceDetails["payment"] = null;
+  if (invoice.status === "paid") {
+    const pay = db
+      .select({
+        receivedOn: billingPayments.receivedOn,
+        method: billingPayments.method,
+        externalReference: billingPayments.externalReference,
+        notes: billingPayments.notes,
+      })
+      .from(billingPayments)
+      .where(eq(billingPayments.invoiceId, invoiceId))
+      .get();
+    if (pay) {
+      payment = {
+        paidOn: utcCalendarDateIsoFromUtcMs(pay.receivedOn),
+        method: pay.method,
+        externalReference: pay.externalReference,
+        notes: pay.notes,
+      };
+    }
+  }
+
   return {
     ...invoice,
     accountType: (ownerRow?.accountType ?? "resident") as "resident" | "home",
     monthlyFeeAmountMinor: monthlyFeeRate?.monthlyRatePerPersonMinor ?? null,
+    payment,
     lineItems,
   };
 }
@@ -649,8 +675,7 @@ function deletePostedInvoiceCharges(
 }
 
 /**
- * Reverts a finalized invoice to draft: removes posted charge ledger rows and
- * re-runs FIFO settlement for the account.
+ * Reverts a finalized invoice to draft: removes posted charge ledger rows.
  */
 export function revertFinalizedInvoiceToDraft(
   db: AppDb,
@@ -693,11 +718,6 @@ export function revertFinalizedInvoiceToDraft(
       .where(eq(invoices.id, invoice.id))
       .run();
 
-    settleFinalizedInvoicesFifo(tx, {
-      accountId: invoice.accountId,
-      nowUtcMs: input.revertedAtUtcMs,
-    });
-
     return { invoiceId: invoice.id };
   });
 }
@@ -734,7 +754,7 @@ export type FinalizeDraftInvoicesForBillingMonthResult = {
  */
 export function finalizeDraftInvoicesForBillingMonth(
   db: AppDb,
-  input: { billingMonth: string; finalizedAtUtcMs: number },
+  input: { billingMonth: string; finalizedAtUtcMs: number; homeId?: string },
 ): FinalizeDraftInvoicesForBillingMonthResult {
   const billingMonth = parseBillingMonth(input.billingMonth);
   const drafts = db
@@ -748,7 +768,11 @@ export function finalizeDraftInvoicesForBillingMonth(
         eq(invoiceLineItems.serviceMonth, billingMonth),
       ),
     )
-    .where(eq(invoices.status, "draft"))
+    .where(
+      input.homeId
+        ? and(eq(invoices.status, "draft"), eq(invoices.homeId, input.homeId))
+        : eq(invoices.status, "draft"),
+    )
     .groupBy(invoices.id)
     .all();
   const finalizedInvoiceIds: string[] = [];

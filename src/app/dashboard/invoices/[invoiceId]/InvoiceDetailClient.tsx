@@ -4,12 +4,14 @@ import { useDashboardWayfinding } from "@/app/dashboard/DashboardWayfinding";
 import { buildDashboardLedgerPath } from "@/lib/billing/dashboardLedgerPath";
 import { utcYearToDatePostedDateRange } from "@/lib/billing/postedDateRange";
 import { buildHubDetailBreadcrumbTrail } from "@/lib/dashboard/nestedBreadcrumbs";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { formatCents } from "@/lib/money";
 import type { ResidentBillingAccountSummary } from "@/lib/billing/paymentsLifecycle";
 import { ArrowLeft, PencilLine } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { CreateInvoiceLineModal, EditInvoiceLineModal } from "../InvoiceModals";
+import { MarkInvoicePaidModal } from "../MarkInvoicePaidModal";
 
 type InvoiceLineItem = {
   id: string;
@@ -31,6 +33,12 @@ type InvoiceDetail = {
   issuedOn: string | null;
   totalMinorSnapshot: number | null;
   monthlyFeeAmountMinor: number | null;
+  payment?: {
+    paidOn: string;
+    method: string;
+    externalReference: string | null;
+    notes: string | null;
+  } | null;
   createdAtUtcMs: number;
   updatedAtUtcMs: number;
   lineItems: InvoiceLineItem[];
@@ -73,12 +81,15 @@ export function InvoiceDetailClient({
   defaultCurrencyCode,
   accounts,
 }: Props) {
+  const { t } = useI18n();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [finalizeBusy, setFinalizeBusy] = useState(false);
   const [revertBusy, setRevertBusy] = useState(false);
+  const [unpayBusy, setUnpayBusy] = useState(false);
+  const [payModalOpen, setPayModalOpen] = useState(false);
   const [lineModalOpen, setLineModalOpen] = useState(false);
   const [editingLine, setEditingLine] = useState<InvoiceLineItem | null>(null);
   const { setHomeBreadcrumbs } = useDashboardWayfinding();
@@ -237,6 +248,24 @@ export function InvoiceDetailClient({
       await load();
     } finally {
       setRevertBusy(false);
+    }
+  }
+
+  async function unpayInvoicePayment() {
+    if (!invoice || invoice.status !== "paid") return;
+    setUnpayBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/homes/${homeId}/invoices/${invoice.id}/pay`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        setError(await parseError(res));
+        return;
+      }
+      await load();
+    } finally {
+      setUnpayBusy(false);
     }
   }
 
@@ -450,14 +479,73 @@ export function InvoiceDetailClient({
                 </div>
               ) : invoice.status === "finalized" ? (
                 <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <p className="text-sm text-[var(--text-secondary)]">This invoice has been finalized.</p>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    {t("invoiceDetail.finalizedHint")}
+                  </p>
+                  <button
+                    type="button"
+                    className="village-btn-primary px-4 py-2 text-sm"
+                    onClick={() => setPayModalOpen(true)}
+                  >
+                    {t("invoiceDetail.markPaid")}
+                  </button>
                   <button
                     type="button"
                     className="village-btn-secondary px-4 py-2 text-sm"
                     disabled={revertBusy}
                     onClick={() => void revertToDraft()}
                   >
-                    {revertBusy ? "Reverting…" : "Back to draft"}
+                    {revertBusy ? t("invoiceDetail.reverting") : t("invoiceDetail.backToDraft")}
+                  </button>
+                </div>
+              ) : invoice.status === "paid" ? (
+                <div className="mt-6 flex flex-col gap-4">
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    {t("invoiceDetail.paidSummary")}
+                  </p>
+                  {invoice.payment ? (
+                    <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                      <div>
+                        <dt className="font-medium text-[var(--text-secondary)]">
+                          {t("invoiceDetail.paidOn")}
+                        </dt>
+                        <dd className="text-[var(--text-primary)]">{invoice.payment.paidOn}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium text-[var(--text-secondary)]">
+                          {t("invoiceDetail.paymentMethod")}
+                        </dt>
+                        <dd className="text-[var(--text-primary)]">{invoice.payment.method}</dd>
+                      </div>
+                      {invoice.payment.externalReference ? (
+                        <div>
+                          <dt className="font-medium text-[var(--text-secondary)]">
+                            {t("invoiceDetail.externalReference")}
+                          </dt>
+                          <dd className="text-[var(--text-primary)]">
+                            {invoice.payment.externalReference}
+                          </dd>
+                        </div>
+                      ) : null}
+                      {invoice.payment.notes ? (
+                        <div className="sm:col-span-2">
+                          <dt className="font-medium text-[var(--text-secondary)]">
+                            {t("invoiceDetail.paymentNotes")}
+                          </dt>
+                          <dd className="text-[var(--text-primary)]">{invoice.payment.notes}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="village-btn-secondary w-fit px-4 py-2 text-sm"
+                    disabled={unpayBusy}
+                    onClick={() => void unpayInvoicePayment()}
+                  >
+                    {unpayBusy
+                      ? t("invoiceDetail.unmarkingPayment")
+                      : t("invoiceDetail.unmarkPayment")}
                   </button>
                 </div>
               ) : (
@@ -490,6 +578,17 @@ export function InvoiceDetailClient({
             onClose={() => setEditingLine(null)}
             onSaved={() => void load()}
           />
+          {invoice.totalMinorSnapshot != null && invoice.totalMinorSnapshot > 0 ? (
+            <MarkInvoicePaidModal
+              open={payModalOpen}
+              homeId={homeId}
+              invoiceId={invoiceId}
+              amountMinor={invoice.totalMinorSnapshot}
+              currencyCode={defaultCurrencyCode}
+              onClose={() => setPayModalOpen(false)}
+              onPaid={() => load()}
+            />
+          ) : null}
         </>
       ) : null}
     </main>

@@ -23,7 +23,7 @@ Short reference for production-style deployment: HTTPS, secrets, SQLite backups,
 
 1. Stop the application process so nothing writes to the database file.
 2. Copy the chosen backup file over the live DB path (`DATABASE_PATH`, or default `./data/village60.sqlite`). Prefer a copy while the app is stopped; you can rename the broken file aside first.
-3. If you deploy from a newer app version than when the backup was taken, run `npm run db:migrate` before starting (migrations are idempotent for already-applied steps).
+3. If you deploy from a newer app version than when the backup was taken, run `npm run db:push` before starting (syncs schema from `src/db/schema.ts`).
 4. Start the app and smoke test login and a critical read/write path.
 
 ## Restore drill (acceptance)

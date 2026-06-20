@@ -1,6 +1,7 @@
 import { getDb } from "@/db/client";
 import {
   DEFAULT_CHARGES_LEDGER_PAGE_SIZE,
+  getMonthlyChargesCollectionMeta,
   listHomeMonthlyChargesLedger,
   MAX_CHARGES_LEDGER_PAGE_SIZE,
   type HomeMonthlyChargesLedgerPaymentStatusFilter,
@@ -9,6 +10,7 @@ import {
   parseBillingMonth,
   utcYearToDateBillingMonthRange,
 } from "@/lib/billing/billingMonth";
+import { generateAndFinalizeMonthlyCharges } from "@/lib/billing/generateMonthlyCharges";
 import { requireSessionActor } from "@/lib/authz/sessionActor";
 import { homesErrorResponse } from "@/lib/homes/http";
 import { getSessionOptions, type SessionData } from "@/lib/session";
@@ -96,6 +98,10 @@ export async function GET(req: Request, { params }: RouteParams) {
       page,
       pageSize,
     });
+    const collectionMeta =
+      billingMonthFrom === billingMonthTo
+        ? getMonthlyChargesCollectionMeta(db, actor, homeId, billingMonthFrom)
+        : null;
     return NextResponse.json({
       charges: out.rows,
       totalCount: out.totalCount,
@@ -106,7 +112,49 @@ export async function GET(req: Request, { params }: RouteParams) {
       billingMonthTo,
       paymentStatus,
       residentId,
+      ...(collectionMeta ?? {}),
     });
+  } catch (e) {
+    const resp = homesErrorResponse(e);
+    if (resp) {
+      return resp;
+    }
+    throw e;
+  }
+}
+
+/** Manual catch-up: open and finalize monthly invoices for this home. */
+export async function POST(req: Request, { params }: RouteParams) {
+  const { id: homeId } = await params;
+  const session = await getIronSession<SessionData>(
+    await cookies(),
+    getSessionOptions(),
+  );
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+  if (typeof body !== "object" || body === null) {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+  const billingMonthRaw = (body as { billingMonth?: unknown }).billingMonth;
+  if (typeof billingMonthRaw !== "string" || !billingMonthRaw.trim()) {
+    return NextResponse.json(
+      { error: "billingMonth is required (YYYY-MM)." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const actor = requireSessionActor(session);
+    const billingMonth = parseBillingMonth(billingMonthRaw.trim());
+    const result = generateAndFinalizeMonthlyCharges(getDb(), {
+      billingMonth,
+      homeId,
+    });
+    return NextResponse.json(result, { status: 201 });
   } catch (e) {
     const resp = homesErrorResponse(e);
     if (resp) {

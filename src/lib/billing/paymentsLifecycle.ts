@@ -1,32 +1,16 @@
-import { randomUUID } from "node:crypto";
 import { and, asc, eq } from "drizzle-orm";
 import { assertActorMayAccessHome } from "@/lib/authz/homeScope";
 import type { SessionActor } from "@/lib/authz/sessionActor";
 import {
-  billingPayments,
   billingTransactions,
   accounts,
   residents,
-  users,
   type billingTransactions as billingTransactionsTable,
 } from "@/db/schema";
 import type { AppDb } from "@/lib/homes/service";
-import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/homes/errors";
-import { ensureHomeAccount } from "@/lib/billing/homeAccounts";
-import { settleFinalizedInvoicesFifo } from "@/lib/billing/invoiceSettlement";
+import { ForbiddenError, NotFoundError } from "@/lib/homes/errors";
 
 type BillingTransactionRow = typeof billingTransactionsTable.$inferSelect;
-
-export type RecordPaymentInput = {
-  accountId: string;
-  amountMinor: number;
-  /** UTC milliseconds — calendar receipt instant (typically midnight UTC of the banking date). */
-  receivedOnUtcMs: number;
-  method: string;
-  externalReference?: string | null;
-  notes?: string | null;
-  postedAtUtcMs: number;
-};
 
 export type ResidentStatementLine = {
   transaction: BillingTransactionRow;
@@ -38,44 +22,6 @@ function requireBillingAdmin(
 ): asserts actor is SessionActor {
   if (!actor || actor.role !== "admin") {
     throw new ForbiddenError();
-  }
-}
-
-function assertActorUserExists(db: AppDb, actorUserId: string): void {
-  const row = db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.id, actorUserId))
-    .get();
-  if (!row) {
-    throw new ForbiddenError("Session is no longer valid. Please sign in again.");
-  }
-}
-
-function normalizeText(raw: string | null | undefined): string | null {
-  if (raw == null) {
-    return null;
-  }
-  const value = raw.trim();
-  return value === "" ? null : value;
-}
-
-function validatePaymentInput(input: RecordPaymentInput): void {
-  if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
-    throw new ValidationError("amountMinor must be a positive integer.");
-  }
-  if (
-    !Number.isInteger(input.receivedOnUtcMs) ||
-    input.receivedOnUtcMs <= 0 ||
-    input.receivedOnUtcMs > 4_101_913_167_000
-  ) {
-    throw new ValidationError("receivedOnUtcMs must be a positive integer timestamp.");
-  }
-  if (!Number.isInteger(input.postedAtUtcMs) || input.postedAtUtcMs <= 0) {
-    throw new ValidationError("postedAtUtcMs must be a positive integer timestamp.");
-  }
-  if (!input.method.trim()) {
-    throw new ValidationError("method is required.");
   }
 }
 
@@ -100,73 +46,6 @@ function billingAccountIdForResidentInHome(
     throw new NotFoundError("Billing account not found.");
   }
   return row.id;
-}
-
-/**
- * Record a payment for a resident's billing account after home scope checks.
- */
-export function recordPaymentForResident(
-  db: AppDb,
-  actor: SessionActor | undefined,
-  input: {
-    homeId: string;
-    residentId: string;
-    amountMinor: number;
-    receivedOnUtcMs: number;
-    method: string;
-    externalReference?: string | null;
-    notes?: string | null;
-    postedAtUtcMs?: number;
-  },
-): { paymentId: string; ledgerTransactionId: string } {
-  requireBillingAdmin(actor);
-  assertActorMayAccessHome(db, actor, input.homeId);
-  const accountId = billingAccountIdForResidentInHome(
-    db,
-    input.homeId,
-    input.residentId,
-  );
-  return recordPayment(db, actor, {
-    accountId,
-    amountMinor: input.amountMinor,
-    receivedOnUtcMs: input.receivedOnUtcMs,
-    method: input.method,
-    externalReference: input.externalReference,
-    notes: input.notes,
-    postedAtUtcMs: input.postedAtUtcMs ?? Date.now(),
-  });
-}
-
-/**
- * Record a payment against the home operating billing account (creates the
- * account on first access). FIFO-settles finalized home invoices like resident
- * payments.
- */
-export function recordPaymentForHome(
-  db: AppDb,
-  actor: SessionActor | undefined,
-  input: {
-    homeId: string;
-    amountMinor: number;
-    receivedOnUtcMs: number;
-    method: string;
-    externalReference?: string | null;
-    notes?: string | null;
-    postedAtUtcMs?: number;
-  },
-): { paymentId: string; ledgerTransactionId: string } {
-  requireBillingAdmin(actor);
-  assertActorMayAccessHome(db, actor, input.homeId);
-  const account = ensureHomeAccount(db, input.homeId);
-  return recordPayment(db, actor, {
-    accountId: account.id,
-    amountMinor: input.amountMinor,
-    receivedOnUtcMs: input.receivedOnUtcMs,
-    method: input.method,
-    externalReference: input.externalReference,
-    notes: input.notes,
-    postedAtUtcMs: input.postedAtUtcMs ?? Date.now(),
-  });
 }
 
 /**
@@ -227,70 +106,6 @@ export function listResidentBillingAccountsForHome(
     status: r.status as "active" | "departed",
     accountId: r.accountId,
   }));
-}
-
-export function recordPayment(
-  db: AppDb,
-  actor: SessionActor | undefined,
-  input: RecordPaymentInput,
-): { paymentId: string; ledgerTransactionId: string } {
-  requireBillingAdmin(actor);
-  assertActorUserExists(db, actor.userId);
-  validatePaymentInput(input);
-
-  return db.transaction((tx) => {
-    const account = tx
-      .select({ id: accounts.id, accountType: accounts.accountType })
-      .from(accounts)
-      .where(eq(accounts.id, input.accountId))
-      .get();
-    if (
-      !account ||
-      (account.accountType !== "resident" && account.accountType !== "home")
-    ) {
-      throw new NotFoundError("Billing account not found.");
-    }
-
-    const now = Date.now();
-    const paymentId = randomUUID();
-    const ledgerTransactionId = randomUUID();
-    tx.insert(billingTransactions)
-      .values({
-        id: ledgerTransactionId,
-        accountId: input.accountId,
-        accountType: account.accountType,
-        txnType: "payment",
-        amountMinor: -input.amountMinor,
-        sourceKind: "payment",
-        sourceId: paymentId,
-        memo: normalizeText(input.notes),
-        recordedByUserId: actor.userId,
-        postedAtUtcMs: input.postedAtUtcMs,
-      })
-      .run();
-
-    tx.insert(billingPayments)
-      .values({
-        id: paymentId,
-        accountId: input.accountId,
-        amountMinor: input.amountMinor,
-        receivedOn: input.receivedOnUtcMs,
-        method: input.method.trim(),
-        externalReference: normalizeText(input.externalReference),
-        notes: normalizeText(input.notes),
-        recordedByUserId: actor.userId,
-        ledgerTransactionId,
-        updatedAtUtcMs: now,
-      })
-      .run();
-
-    settleFinalizedInvoicesFifo(tx, {
-      accountId: input.accountId,
-      nowUtcMs: now,
-    });
-
-    return { paymentId, ledgerTransactionId };
-  });
 }
 
 export function getResidentStatement(

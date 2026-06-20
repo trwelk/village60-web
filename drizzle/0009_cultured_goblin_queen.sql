@@ -1,1 +1,0 @@
-ALTER TABLE `wards` ADD `bed_count` integer;

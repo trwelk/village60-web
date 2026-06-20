@@ -135,7 +135,7 @@ describe("HomePaymentsLedgerSection (20a)", () => {
     expect(last).not.toMatch(/[?&]page=/);
   });
 
-  it("applies resident filter and opens create payment modal", async () => {
+  it("applies resident filter and clears resident from URL", async () => {
     render(
       <HomePaymentsLedgerSection
         homes={[{ homeId: "h1", homeName: "Home One" }]}
@@ -164,9 +164,6 @@ describe("HomePaymentsLedgerSection (20a)", () => {
         }}
       />,
     );
-
-    fireEvent.click(screen.getByRole("button", { name: "Create payment" }));
-    expect(screen.getByRole("dialog", { name: "Create payment" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("Resident (optional)"));
     await waitFor(() => {

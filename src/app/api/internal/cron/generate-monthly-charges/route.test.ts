@@ -5,7 +5,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { closeDbConnection, getDb } from "@/db/client";
 import { billingTransactions, invoices } from "@/db/schema";
@@ -109,7 +109,7 @@ describe("POST /api/internal/cron/generate-monthly-charges", () => {
     expect(res.status).toBe(401);
   });
 
-  it("runs generation and leaves invoices open when bearer token matches CRON_SECRET", async () => {
+  it("runs generation and finalizes invoices when bearer token matches CRON_SECRET", async () => {
     process.env.DATABASE_PATH = dbPath;
     const res = await POST(
       new Request("http://localhost/api/internal/cron/generate-monthly-charges", {
@@ -129,8 +129,15 @@ describe("POST /api/internal/cron/generate-monthly-charges", () => {
         created: 1,
         skipped: [],
       },
+      finalize: {
+        billingMonth: "2026-11",
+        finalizedInvoiceIds: [expect.any(String)],
+        conflictInvoiceIds: [],
+      },
     });
     expect(countInvoices()).toBe(1);
-    expect(countBillingTxns()).toBe(0);
+    const db = getDb();
+    expect(db.select().from(invoices).where(eq(invoices.status, "finalized")).all()).toHaveLength(1);
+    expect(countBillingTxns()).toBe(1);
   });
 });

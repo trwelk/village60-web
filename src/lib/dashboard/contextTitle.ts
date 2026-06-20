@@ -5,6 +5,7 @@ import {
   isDashboardAccountPath,
   isDashboardAnalyticsPath,
   isDashboardChargesPath,
+  isDashboardChargesCollectionPath,
   isDashboardHomeExpensesPath,
   isDashboardHomesPath,
   isDashboardInvoicesPath,
@@ -21,6 +22,7 @@ import {
   isDashboardMedicationsPath,
   isDashboardWardsPath,
   isDashboardUsersPath,
+  isDashboardStaffPath,
   isDashboardAdminSettingsPath,
 } from "./dashboardPaths";
 
@@ -48,12 +50,14 @@ export function getDashboardContextTitle(
   if (isDashboardHomesPath(pathname)) {
     return role === "admin" ? t("nav.retirementHomes") : t("nav.yourHomes");
   }
+  if (isDashboardChargesCollectionPath(pathname)) return t("nav.chargesCollection");
   if (isDashboardChargesPath(pathname)) return t("nav.charges");
   if (isDashboardHomeExpensesPath(pathname)) return t("nav.homeExpenses");
   if (isDashboardPaymentsPath(pathname)) return t("nav.payments");
   if (isDashboardHomeAccountPaymentsPath(pathname)) return t("nav.homePayments");
   if (isDashboardLedgerPath(pathname)) return t("nav.ledger");
-  if (isDashboardUsersPath(pathname)) return t("nav.staff");
+  if (isDashboardUsersPath(pathname)) return t("nav.users");
+  if (isDashboardStaffPath(pathname)) return t("nav.staff");
   if (isDashboardAdminSettingsPath(pathname)) return t("nav.adminSettings");
   if (isDashboardWaitingListPath(pathname)) return t("nav.waitingList");
   return t("nav.dashboard");
